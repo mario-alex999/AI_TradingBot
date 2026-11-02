@@ -103,6 +103,10 @@ def check() -> None:
                     st.add_row(inst.symbol, inst.broker_symbol, "[green]OK[/]", str(spec["bid"]), str(spec["ask"]),
                                str(spec["spread_points"]), str(spec["trade_mode"]))
             console.print(st)
+            cc = gw.verify_clock(instruments)
+            colour = {"ok": "green", "mismatch": "red", "unknown": "yellow"}[cc.status]
+            console.print(f"[{colour}]Broker clock {cc.status.upper()}[/]: {cc.message}")
+            ok = ok and cc.ok
     except MT5Error as exc:
         ok = False
         console.print(f"[red]MT5:[/] {exc}")
@@ -199,6 +203,13 @@ def collect(symbol: Optional[str] = typer.Option(None, "--symbol", "-s", help="C
         with _gateway(s) as gw:
             service = MarketDataService(s, gw, repo)
             while True:
+                # re-verified every run so a broker DST switch / wrong zone never writes shifted candles
+                cc = gw.verify_clock(instruments)
+                if not cc.ok:
+                    log.error("Broker clock mismatch - collection stopped", extra={"detail": cc.message})
+                    _fail(cc.message)
+                if cc.status == "unknown":
+                    log.info("Broker clock not verified", extra={"detail": cc.message})
                 summary = service.run(instruments, tfs, full=full)
                 _print_summary(summary)
                 if not loop:

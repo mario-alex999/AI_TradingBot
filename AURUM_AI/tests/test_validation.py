@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from aurum.config import TradingHours
 from aurum.services.validation_service import ValidationService, is_market_open
@@ -127,3 +128,35 @@ def test_market_hours():
     assert not is_market_open(datetime(2026, 3, 7, 12, tzinfo=timezone.utc), h)       # Saturday
     assert is_market_open(datetime(2026, 3, 8, 22, 30, tzinfo=timezone.utc), h)       # Sunday open
     assert not is_market_open(datetime(2026, 12, 25, 12, tzinfo=timezone.utc), h)     # holiday
+
+
+def test_market_hours_follow_dst_in_exchange_timezone():
+    # 17:00 New York = 21:00 UTC in summer (EDT) and 22:00 UTC in winter (EST).
+    h = TradingHours.from_dict({"timezone": "America/New_York", "weekly_close": "FRI 17:00",
+                                "weekly_open": "SUN 18:00", "daily_breaks": [["17:00", "18:00"]],
+                                "holidays": ["2026-04-03"]})
+    utc = timezone.utc
+    # Summer (EDT): break is 21:00-22:00 UTC
+    assert not is_market_open(datetime(2026, 10, 27, 21, 30, tzinfo=utc), h)
+    assert is_market_open(datetime(2026, 10, 27, 22, 30, tzinfo=utc), h)
+    # Winter (EST, after 2026-11-01): break is 22:00-23:00 UTC; Sunday open is 23:00 UTC
+    assert is_market_open(datetime(2026, 11, 3, 21, 30, tzinfo=utc), h)
+    assert not is_market_open(datetime(2026, 11, 3, 22, 30, tzinfo=utc), h)
+    assert not is_market_open(datetime(2026, 11, 1, 22, 30, tzinfo=utc), h)
+    assert is_market_open(datetime(2026, 11, 1, 23, 30, tzinfo=utc), h)
+    # Holiday dates are local dates (Good Friday 2026)
+    assert not is_market_open(datetime(2026, 4, 3, 14, tzinfo=utc), h)
+    # Naive datetimes are treated as UTC
+    assert not is_market_open(datetime(2026, 11, 3, 22, 30), h)
+
+
+def test_unknown_trading_hours_timezone_rejected():
+    with pytest.raises(ValueError, match="Unknown trading_hours timezone"):
+        TradingHours.from_dict({"timezone": "Mars/Olympus"})
+
+
+def test_shipped_instruments_yaml_loads():
+    from aurum.config import PROJECT_ROOT, load_instruments
+    inst = load_instruments(PROJECT_ROOT / "config" / "instruments.yaml")
+    assert set(inst) >= {"EURUSD", "GBPUSD", "XAUUSD", "US30"}
+    assert all(i.trading_hours.timezone == "America/New_York" for i in inst.values())

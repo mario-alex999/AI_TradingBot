@@ -12,6 +12,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Any
 from urllib.parse import quote_plus
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import yaml
 from pydantic import Field, SecretStr, field_validator
@@ -124,7 +125,12 @@ class Settings(BaseSettings):
 # --------------------------------------------------------------------------- instruments
 @dataclass(frozen=True)
 class TradingHours:
-    """Expected market closures in UTC, used to classify candle gaps."""
+    """Expected market closures, used to classify candle gaps.
+
+    Times and holiday dates are wall-clock values in ``timezone`` (an IANA name, default ``UTC``).
+    Using the exchange's own zone (e.g. ``America/New_York``) makes the schedule follow daylight-saving
+    changes automatically; with ``UTC`` the hours are fixed and must be edited twice a year.
+    """
 
     weekly_close_day: int = 4          # 0=Mon ... 6=Sun
     weekly_close_time: time = time(21, 0)
@@ -132,6 +138,11 @@ class TradingHours:
     weekly_open_time: time = time(21, 0)
     daily_breaks: tuple[tuple[time, time], ...] = ()
     holidays: frozenset[date] = frozenset()
+    timezone: str = "UTC"
+
+    @property
+    def tz(self) -> ZoneInfo:
+        return _zoneinfo(self.timezone)
 
     @staticmethod
     def _parse_day_time(text: str) -> tuple[int, time]:
@@ -145,7 +156,18 @@ class TradingHours:
         od, ot = cls._parse_day_time(d.get("weekly_open", "SUN 21:00"))
         breaks = tuple((time.fromisoformat(a), time.fromisoformat(b)) for a, b in d.get("daily_breaks", []) or [])
         hols = frozenset(date.fromisoformat(str(h)) for h in d.get("holidays", []) or [])
-        return cls(cd, ct, od, ot, breaks, hols)
+        tzname = str(d.get("timezone") or "UTC").strip()
+        _zoneinfo(tzname)  # fail fast on a typo
+        return cls(cd, ct, od, ot, breaks, hols, tzname)
+
+
+@lru_cache(maxsize=None)
+def _zoneinfo(name: str) -> ZoneInfo:
+    try:
+        return ZoneInfo(name)
+    except (ZoneInfoNotFoundError, ValueError) as exc:
+        raise ValueError(f"Unknown trading_hours timezone '{name}'. Use an IANA name such as "
+                         f"'America/New_York' or 'UTC' (on Windows: pip install tzdata).") from exc
 
 
 @dataclass(frozen=True)
