@@ -1,0 +1,23 @@
+# Local PostgreSQL + TimescaleDB for AURUM AI.
+# Start:  docker compose --env-file .env up -d
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: aurum-timescaledb
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-aurum}
+      POSTGRES_USER: ${DB_USER:-aurum}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - aurum_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-aurum} -d ${DB_NAME:-aurum}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  aurum_pgdata:
