@@ -1,0 +1,149 @@
+import { useQuery } from '@tanstack/react-query';
+import { useSettingsStore } from '@/stores/settingsStore';
+import { fetchHealth } from '@/services/healthService';
+import { getCandles, getInstruments, getQuotes } from '@/services/marketService';
+import { getCollectionLogs, getDataQuality, getSpecifications, type LogQuery } from '@/services/dataService';
+import { getCotReport } from '@/services/cotService';
+import { getMarketStructure, getOverlays, getSignals } from '@/services/analysisService';
+import { getAccountSummary, getOpenTrades, getPerformance, getRiskOverview, getTradeHistory, type PerformanceFilters } from '@/services/tradingService';
+import { getAgentStatus, getNotifications } from '@/services/systemService';
+import type { Capability } from '@/types/system';
+import type { Timeframe } from '@/types/market';
+
+/**
+ * Query hooks. Pages consume these and never call services directly, so
+ * switching between DEMO DATA and the live API requires no page changes —
+ * the mock flag is part of every query key.
+ */
+const useMock = () => useSettingsStore((s) => s.mockMode);
+
+export function useHealth() {
+  return useQuery({
+    queryKey: ['health'],
+    queryFn: ({ signal }) => fetchHealth(signal),
+    staleTime: 30_000,
+    refetchInterval: 60_000, // single lightweight heartbeat; all other data is on-demand
+    retry: 1,
+  });
+}
+
+/** True only when the backend advertises the capability AND mock mode is off. */
+export function useCapability(cap: Capability): boolean {
+  const mock = useMock();
+  const { data } = useHealth();
+  return !mock && !!data?.capabilities.includes(cap);
+}
+
+export function useInstruments() {
+  const mock = useMock();
+  return useQuery({
+    queryKey: ['instruments', mock],
+    queryFn: ({ signal }) => getInstruments({ mock, signal }),
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useQuotes(symbols?: string[]) {
+  const mock = useMock();
+  return useQuery({
+    queryKey: ['quotes', mock, symbols?.join(',') ?? 'all'],
+    queryFn: ({ signal }) => getQuotes({ mock, signal }, symbols),
+    staleTime: 15_000,
+  });
+}
+
+export function useCandles(symbol: string, timeframe: Timeframe, limit = 500) {
+  const mock = useMock();
+  return useQuery({
+    queryKey: ['candles', mock, symbol, timeframe, limit],
+    queryFn: ({ signal }) => getCandles({ mock, signal }, symbol, timeframe, limit),
+    staleTime: 60_000,
+  });
+}
+
+export function useSpecifications() {
+  const mock = useMock();
+  return useQuery({ queryKey: ['specs', mock], queryFn: ({ signal }) => getSpecifications({ mock, signal }) });
+}
+
+export function useDataQuality() {
+  const mock = useMock();
+  return useQuery({ queryKey: ['data-quality', mock], queryFn: ({ signal }) => getDataQuality({ mock, signal }) });
+}
+
+export function useCollectionLogs(q: LogQuery) {
+  const mock = useMock();
+  return useQuery({
+    queryKey: ['collection-logs', mock, q],
+    queryFn: ({ signal }) => getCollectionLogs({ mock, signal }, q),
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useCotReport(instrument: string, weeks: number) {
+  const mock = useMock();
+  return useQuery({
+    queryKey: ['cot', mock, instrument, weeks],
+    queryFn: ({ signal }) => getCotReport({ mock, signal }, instrument, weeks),
+    staleTime: 60 * 60_000,
+  });
+}
+
+export function useMarketStructure(instrument: string) {
+  const mock = useMock();
+  return useQuery({
+    queryKey: ['structure', mock, instrument],
+    queryFn: ({ signal }) => getMarketStructure({ mock, signal }, instrument),
+  });
+}
+
+export function useOverlays(instrument: string, timeframe: Timeframe) {
+  const mock = useMock();
+  return useQuery({
+    queryKey: ['overlays', mock, instrument, timeframe],
+    queryFn: ({ signal }) => getOverlays({ mock, signal }, instrument, timeframe),
+  });
+}
+
+export function useSignals() {
+  const mock = useMock();
+  return useQuery({ queryKey: ['signals', mock], queryFn: ({ signal }) => getSignals({ mock, signal }) });
+}
+
+export function useAccountSummary() {
+  const mock = useMock();
+  return useQuery({ queryKey: ['account', mock], queryFn: ({ signal }) => getAccountSummary({ mock, signal }) });
+}
+
+export function useOpenTrades() {
+  const mock = useMock();
+  return useQuery({ queryKey: ['trades-open', mock], queryFn: ({ signal }) => getOpenTrades({ mock, signal }) });
+}
+
+export function useTradeHistory() {
+  const mock = useMock();
+  return useQuery({ queryKey: ['trades-history', mock], queryFn: ({ signal }) => getTradeHistory({ mock, signal }) });
+}
+
+export function useRiskOverview() {
+  const mock = useMock();
+  return useQuery({ queryKey: ['risk', mock], queryFn: ({ signal }) => getRiskOverview({ mock, signal }) });
+}
+
+export function usePerformance(kind: 'live' | 'backtest', filters: PerformanceFilters = {}) {
+  const mock = useMock();
+  return useQuery({
+    queryKey: ['performance', kind, mock, filters],
+    queryFn: ({ signal }) => getPerformance({ mock, signal }, kind, filters),
+  });
+}
+
+export function useAgents() {
+  const mock = useMock();
+  return useQuery({ queryKey: ['agents', mock], queryFn: ({ signal }) => getAgentStatus({ mock, signal }) });
+}
+
+export function useNotifications() {
+  const mock = useMock();
+  return useQuery({ queryKey: ['notifications', mock], queryFn: ({ signal }) => getNotifications({ mock, signal }) });
+}
