@@ -58,7 +58,7 @@ export default function RiskManagementPage() {
         <MetricCard label="Max drawdown" value={formatPercent(r?.maxDrawdownPct)} tone={tone} hint={hint} />
         <MetricCard label="Open risk" value={formatCurrency(r?.openRisk)} tone={tone} hint={hint} />
       </section>
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.9fr)]">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.9fr)]">
         <ExposureChart title="Exposure by instrument" data={r?.exposureByInstrument ?? []} />
         <ExposureChart title="Exposure by asset class" data={r?.exposureByAssetClass ?? []} />
         <Card>

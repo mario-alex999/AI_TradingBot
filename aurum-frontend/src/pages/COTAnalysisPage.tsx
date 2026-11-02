@@ -62,11 +62,11 @@ export default function COTAnalysisPage() {
               <p className="mt-3 text-2xs text-neutral">Updated {formatDateTime(report.updatedAt)} UTC</p>
             </CardBody>
           </Card>
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
             <CotBreakdown latest={latest} />
             <CotInterpretation source={source} hasData={rows.length > 0} />
           </div>
-          <div className="grid gap-5 xl:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
             <NetPositioningChart rows={rows} />
             <GroupComparisonChart rows={rows} />
             <OpenInterestChart rows={rows} />

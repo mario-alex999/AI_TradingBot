@@ -11,7 +11,7 @@ export function FeaturePending({ title, requires, children, className }: { title
         <span className="eyebrow">{title}</span>
       </div>
       <p className="text-sm text-ink-muted">Analysis not yet available</p>
-      {requires && <p className="text-2xs text-neutral">Requires: {requires}</p>}
+      {requires && <p className="break-words text-2xs text-neutral">Requires: {requires}</p>}
       {children}
     </div>
   );

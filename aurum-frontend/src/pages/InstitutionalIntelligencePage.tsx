@@ -104,7 +104,7 @@ export default function InstitutionalIntelligencePage() {
             <h2 id="informed-title" className="eyebrow text-gold">
               Informed money analysis
             </h2>
-            <div className="grid gap-5 xl:grid-cols-2">
+            <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
               <GroupComparisonChart rows={rows} title="Commercial vs large speculator vs non-reportable" />
               <PercentileChart rows={rows} />
               <OpenInterestChart rows={rows} />

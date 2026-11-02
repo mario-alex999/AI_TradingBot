@@ -17,7 +17,7 @@ export default function DataCentrePage() {
       <ConnectionStatusPanel />
       <CollectionControls />
       <InstrumentConfigTable />
-      <div className="grid gap-5 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         <TimeframeMonitor />
         <DataQualityPanel />
       </div>

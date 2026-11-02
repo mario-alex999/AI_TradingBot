@@ -61,7 +61,7 @@ export default function MarketStructurePage() {
         }
       />
 
-      <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
         <Card>
           <CardHeader icon={<Activity className="h-4 w-4" />} title="Structure summary" subtitle={report ? `Generated ${formatDateTime(report.generatedAt)} UTC` : 'No analysis received'} />
           <CardBody>

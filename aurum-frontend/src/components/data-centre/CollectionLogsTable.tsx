@@ -51,7 +51,7 @@ export function CollectionLogsTable() {
   return (
     <Card>
       <CardHeader icon={<ScrollText className="h-4 w-4" />} title="Collection logs" actions={<DataSourceBadge source={logs.data?.source} fetchedAt={logs.data?.fetchedAt} />} />
-      <div className="grid gap-3 border-b border-line p-3 md:grid-cols-[minmax(0,1fr)_150px_130px_150px]">
+      <div className="grid gap-3 border-b border-line p-3 md:grid-cols-[minmax(0,1fr)_180px_170px_180px]">
         <SearchInput label="Search logs" value={search} onChange={setSearch} placeholder="Search instrument, timeframe or error" />
         <Select label="Instrument filter" hideLabel value={instrument} onChange={setInstrument} options={[{ value: '', label: 'All instruments' }, ...DEFAULT_INSTRUMENTS.map((i) => ({ value: i.symbol, label: i.symbol }))]} />
         <Select label="Timeframe filter" hideLabel value={timeframe} onChange={(v) => setTimeframe(v as Timeframe | '')} options={[{ value: '', label: 'All timeframes' }, ...TIMEFRAMES.map((t) => ({ value: t, label: t }))]} />
