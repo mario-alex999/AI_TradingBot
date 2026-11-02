@@ -1,0 +1,194 @@
+"""Application configuration.
+
+* Runtime settings come from environment variables / a local ``.env`` file (Pydantic Settings).
+* Instrument definitions and broker-symbol mappings come from ``config/instruments.yaml``,
+  so symbols can be changed without editing Python source code.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import date, time
+from functools import lru_cache
+from pathlib import Path
+from typing import Annotated, Any
+from urllib.parse import quote_plus
+
+import yaml
+from pydantic import Field, SecretStr, field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+#: Timeframes supported by the engine, with their candle length in seconds.
+TIMEFRAME_SECONDS: dict[str, int] = {
+    "M1": 60, "M5": 300, "M15": 900, "M30": 1800,
+    "H1": 3600, "H4": 14400, "D1": 86400, "W1": 604800,
+}
+DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
+
+
+def _split_csv(value: Any) -> list[str]:
+    if value is None or value == "":
+        return []
+    if isinstance(value, str):
+        return [v.strip().upper() for v in value.split(",") if v.strip()]
+    return [str(v).strip().upper() for v in value]
+
+
+class Settings(BaseSettings):
+    """All runtime settings. Secrets are ``SecretStr`` and never printed."""
+
+    model_config = SettingsConfigDict(env_file=(".env", str(PROJECT_ROOT / ".env")), env_file_encoding="utf-8", extra="ignore",
+                                      case_sensitive=False)
+
+    # MetaTrader 5
+    mt5_terminal_path: str | None = None
+    mt5_login: int | None = None
+    mt5_password: SecretStr | None = None
+    mt5_server: str | None = None
+    mt5_timeout_ms: int = 60_000
+    mt5_server_timezone: str = "Etc/UTC"
+
+    # Database
+    db_host: str = "localhost"
+    db_port: int = 5432
+    db_name: str = "aurum"
+    db_user: str = "aurum"
+    db_password: SecretStr = SecretStr("")
+    database_url: SecretStr | None = None
+
+    # Collection
+    collection_interval_seconds: int = Field(300, ge=10)
+    historical_candle_count: int = Field(500, ge=1, le=100_000)
+    enabled_instruments: Annotated[list[str], NoDecode] = ["EURUSD", "GBPUSD", "XAUUSD", "US30"]
+    enabled_timeframes: Annotated[list[str], NoDecode] = ["D1", "H4", "H1", "M15", "M5"]
+    exclude_forming_candle: bool = True
+    gap_range_multiple: float = Field(8.0, gt=0)
+
+    # Paths & logging
+    instruments_config: Path = Path("config/instruments.yaml")
+    data_dir: Path = Path("data")
+    log_dir: Path = Path("logs")
+    log_level: str = "INFO"
+
+    @field_validator("mt5_login", "mt5_terminal_path", "mt5_server", "mt5_password", "database_url", mode="before")
+    @classmethod
+    def _blank_is_none(cls, v: Any) -> Any:
+        return None if isinstance(v, str) and v.strip() == "" else v
+
+    @field_validator("enabled_instruments", "enabled_timeframes", mode="before")
+    @classmethod
+    def _parse_list(cls, v: Any) -> list[str]:
+        return _split_csv(v)
+
+    @field_validator("enabled_timeframes")
+    @classmethod
+    def _check_timeframes(cls, v: list[str]) -> list[str]:
+        bad = [tf for tf in v if tf not in TIMEFRAME_SECONDS]
+        if bad:
+            raise ValueError(f"Unsupported timeframe(s) {bad}. Supported: {list(TIMEFRAME_SECONDS)}")
+        return v
+
+    @field_validator("log_level")
+    @classmethod
+    def _upper(cls, v: str) -> str:
+        return v.upper()
+
+    def resolve(self, p: Path) -> Path:
+        """Resolve a configured path relative to the project root."""
+        return p if p.is_absolute() else PROJECT_ROOT / p
+
+    @property
+    def sqlalchemy_url(self) -> str:
+        """Database URL. Built from DB_* values unless DATABASE_URL is set. Contains the password -
+        never log it; use :pyattr:`safe_database_url` for display."""
+        if self.database_url is not None:
+            url = self.database_url.get_secret_value()
+            if url.startswith("sqlite:///") and not url.startswith("sqlite:////") and ":memory:" not in url:
+                url = "sqlite:///" + str(self.resolve(Path(url.removeprefix("sqlite:///"))))
+            return url
+        pw = quote_plus(self.db_password.get_secret_value())
+        return f"postgresql+psycopg://{quote_plus(self.db_user)}:{pw}@{self.db_host}:{self.db_port}/{self.db_name}"
+
+    @property
+    def safe_database_url(self) -> str:
+        url = self.sqlalchemy_url
+        if "@" in url and "://" in url:
+            scheme, rest = url.split("://", 1)
+            creds, host = rest.rsplit("@", 1)
+            user = creds.split(":", 1)[0]
+            return f"{scheme}://{user}:***@{host}"
+        return url
+
+
+# --------------------------------------------------------------------------- instruments
+@dataclass(frozen=True)
+class TradingHours:
+    """Expected market closures in UTC, used to classify candle gaps."""
+
+    weekly_close_day: int = 4          # 0=Mon ... 6=Sun
+    weekly_close_time: time = time(21, 0)
+    weekly_open_day: int = 6
+    weekly_open_time: time = time(21, 0)
+    daily_breaks: tuple[tuple[time, time], ...] = ()
+    holidays: frozenset[date] = frozenset()
+
+    @staticmethod
+    def _parse_day_time(text: str) -> tuple[int, time]:
+        day, hhmm = text.strip().upper().split()
+        return DAYS.index(day[:3]), time.fromisoformat(hhmm)
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any] | None) -> "TradingHours":
+        d = d or {}
+        cd, ct = cls._parse_day_time(d.get("weekly_close", "FRI 21:00"))
+        od, ot = cls._parse_day_time(d.get("weekly_open", "SUN 21:00"))
+        breaks = tuple((time.fromisoformat(a), time.fromisoformat(b)) for a, b in d.get("daily_breaks", []) or [])
+        hols = frozenset(date.fromisoformat(str(h)) for h in d.get("holidays", []) or [])
+        return cls(cd, ct, od, ot, breaks, hols)
+
+
+@dataclass(frozen=True)
+class InstrumentConfig:
+    symbol: str                      # canonical AURUM name
+    broker_symbol: str               # exact broker Market Watch name
+    asset_class: str = "unknown"
+    description: str = ""
+    trading_hours: TradingHours = field(default_factory=TradingHours)
+
+
+class SymbolMappingError(ValueError):
+    """Raised when an instrument has no broker-symbol mapping."""
+
+
+def load_instruments(path: Path) -> dict[str, InstrumentConfig]:
+    """Load ``instruments.yaml`` into ``{canonical_symbol: InstrumentConfig}``."""
+    if not path.exists():
+        raise FileNotFoundError(f"Instrument configuration not found: {path}")
+    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    default_hours = (raw.get("defaults") or {}).get("trading_hours") or {}
+    out: dict[str, InstrumentConfig] = {}
+    for sym, spec in (raw.get("instruments") or {}).items():
+        spec = spec or {}
+        broker = str(spec.get("broker_symbol") or "").strip()
+        if not broker:
+            raise SymbolMappingError(f"Instrument '{sym}' has no broker_symbol in {path}")
+        hours = {**default_hours, **(spec.get("trading_hours") or {})}
+        out[str(sym).upper()] = InstrumentConfig(
+            symbol=str(sym).upper(), broker_symbol=broker, asset_class=str(spec.get("asset_class", "unknown")),
+            description=str(spec.get("description", "")), trading_hours=TradingHours.from_dict(hours))
+    return out
+
+
+def enabled_instruments(settings: Settings, instruments: dict[str, InstrumentConfig]) -> list[InstrumentConfig]:
+    """Return enabled instruments in configured order. Unknown names raise SymbolMappingError."""
+    missing = [s for s in settings.enabled_instruments if s not in instruments]
+    if missing:
+        raise SymbolMappingError(f"Enabled instrument(s) {missing} are not defined in "
+                                 f"{settings.instruments_config}. Add a broker_symbol mapping for them.")
+    return [instruments[s] for s in settings.enabled_instruments]
+
+
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    return Settings()
