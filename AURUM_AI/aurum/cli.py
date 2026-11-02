@@ -5,6 +5,7 @@
     python -m aurum.cli specs
     python -m aurum.cli collect [--symbol EURUSD] [--timeframe M15] [--full] [--loop]
     python -m aurum.cli export  [--symbol EURUSD] [--timeframe H1] [--format csv|parquet|both] [--on-exists skip|version|overwrite]
+    python -m aurum.cli cot ... (Module 02: check, datasets, backfill, update, calculate, report, status, quality, export)
 """
 from __future__ import annotations
 
@@ -28,7 +29,8 @@ log = logging.getLogger("aurum.cli")
 
 def _settings() -> Settings:
     s = get_settings()
-    secrets = [x.get_secret_value() for x in (s.mt5_password, s.db_password, s.database_url) if x is not None]
+    secrets = [x.get_secret_value() for x in (s.mt5_password, s.db_password, s.database_url, s.aurum_admin_api_key)
+               if x is not None]
     setup_logging(s.log_level, s.resolve(s.log_dir), secrets)
     return s
 
@@ -265,6 +267,10 @@ def export(symbol: Optional[str] = typer.Option(None, "--symbol", "-s"),
         t.add_row(r.symbol, r.timeframe, r.fmt, str(r.rows), r.action, str(r.path))
     console.print(t)
 
+
+from aurum.cot.cli import cot_app  # noqa: E402 - Module 02 commands: python -m aurum.cli cot ...
+
+app.add_typer(cot_app, name="cot")
 
 if __name__ == "__main__":
     app()

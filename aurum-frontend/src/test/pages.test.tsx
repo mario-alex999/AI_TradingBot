@@ -24,7 +24,7 @@ describe('secondary pages', () => {
   it('never generates a COT interpretation from demo data', async () => {
     renderWithProviders(<COTAnalysisPage />);
     expect(await screen.findByText(/never produced from demo data/i)).toBeInTheDocument();
-    expect(screen.getByText(/synthetic, not CFTC/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/synthetic, not CFTC/i).length).toBeGreaterThan(0);
   });
 
   it('distinguishes backtests from live performance and fabricates no results', async () => {

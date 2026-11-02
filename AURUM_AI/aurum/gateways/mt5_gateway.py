@@ -300,9 +300,15 @@ class MT5Gateway:
         if diff > tolerance_seconds:
             return ClockCheck("mismatch", hint, **fields)
         if diff < -tolerance_seconds:
-            if is_market_open(now, inst.trading_hours):
+            # A tick "behind" is either a wrong zone (a whole / half-hour offset) or simply stale ticks (feed lag,
+            # thin market). Only a zone-like offset while the market should be open counts as a mismatch.
+            rounded = round(diff / 1800) * 1800
+            zone_like = abs(rounded) >= 3600 and abs(diff - rounded) < 600
+            if zone_like and is_market_open(now, inst.trading_hours):
                 return ClockCheck("mismatch", hint, **fields)
-            return ClockCheck("unknown", f"latest {inst.broker_symbol} tick is old (market closed) - "
+            why = "market closed" if not is_market_open(now, inst.trading_hours) else \
+                f"{abs(diff) / 60:.0f} min old - stale feed, not a time-zone offset"
+            return ClockCheck("unknown", f"latest {inst.broker_symbol} tick is old ({why}) - "
                                          f"broker clock not verified", **fields)
         return ClockCheck("ok", f"server clock UTC{expected_h:+.1f}h matches {self.clock.describe()}", **fields)
 

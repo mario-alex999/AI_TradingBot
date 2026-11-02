@@ -72,7 +72,20 @@ class Settings(BaseSettings):
     log_dir: Path = Path("logs")
     log_level: str = "INFO"
 
-    @field_validator("mt5_login", "mt5_terminal_path", "mt5_server", "mt5_password", "database_url", mode="before")
+    # Backend API (Module 02+). Admin operations (POST backfill/update/calculate) require the
+    # X-AURUM-Admin-Key header to equal AURUM_ADMIN_API_KEY; when unset they are disabled.
+    aurum_admin_api_key: SecretStr | None = None
+    api_host: str = "127.0.0.1"
+    api_port: int = Field(8000, ge=1, le=65535)
+    api_cors_origins: Annotated[list[str], NoDecode] = ["http://localhost:5173", "http://127.0.0.1:5173"]
+
+    @field_validator("api_cors_origins", mode="before")
+    @classmethod
+    def _split_origins(cls, v: Any) -> Any:
+        return [x.strip() for x in v.split(",") if x.strip()] if isinstance(v, str) else v
+
+    @field_validator("mt5_login", "mt5_terminal_path", "mt5_server", "mt5_password", "database_url",
+                     "aurum_admin_api_key", mode="before")
     @classmethod
     def _blank_is_none(cls, v: Any) -> Any:
         return None if isinstance(v, str) and v.strip() == "" else v

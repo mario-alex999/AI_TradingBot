@@ -201,9 +201,26 @@ $env:AURUM_TEST_DATABASE_URL="postgresql+psycopg://aurum:your_password@localhost
 | `Export exists - not overwritten` | Intended; use `--on-exists version` or `overwrite` |
 | `copy_rates_from_pos returned no data` | Open the chart once in MT5 or increase "Max bars in chart" (Tools → Options → Charts) |
 
+## Module 02 - COT Institutional Intelligence Engine
+CFTC Commitments of Traders positioning (Legacy, TFF, Disaggregated) for EURUSD, GBPUSD, XAUUSD and US30:
+ingestion with full source traceability, look-ahead-safe metrics, institutional intelligence reports, a
+FastAPI backend and the COT dashboard in `aurum-frontend`. Read-only; no trading.
+```powershell
+python -m aurum.cli init-db
+python -m aurum.cli cot backfill --years 4
+python -m aurum.cli cot report --instrument EURUSD
+python -m aurum.api                      # backend API on http://127.0.0.1:8000 (docs at /docs)
+```
+Documentation: [docs/MODULE_02_COT.md](docs/MODULE_02_COT.md) (overview, database, API, dashboard),
+[docs/COT_METHODOLOGY.md](docs/COT_METHODOLOGY.md) (definitions, formulas, timing, limitations),
+[docs/COT_OPERATIONS.md](docs/COT_OPERATIONS.md) (exact commands, scheduling, troubleshooting).
+
 ## Project layout
 ```
 aurum/  config.py · logging_config.py · cli.py
+        cot/                             Module 02: client · parsers · release timing · validation ·
+                                         calculations · positioning · divergence · intelligence · exports · cli
+        api/                             FastAPI backend (python -m aurum.api) · routes/cot.py · jobs
         gateways/mt5_gateway.py          read-only MT5 access, demo enforcement, broker clock
         collectors/                      candles · ticks · instrument specs
         services/                        market_data_service (orchestration) · validation_service

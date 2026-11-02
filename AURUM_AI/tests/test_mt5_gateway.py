@@ -175,3 +175,11 @@ def test_clock_unknown_when_market_closed_and_tick_stale(tmp_path):
     with MT5Gateway(s, ClockFake(last_friday_tick)) as gw:
         cc = gw.verify_clock([FX], now_utc=saturday)
     assert cc.status == "unknown" and cc.ok
+
+
+def test_stale_ticks_while_open_are_not_a_clock_mismatch(tmp_path):
+    # 42-minute-old tick during market hours (feed lag) -> unknown, collection continues
+    cc = _clock_check(tmp_path, "Etc/UTC", TUE_WINTER, -0.7)
+    assert cc.status == "unknown" and cc.ok and "stale feed" in cc.message
+    # a whole-hour offset during market hours is still a mismatch
+    assert _clock_check(tmp_path, "Etc/UTC", TUE_WINTER, -2).status == "mismatch"

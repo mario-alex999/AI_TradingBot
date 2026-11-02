@@ -90,6 +90,7 @@ def init_database(engine: Engine) -> list[str]:
         finally:
             raw.close()
     else:
+        import aurum.cot.models  # noqa: F401 - registers Module 02 tables on the shared Base
         from aurum.database.models import Base
         Base.metadata.create_all(engine)
         steps.append("sqlalchemy create_all")
