@@ -6,6 +6,7 @@
     python -m aurum.cli collect [--symbol EURUSD] [--timeframe M15] [--full] [--loop]
     python -m aurum.cli export  [--symbol EURUSD] [--timeframe H1] [--format csv|parquet|both] [--on-exists skip|version|overwrite]
     python -m aurum.cli cot ... (Module 02: check, datasets, backfill, update, calculate, report, status, quality, export)
+    python -m aurum.cli analyze ... (Module 03: run, confluence, config)
 """
 from __future__ import annotations
 
@@ -271,6 +272,10 @@ def export(symbol: Optional[str] = typer.Option(None, "--symbol", "-s"),
 from aurum.cot.cli import cot_app  # noqa: E402 - Module 02 commands: python -m aurum.cli cot ...
 
 app.add_typer(cot_app, name="cot")
+
+from aurum.analysis.cli import analysis_app  # noqa: E402 - Module 03 commands: python -m aurum.cli analyze ...
+
+app.add_typer(analysis_app, name="analyze")
 
 if __name__ == "__main__":
     app()

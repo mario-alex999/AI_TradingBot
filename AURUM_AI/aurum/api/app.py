@@ -66,7 +66,7 @@ def _camel(s: str) -> str:
 
 
 def create_app(settings: Settings | None = None, cfg: CotConfig | None = None, engine: Engine | None = None,
-               client: CftcClient | None = None) -> FastAPI:
+               client: CftcClient | None = None, analysis_service: Any = None) -> FastAPI:
     from aurum.database.connection import engine_from_settings
     settings = settings or get_settings()
     cfg = cfg or load_cot_config()
@@ -74,9 +74,9 @@ def create_app(settings: Settings | None = None, cfg: CotConfig | None = None, e
     service = CotService(settings, cfg, engine, client=client)
     state = AppState(settings, cfg, engine, service, JobManager())
 
-    app = FastAPI(title="AURUM AI API", version="0.2.0",
-                  description="AURUM AI backend. Module 02: COT Institutional Intelligence Engine (read-only research; "
-                              "no trading endpoints). Admin operations need the X-AURUM-Admin-Key header.")
+    app = FastAPI(title="AURUM AI API", version="0.3.0",
+                  description="AURUM AI backend. Module 02: COT Institutional Intelligence Engine; Module 03: Technical Analysis and SMC "
+                              "Engine (read-only research; no trading endpoints). Admin operations need the X-AURUM-Admin-Key header.")
     app.state.aurum = state
     app.add_middleware(CORSMiddleware, allow_origins=settings.api_cors_origins, allow_credentials=True,
                        allow_methods=["GET", "POST"], allow_headers=["*"])
@@ -104,6 +104,9 @@ def create_app(settings: Settings | None = None, cfg: CotConfig | None = None, e
 
     from aurum.api.routes.cot import build_router
     app.include_router(build_router(state), prefix=f"{API_PREFIX}/cot", tags=["cot"])
+    from aurum.api.routes.technical_analysis import build_router as build_analysis_router
+    app.include_router(build_analysis_router(state, analysis_service), prefix=f"{API_PREFIX}/analysis",
+                       tags=["technical-analysis"])
     return app
 
 

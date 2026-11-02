@@ -1,0 +1,61 @@
+# AURUM AI - Module 03 (Technical Analysis & SMC) settings.
+# Every key is optional: anything left out uses the built-in default (aurum/analysis/config.py).
+# Sizes are ATR multiples, so the same values work for every instrument.
+
+atr_period: 14
+min_candles: 50          # fewer valid candles -> status "insufficient_data"
+max_candles: 2000        # most recent candles analysed per timeframe
+
+swings:
+  internal: {left: 2, right: 2}     # minor structure
+  external: {left: 5, right: 5}     # major structure
+  min_separation_bars: 1
+  equal_tolerance_atr: 0.05         # EQH / EQL labelling
+
+structure:
+  break_mode: close                 # close (default) | wick
+  break_buffer_atr: 0.0
+  min_break_price: 0.0
+  min_swings_for_trend: 2
+
+displacement:
+  min_body_atr: 1.0
+  min_range_atr: 1.2
+  min_body_to_range: 0.6
+  min_close_position: 0.7
+  sequence_length: 3
+  sequence_min_body_atr: 1.5
+
+order_blocks:
+  zone_mode: wick                   # wick | body | open_extreme
+  require_structure_break: true
+  require_displacement: true
+  mitigation_mode: fifty_percent    # first_touch | fifty_percent | full
+  expiry_bars: 500
+
+fvg:
+  min_size_atr: 0.1
+  invalidate_on_close_beyond: true
+
+bpr:
+  enabled: true
+  min_overlap_ratio: 0.25
+  max_bars_apart: 20
+
+liquidity:
+  equal_tolerance_atr: 0.1
+  min_touches: 2
+
+premium_discount:
+  equilibrium_band: 0.05
+  ote_low: 0.62
+  ote_high: 0.79
+  ote_sweet_spot: 0.705
+
+multi_timeframe:
+  timeframes: [D1, H4, H1, M15, M5]
+  weights: {D1: 5, H4: 4, H1: 3, M15: 2, M5: 1}
+
+scoring:
+  grade_thresholds: {A: 75, B: 60, C: 45}
+  cot_weight_when_available: 5      # optional COT confluence from Module 02
