@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+  html,
+  body,
+  #root {
+    @apply h-full;
+  }
+  body {
+    @apply bg-base font-sans text-sm text-ink antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+  /* Financial numbers: monospaced with tabular figures so columns align. */
+  .num {
+    @apply font-mono;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum', 'zero';
+  }
+  :focus-visible {
+    @apply outline-none ring-2 ring-gold/70 ring-offset-2 ring-offset-base;
+  }
+  ::selection {
+    background: rgba(214, 173, 96, 0.3);
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #273449 transparent;
+  }
+}
+
+@layer components {
+  .eyebrow {
+    @apply text-2xs font-semibold uppercase tracking-[0.14em] text-neutral;
+  }
+  .field {
+    @apply h-9 w-full rounded-md border border-line bg-base-raised px-3 text-sm text-ink placeholder:text-neutral
+      transition-colors hover:border-[#34445e] focus-visible:border-gold/60 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
