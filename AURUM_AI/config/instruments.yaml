@@ -5,44 +5,51 @@
 # Brokers often add suffixes/prefixes, e.g. EURUSD.m, EURUSDm, XAUUSD+, GOLD, US30.cash, DJ30, WS30.
 # Change broker_symbol here - no Python code changes required.
 #
-# trading_hours (all times in UTC) are used to tell market closures apart from unexpected data gaps:
+# trading_hours are used to tell market closures apart from unexpected data gaps:
+#   timezone                   : IANA zone the times/dates below are written in (default UTC).
+#                                America/New_York follows US daylight-saving changes automatically.
 #   weekly_close / weekly_open : "<DAY> HH:MM"  (DAY = MON..SUN)
 #   daily_breaks               : list of ["HH:MM", "HH:MM"] windows when the market is closed every day
 #   holidays                   : list of YYYY-MM-DD dates treated as closed all day
-# Defaults are typical for a GMT+2/+3 broker; adjust to your broker's contract specification.
+# Hours below match Exness (server clock = UTC -> MT5_SERVER_TIMEZONE=Etc/UTC), verified against
+# Exness candle history in Nov 2026. A per-instrument trading_hours block replaces the defaults key by key
+# (so an instrument that sets "holidays" must list all of its holidays).
 
 defaults:
   trading_hours:
-    weekly_close: "FRI 21:00"
-    weekly_open: "SUN 21:00"
+    timezone: America/New_York
+    weekly_close: "FRI 17:00"
+    weekly_open: "SUN 17:05"
     daily_breaks: []
     holidays: ["2026-12-25", "2027-01-01"]
 
 instruments:
   EURUSD:
-    broker_symbol: EURUSD
+    broker_symbol: EURUSDm
     asset_class: forex
     description: Euro vs US Dollar
 
   GBPUSD:
-    broker_symbol: GBPUSD
+    broker_symbol: GBPUSDm
     asset_class: forex
     description: British Pound vs US Dollar
 
   XAUUSD:
-    broker_symbol: XAUUSD
+    broker_symbol: XAUUSDm
     asset_class: metal
     description: Gold spot vs US Dollar
     trading_hours:
-      weekly_close: "FRI 21:00"
-      weekly_open: "SUN 22:00"
-      daily_breaks: [["21:00", "22:00"]]
+      weekly_close: "FRI 17:00"
+      weekly_open: "SUN 18:00"
+      daily_breaks: [["17:00", "18:00"]]
+      holidays: ["2025-04-18", "2025-12-25", "2026-01-01", "2026-04-03", "2026-12-25", "2027-01-01", "2027-03-26"]
 
   US30:
-    broker_symbol: US30
+    broker_symbol: US30m
     asset_class: index
     description: Dow Jones Industrial Average CFD
     trading_hours:
-      weekly_close: "FRI 21:00"
-      weekly_open: "SUN 22:00"
-      daily_breaks: [["21:00", "22:00"]]
+      weekly_close: "FRI 16:55"
+      weekly_open: "SUN 18:00"
+      daily_breaks: [["17:00", "18:00"]]
+      holidays: ["2025-04-18", "2025-12-25", "2026-01-01", "2026-04-03", "2026-12-25", "2027-01-01", "2027-03-26"]

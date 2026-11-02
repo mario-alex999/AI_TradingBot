@@ -82,18 +82,30 @@ Optional: `pip install -e .` adds an `aurum` command (`aurum check` = `python -m
    * `MT5_SERVER_TIMEZONE` – **important**: the broker server clock's time zone. MT5 returns times in server
      time. Most "GMT+2/GMT+3" brokers = `Europe/Athens`; UTC servers = `Etc/UTC`. Check: compare the time
      in Market Watch with UTC. `auto` estimates a fixed offset (no DST handling) while the market is open.
+     **Daylight saving:** use an IANA zone (not a fixed offset) so summer/winter switches are applied per
+     candle. As a safeguard, `check` and every `collect` run (including each `--loop` pass) compare the live
+     broker clock with the configured zone *for today's date*; on a mismatch `check` fails and `collect`
+     stops before storing anything, so shifted candles are never written.
 
 ## 7. Configure broker symbols
 Edit `config/instruments.yaml`. Set `broker_symbol` to the exact name shown in your Market Watch
-(e.g. `EURUSD.m`, `XAUUSD+`, `GOLD`, `US30.cash`, `DJ30`). Adjust `trading_hours` (UTC) to your broker's
-contract specification so market closures are not reported as data gaps. Choose which instruments and
+(e.g. `EURUSD.m`, `XAUUSD+`, `GOLD`, `US30.cash`, `DJ30`). Adjust `trading_hours` to your broker's
+contract specification so market closures are not reported as data gaps. Hours are written in the
+`timezone` given in that block (default `UTC`); the shipped file uses `America/New_York`, so the schedule
+follows US daylight-saving changes automatically (FX closes 17:00 New York time all year, which is
+21:00 UTC in summer and 22:00 UTC in winter). The shipped values match Exness (`EURUSDm`, … and
+`MT5_SERVER_TIMEZONE=Etc/UTC`). Choose which instruments and
 timeframes are collected with `ENABLED_INSTRUMENTS` and `ENABLED_TIMEFRAMES` in `.env`.
 
 ## 8. Configure PostgreSQL / TimescaleDB
-**Option A – Docker (recommended).** Set `DB_PASSWORD` in `.env`, then:
+**Option A – Docker (recommended).** Set `DB_PASSWORD` in `.env` (letters and digits only: Docker
+Compose treats ` #` as a comment and `$` as a variable, so such passwords reach the container altered),
+leave `DATABASE_URL` empty, then:
 ```powershell
 docker compose --env-file .env up -d
 ```
+The container restarts automatically with Docker Desktop (`restart: unless-stopped`); data lives in the
+`aurum_pgdata` volume. `docker compose down` stops it and keeps the data; `down -v` **deletes** the data.
 **Option B – existing PostgreSQL.** Install TimescaleDB for your PostgreSQL version (optional), then in `psql`:
 ```sql
 CREATE ROLE aurum LOGIN PASSWORD 'your_password';
@@ -135,6 +147,21 @@ python -m aurum.cli collect --symbol EURUSD --timeframe M15
   (only new candles plus a 5-candle overlap). `--full` re-downloads the full count.
 * `--loop` repeats every `COLLECTION_INTERVAL_SECONDS` until Ctrl+C.
 * `python -m aurum.cli specs` shows instrument specifications.
+
+### Run continuously, including after a restart
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install_autostart.ps1
+```
+Registers the **AURUM AI Collector** scheduled task: one minute after you sign in to Windows it starts
+`scripts/run_collector.py` (hidden). The supervisor starts Docker Desktop + the database container if needed,
+then keeps `collect --loop` running. MT5 is opened from `MT5_TERMINAL_PATH` and logs in with its saved
+password; whenever MT5 is closed, logged out or disconnected (or the DB / broker-clock check fails) the
+collector exits and is retried (30 s, doubling to 10 min) until things are healthy again.
+* Pause: create an empty file `COLLECTOR_DISABLED` in the project folder; delete it to resume.
+* Logs: `logs/supervisor.log` (start/stop/retry events), `logs/collector.out.txt` (collection tables).
+* Remove autostart: `powershell -ExecutionPolicy Bypass -File scripts\install_autostart.ps1 -Uninstall`.
+* Needs a signed-in Windows session (MT5 runs on the desktop) and the PC awake - sleep pauses collection;
+  missed candles are back-filled on the next run (incremental download with overlap).
 
 ## 12. Export
 ```powershell
@@ -178,9 +205,26 @@ $env:AURUM_TEST_DATABASE_URL="postgresql+psycopg://aurum:your_password@localhost
 | `Export exists - not overwritten` | Intended; use `--on-exists version` or `overwrite` |
 | `copy_rates_from_pos returned no data` | Open the chart once in MT5 or increase "Max bars in chart" (Tools → Options → Charts) |
 
+## Module 02 - COT Institutional Intelligence Engine
+CFTC Commitments of Traders positioning (Legacy, TFF, Disaggregated) for EURUSD, GBPUSD, XAUUSD and US30:
+ingestion with full source traceability, look-ahead-safe metrics, institutional intelligence reports, a
+FastAPI backend and the COT dashboard in `aurum-frontend`. Read-only; no trading.
+```powershell
+python -m aurum.cli init-db
+python -m aurum.cli cot backfill --years 4
+python -m aurum.cli cot report --instrument EURUSD
+python -m aurum.api                      # backend API on http://127.0.0.1:8000 (docs at /docs)
+```
+Documentation: [docs/MODULE_02_COT.md](docs/MODULE_02_COT.md) (overview, database, API, dashboard),
+[docs/COT_METHODOLOGY.md](docs/COT_METHODOLOGY.md) (definitions, formulas, timing, limitations),
+[docs/COT_OPERATIONS.md](docs/COT_OPERATIONS.md) (exact commands, scheduling, troubleshooting).
+
 ## Project layout
 ```
 aurum/  config.py · logging_config.py · cli.py
+        cot/                             Module 02: client · parsers · release timing · validation ·
+                                         calculations · positioning · divergence · intelligence · exports · cli
+        api/                             FastAPI backend (python -m aurum.api) · routes/cot.py · jobs
         gateways/mt5_gateway.py          read-only MT5 access, demo enforcement, broker clock
         collectors/                      candles · ticks · instrument specs
         services/                        market_data_service (orchestration) · validation_service

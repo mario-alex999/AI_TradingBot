@@ -13,5 +13,9 @@ data/processed/*
 data/exports/*
 !data/**/.gitkeep
 data/*.db
+# local backups of superseded collections (never commit)
+data/_superseded*/
+# collector on/off switch (local only)
+COLLECTOR_DISABLED
 logs/*
 !logs/.gitkeep

@@ -105,3 +105,81 @@ def test_no_trading_calls_anywhere_in_source():
     forbidden = re.compile(r"\b(order_send|order_check|order_calc_\w+|positions_get|orders_get|TRADE_ACTION_\w+)\s*\(")
     offenders = [str(p) for p in PKG.rglob("*.py") if forbidden.search(p.read_text(encoding="utf-8"))]
     assert offenders == []
+
+
+# --------------------------------------------------------------------------- broker clock / DST verification
+from datetime import datetime, timedelta, timezone  # noqa: E402
+
+from aurum.config import InstrumentConfig, Settings, TradingHours  # noqa: E402
+from conftest import Tick  # noqa: E402
+
+FX = InstrumentConfig("EURUSD", "EURUSD", "forex", "Euro",
+                      TradingHours.from_dict({"weekly_close": "FRI 21:00", "weekly_open": "SUN 21:00"}))
+
+
+class ClockFake(FakeMT5):
+    """FakeMT5 whose tick carries a chosen *server wall-clock* time."""
+
+    def __init__(self, server_epoch: float):
+        super().__init__()
+        self.server_epoch = server_epoch
+
+    def symbol_info_tick(self, name):
+        return Tick(int(self.server_epoch), 1.1, 1.1002, 0.0, 0, int(self.server_epoch * 1000), 6)
+
+
+def _clock_check(tmp_path, tz: str, now: datetime, server_offset_h: float):
+    s = Settings(_env_file=None, mt5_server_timezone=tz, data_dir=tmp_path / "d", log_dir=tmp_path / "l",
+                 database_url="sqlite:///:memory:")
+    fake = ClockFake(now.timestamp() + server_offset_h * 3600 - 5)   # tick 5s old
+    with MT5Gateway(s, fake) as gw:
+        return gw.verify_clock([FX], now_utc=now)
+
+
+TUE_WINTER = datetime(2026, 1, 6, 12, tzinfo=timezone.utc)
+TUE_SUMMER = datetime(2026, 7, 7, 12, tzinfo=timezone.utc)
+
+
+def test_clock_ok_for_utc_broker(tmp_path):
+    assert _clock_check(tmp_path, "Etc/UTC", TUE_WINTER, 0).status == "ok"
+
+
+def test_clock_follows_dst_for_iana_zone(tmp_path):
+    # Athens-clock broker: UTC+2 in winter, UTC+3 in summer - both accepted with Europe/Athens
+    assert _clock_check(tmp_path, "Europe/Athens", TUE_WINTER, 2).status == "ok"
+    assert _clock_check(tmp_path, "Europe/Athens", TUE_SUMMER, 3).status == "ok"
+
+
+def test_clock_mismatch_when_zone_wrong(tmp_path):
+    # UTC broker configured as Europe/Athens (the Exness case): ticks look 2-3h old while market is open
+    cc = _clock_check(tmp_path, "Europe/Athens", TUE_SUMMER, 0)
+    assert cc.status == "mismatch" and not cc.ok and cc.expected_offset_h == 3.0 and cc.observed_offset_h == 0.0
+    # Athens broker configured as UTC: ticks are "in the future"
+    assert _clock_check(tmp_path, "Etc/UTC", TUE_SUMMER, 3).status == "mismatch"
+
+
+def test_clock_mismatch_when_fixed_offset_crosses_dst(tmp_path):
+    s = Settings(_env_file=None, mt5_server_timezone="Etc/UTC", data_dir=tmp_path / "d", log_dir=tmp_path / "l",
+                 database_url="sqlite:///:memory:")
+    from aurum.gateways.mt5_gateway import BrokerClock
+    with MT5Gateway(s, ClockFake(TUE_WINTER.timestamp() + 2 * 3600)) as gw:
+        gw.clock = BrokerClock(fixed_offset_seconds=3 * 3600)      # "auto" detected in summer
+        assert gw.verify_clock([FX], now_utc=TUE_WINTER).status == "mismatch"
+
+
+def test_clock_unknown_when_market_closed_and_tick_stale(tmp_path):
+    saturday = datetime(2026, 1, 10, 12, tzinfo=timezone.utc)
+    s = Settings(_env_file=None, mt5_server_timezone="Etc/UTC", data_dir=tmp_path / "d", log_dir=tmp_path / "l",
+                 database_url="sqlite:///:memory:")
+    last_friday_tick = (saturday - timedelta(hours=15)).timestamp()
+    with MT5Gateway(s, ClockFake(last_friday_tick)) as gw:
+        cc = gw.verify_clock([FX], now_utc=saturday)
+    assert cc.status == "unknown" and cc.ok
+
+
+def test_stale_ticks_while_open_are_not_a_clock_mismatch(tmp_path):
+    # 42-minute-old tick during market hours (feed lag) -> unknown, collection continues
+    cc = _clock_check(tmp_path, "Etc/UTC", TUE_WINTER, -0.7)
+    assert cc.status == "unknown" and cc.ok and "stale feed" in cc.message
+    # a whole-hour offset during market hours is still a mismatch
+    assert _clock_check(tmp_path, "Etc/UTC", TUE_WINTER, -2).status == "mismatch"

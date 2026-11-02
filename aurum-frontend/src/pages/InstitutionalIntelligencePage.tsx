@@ -1,124 +1,104 @@
-import { useState } from 'react';
 import { Info } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card, CardBody, CardHeader } from '@/components/common/Card';
+import { Badge } from '@/components/common/Badge';
 import { DataSourceBadge } from '@/components/common/DataSourceBadge';
-import { MetricCard } from '@/components/common/MetricCard';
-import { FeaturePending } from '@/components/common/FeaturePending';
 import { ErrorState } from '@/components/common/ErrorState';
 import { SkeletonRows } from '@/components/common/Skeleton';
-import { CotControls } from '@/components/cot/CotControls';
-import { GroupComparisonChart, OpenInterestChart, PercentileChart } from '@/components/cot/CotCharts';
-import { useCotAnalysis, type CotPeriod } from '@/hooks/useCotAnalysis';
-import { formatDateTime, formatInteger, formatPercent, PLACEHOLDER } from '@/utils/format';
-import type { CotDerived } from '@/utils/cot';
+import { useCotAnalysisReport } from '@/hooks/queries';
+import { DEFAULT_INSTRUMENTS } from '@/config/instruments';
+import { REPORT_TYPE_LABEL } from '@/types/cot';
+import { fixed, freshnessTone, humanize, signed, strengthTone } from '@/components/cot/cotFormat';
 
-function signed(v: number | null | undefined) {
-  if (v == null) return PLACEHOLDER;
-  return `${v > 0 ? '+' : ''}${formatInteger(v)}`;
-}
-const tone = (v: number | null | undefined) => (v == null ? 'muted' : v > 0 ? 'up' : v < 0 ? 'down' : 'flat') as 'up' | 'down' | 'flat' | 'muted';
-
-function GroupPanel({ title, net, long, short, change }: { title: string; net?: number; long?: number; short?: number; change?: number | null }) {
+/** Cross-instrument institutional positioning overview (backend COT intelligence; never from demo data). */
+function InstrumentIntelligence({ symbol }: { symbol: string }) {
+  const q = useCotAnalysisReport(symbol);
+  const a = q.data?.data;
+  const demo = q.data?.source === 'demo';
   return (
-    <MetricCard
-      label={title}
-      value={signed(net)}
-      tone={tone(net)}
-      hint={
-        <span className="num">
-          L {formatInteger(long)} · S {formatInteger(short)} · Δ {signed(change ?? null)}
-        </span>
-      }
-    />
+    <Card>
+      <CardHeader
+        title={symbol}
+        subtitle={a ? a.families.map((f) => `${REPORT_TYPE_LABEL[f.reportType]}: ${f.contract.name}`).join(' · ') : undefined}
+        actions={
+          a && !demo ? (
+            <>
+              <Badge tone={a.overall.stance === 'bullish' ? 'up' : a.overall.stance === 'bearish' ? 'down' : a.overall.stance === 'mixed' ? 'warn' : 'neutral'}>
+                {a.overall.stance}
+                {a.overall.lean ? ` · leaning ${a.overall.lean}` : ''}
+              </Badge>
+              <Badge>{a.overall.confidence} confidence</Badge>
+            </>
+          ) : null
+        }
+      />
+      <CardBody className="flex flex-col gap-3 text-xs">
+        {q.isPending ? (
+          <SkeletonRows rows={3} />
+        ) : q.isError ? (
+          <ErrorState error={q.error} onRetry={() => void q.refetch()} compact />
+        ) : demo || !a ? (
+          <p className="text-ink-muted">Not generated: interpretations are never produced from demo data. Connect the AURUM backend to see CFTC-based intelligence.</p>
+        ) : (
+          <>
+            {a.families.map((f) =>
+              !f.available ? (
+                <p key={f.reportType} className="text-neutral">{REPORT_TYPE_LABEL[f.reportType]}: {f.reason}</p>
+              ) : (
+                <div key={f.reportType} className="rounded border border-line-soft px-3 py-2">
+                  <p className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-ink">{REPORT_TYPE_LABEL[f.reportType]} · report {f.reportDate} · released {f.releaseDate}</span>
+                    <Badge tone={freshnessTone(f.freshness?.status)}>{humanize(f.freshness?.status)}</Badge>
+                  </p>
+                  {(() => {
+                    const p = f.categories?.find((c) => c.category === f.primaryCategory);
+                    return p ? (
+                      <p className="num mt-1 text-ink-muted">
+                        {p.label}: net {signed(p.netPosition)} (Δ {signed(p.weeklyNetChange)}) · pct 36M {fixed(p.historicalPercentile36m)} · COT idx {fixed(p.cotIndex)} ·{' '}
+                        <Badge tone={strengthTone(p.positioningStrength)}>{humanize(p.positioningStrength)}</Badge>
+                      </p>
+                    ) : null;
+                  })()}
+                  <ul className="mt-1 list-disc pl-5 text-ink-muted">
+                    {f.statements?.interpretation.slice(0, 3).map((s, i) => <li key={i}>{s}</li>)}
+                  </ul>
+                </div>
+              ),
+            )}
+            <p className="text-ink-muted">{a.overall.interpretation}</p>
+          </>
+        )}
+        <Link to="/cot" className="text-2xs text-gold hover:underline">
+          Open full COT analysis →
+        </Link>
+      </CardBody>
+    </Card>
   );
 }
 
 export default function InstitutionalIntelligencePage() {
-  const [instrument, setInstrument] = useState('EURUSD');
-  const [period, setPeriod] = useState<CotPeriod>('3y');
-  const [custom, setCustom] = useState({ from: '', to: '' });
-  const { query, report, rows, latest, source } = useCotAnalysis(instrument, period, custom);
-  const l: CotDerived | null = latest;
-
+  const first = useCotAnalysisReport(DEFAULT_INSTRUMENTS[0]?.symbol ?? 'EURUSD');
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
         eyebrow="Intelligence"
         title="Institutional Intelligence"
-        description="Positioning of commercial hedgers, large speculators and small traders, derived from CFTC Commitments of Traders reports."
-        actions={<DataSourceBadge source={source} fetchedAt={query.data?.fetchedAt} />}
+        description="Positioning of large market participants from CFTC Commitments of Traders reports, interpreted relative to each group's own history."
+        actions={<DataSourceBadge source={first.data?.source} fetchedAt={first.data?.fetchedAt} />}
       />
       <div className="flex gap-2 rounded-card border border-info/30 bg-info-faint px-4 py-3 text-xs text-ink-muted">
         <Info className="mt-0.5 h-4 w-4 shrink-0 text-info" aria-hidden />
         <p>
-          COT reports show <strong className="text-ink">open positions</strong>, not realised profit or loss. AURUM AI does not infer the trading performance of
-          commercial or institutional participants from these reports.
+          COT reports show <strong className="text-ink">open positions</strong> by trader category - not individual institutions and not realised profit or loss. Non-reportable traders
+          are those below CFTC reporting thresholds, not an exact measure of retail traders. Statements are positioning context, never predictions.
         </p>
       </div>
-      <CotControls instrument={instrument} onInstrument={setInstrument} period={period} onPeriod={setPeriod} custom={custom} onCustom={setCustom} />
-
-      {query.isPending ? (
-        <SkeletonRows rows={6} />
-      ) : query.isError ? (
-        <Card>
-          <ErrorState error={query.error} onRetry={() => void query.refetch()} />
-        </Card>
-      ) : (
-        <>
-          <Card>
-            <CardBody className="num grid gap-3 text-xs sm:grid-cols-2 xl:grid-cols-4">
-              <div>
-                <p className="eyebrow">Report date</p>
-                <p className="mt-1 text-ink">{l?.reportDate ?? PLACEHOLDER}</p>
-              </div>
-              <div>
-                <p className="eyebrow">Publication date</p>
-                <p className="mt-1 text-ink">{l?.publicationDate ?? PLACEHOLDER}</p>
-              </div>
-              <div>
-                <p className="eyebrow">Data source</p>
-                <p className="mt-1 text-ink">{report?.source ?? PLACEHOLDER}</p>
-              </div>
-              <div>
-                <p className="eyebrow">Updated</p>
-                <p className="mt-1 text-ink">{report ? `${formatDateTime(report.updatedAt)} UTC` : PLACEHOLDER}</p>
-              </div>
-            </CardBody>
-          </Card>
-
-          <section aria-label="Positioning panels" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            <GroupPanel title="Commercial net" net={l?.commercialNet} long={l?.commercialLong} short={l?.commercialShort} change={l?.commercialNetChange} />
-            <GroupPanel title="Large speculator net" net={l?.nonCommercialNet} long={l?.nonCommercialLong} short={l?.nonCommercialShort} change={l?.nonCommercialNetChange} />
-            <GroupPanel title="Non-reportable net" net={l?.nonReportableNet} long={l?.nonReportableLong} short={l?.nonReportableShort} />
-            <MetricCard label="Open interest" value={formatInteger(l?.openInterest)} tone={l ? 'flat' : 'muted'} hint="Total open contracts" />
-            <MetricCard
-              label="Spec. 3Y percentile"
-              value={l?.nonCommercialPercentile != null ? formatPercent(l.nonCommercialPercentile, 0).replace('%', '') : PLACEHOLDER}
-              tone={l ? 'flat' : 'muted'}
-              hint="Large speculator net vs trailing 3 years"
-            />
-          </section>
-
-          <section aria-labelledby="informed-title" className="flex flex-col gap-3">
-            <h2 id="informed-title" className="eyebrow text-gold">
-              Informed money analysis
-            </h2>
-            <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-              <GroupComparisonChart rows={rows} title="Commercial vs large speculator vs non-reportable" />
-              <PercentileChart rows={rows} />
-              <OpenInterestChart rows={rows} />
-              <Card>
-                <CardHeader title="Positioning vs price behaviour" subtitle="Divergence between positioning and price requires aligned weekly closes from the market-data backend." />
-                <CardBody className="grid gap-3 sm:grid-cols-2">
-                  <FeaturePending title="Positioning divergence" requires="Weekly price series + COT Intelligence Agent" />
-                  <FeaturePending title="Positioning trend regime" requires="COT Intelligence Agent" />
-                </CardBody>
-              </Card>
-            </div>
-          </section>
-        </>
-      )}
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+        {DEFAULT_INSTRUMENTS.map((i) => (
+          <InstrumentIntelligence key={i.symbol} symbol={i.symbol} />
+        ))}
+      </div>
     </div>
   );
 }
