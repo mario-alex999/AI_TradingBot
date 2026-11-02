@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import numpy as np
@@ -55,7 +55,14 @@ class ValidationResult:
 
 # --------------------------------------------------------------------------- market hours
 def is_market_open(ts: datetime, hours: TradingHours) -> bool:
-    """True if the market is open at UTC instant ``ts`` according to ``hours``."""
+    """True if the market is open at UTC instant ``ts`` according to ``hours``.
+
+    ``ts`` is converted to ``hours.timezone`` first, so schedules in an exchange's local time
+    follow daylight-saving changes. Naive ``ts`` values are treated as UTC.
+    """
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+    ts = ts.astimezone(hours.tz)
     if ts.date() in hours.holidays:
         return False
     minute_of_week = ts.weekday() * 1440 + ts.hour * 60 + ts.minute

@@ -12,6 +12,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Any
 from urllib.parse import quote_plus
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import yaml
 from pydantic import Field, SecretStr, field_validator
@@ -71,7 +72,20 @@ class Settings(BaseSettings):
     log_dir: Path = Path("logs")
     log_level: str = "INFO"
 
-    @field_validator("mt5_login", "mt5_terminal_path", "mt5_server", "mt5_password", "database_url", mode="before")
+    # Backend API (Module 02+). Admin operations (POST backfill/update/calculate) require the
+    # X-AURUM-Admin-Key header to equal AURUM_ADMIN_API_KEY; when unset they are disabled.
+    aurum_admin_api_key: SecretStr | None = None
+    api_host: str = "127.0.0.1"
+    api_port: int = Field(8000, ge=1, le=65535)
+    api_cors_origins: Annotated[list[str], NoDecode] = ["http://localhost:5173", "http://127.0.0.1:5173"]
+
+    @field_validator("api_cors_origins", mode="before")
+    @classmethod
+    def _split_origins(cls, v: Any) -> Any:
+        return [x.strip() for x in v.split(",") if x.strip()] if isinstance(v, str) else v
+
+    @field_validator("mt5_login", "mt5_terminal_path", "mt5_server", "mt5_password", "database_url",
+                     "aurum_admin_api_key", mode="before")
     @classmethod
     def _blank_is_none(cls, v: Any) -> Any:
         return None if isinstance(v, str) and v.strip() == "" else v
@@ -124,7 +138,12 @@ class Settings(BaseSettings):
 # --------------------------------------------------------------------------- instruments
 @dataclass(frozen=True)
 class TradingHours:
-    """Expected market closures in UTC, used to classify candle gaps."""
+    """Expected market closures, used to classify candle gaps.
+
+    Times and holiday dates are wall-clock values in ``timezone`` (an IANA name, default ``UTC``).
+    Using the exchange's own zone (e.g. ``America/New_York``) makes the schedule follow daylight-saving
+    changes automatically; with ``UTC`` the hours are fixed and must be edited twice a year.
+    """
 
     weekly_close_day: int = 4          # 0=Mon ... 6=Sun
     weekly_close_time: time = time(21, 0)
@@ -132,6 +151,11 @@ class TradingHours:
     weekly_open_time: time = time(21, 0)
     daily_breaks: tuple[tuple[time, time], ...] = ()
     holidays: frozenset[date] = frozenset()
+    timezone: str = "UTC"
+
+    @property
+    def tz(self) -> ZoneInfo:
+        return _zoneinfo(self.timezone)
 
     @staticmethod
     def _parse_day_time(text: str) -> tuple[int, time]:
@@ -145,7 +169,18 @@ class TradingHours:
         od, ot = cls._parse_day_time(d.get("weekly_open", "SUN 21:00"))
         breaks = tuple((time.fromisoformat(a), time.fromisoformat(b)) for a, b in d.get("daily_breaks", []) or [])
         hols = frozenset(date.fromisoformat(str(h)) for h in d.get("holidays", []) or [])
-        return cls(cd, ct, od, ot, breaks, hols)
+        tzname = str(d.get("timezone") or "UTC").strip()
+        _zoneinfo(tzname)  # fail fast on a typo
+        return cls(cd, ct, od, ot, breaks, hols, tzname)
+
+
+@lru_cache(maxsize=None)
+def _zoneinfo(name: str) -> ZoneInfo:
+    try:
+        return ZoneInfo(name)
+    except (ZoneInfoNotFoundError, ValueError) as exc:
+        raise ValueError(f"Unknown trading_hours timezone '{name}'. Use an IANA name such as "
+                         f"'America/New_York' or 'UTC' (on Windows: pip install tzdata).") from exc
 
 
 @dataclass(frozen=True)

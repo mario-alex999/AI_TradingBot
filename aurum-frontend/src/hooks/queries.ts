@@ -3,7 +3,19 @@ import { useSettingsStore } from '@/stores/settingsStore';
 import { fetchHealth } from '@/services/healthService';
 import { getCandles, getInstruments, getQuotes } from '@/services/marketService';
 import { getCollectionLogs, getDataQuality, getSpecifications, type LogQuery } from '@/services/dataService';
-import { getCotReport } from '@/services/cotService';
+import {
+  getCotAnalysis,
+  getCotDivergence,
+  getCotHistory,
+  getCotInstruments,
+  getCotLogs,
+  getCotQuality,
+  getCotReportDetail,
+  getCotReports,
+  getCotStatus,
+  type CotQualityQuery,
+} from '@/services/cotService';
+import type { CotReportType } from '@/types/cot';
 import { getMarketStructure, getOverlays, getSignals } from '@/services/analysisService';
 import { getAccountSummary, getOpenTrades, getPerformance, getRiskOverview, getTradeHistory, type PerformanceFilters } from '@/services/tradingService';
 import { getAgentStatus, getNotifications } from '@/services/systemService';
@@ -80,12 +92,68 @@ export function useCollectionLogs(q: LogQuery) {
   });
 }
 
-export function useCotReport(instrument: string, weeks: number) {
+// ---- COT Institutional Intelligence Engine (Module 02). COT data changes weekly -> long stale times.
+const COT_STALE = 10 * 60_000;
+
+export function useCotStatus(probe = false) {
+  const mock = useMock();
+  return useQuery({ queryKey: ['cot-status', mock, probe], queryFn: ({ signal }) => getCotStatus({ mock, signal }, probe), staleTime: probe ? COT_STALE : 60_000 });
+}
+
+export function useCotInstruments() {
+  const mock = useMock();
+  return useQuery({ queryKey: ['cot-instruments', mock], queryFn: ({ signal }) => getCotInstruments({ mock, signal }), staleTime: COT_STALE });
+}
+
+export function useCotHistory(instrument: string, reportType: CotReportType) {
   const mock = useMock();
   return useQuery({
-    queryKey: ['cot', mock, instrument, weeks],
-    queryFn: ({ signal }) => getCotReport({ mock, signal }, instrument, weeks),
-    staleTime: 60 * 60_000,
+    queryKey: ['cot-history', mock, instrument, reportType],
+    queryFn: ({ signal }) => getCotHistory({ mock, signal }, instrument, reportType),
+    staleTime: COT_STALE,
+  });
+}
+
+export function useCotAnalysisReport(instrument: string, asOf?: string) {
+  const mock = useMock();
+  return useQuery({
+    queryKey: ['cot-analysis', mock, instrument, asOf ?? ''],
+    queryFn: ({ signal }) => getCotAnalysis({ mock, signal }, instrument, asOf),
+    staleTime: COT_STALE,
+  });
+}
+
+export function useCotDivergence(instrument: string, reportType: CotReportType, category?: string) {
+  const mock = useMock();
+  return useQuery({
+    queryKey: ['cot-divergence', mock, instrument, reportType, category ?? ''],
+    queryFn: ({ signal }) => getCotDivergence({ mock, signal }, instrument, reportType, category),
+    staleTime: COT_STALE,
+  });
+}
+
+export function useCotQuality(q: CotQualityQuery) {
+  const mock = useMock();
+  return useQuery({ queryKey: ['cot-quality', mock, q], queryFn: ({ signal }) => getCotQuality({ mock, signal }, q), placeholderData: (prev) => prev });
+}
+
+export function useCotLogs(page = 1, pageSize = 10) {
+  const mock = useMock();
+  return useQuery({ queryKey: ['cot-logs', mock, page, pageSize], queryFn: ({ signal }) => getCotLogs({ mock, signal }, page, pageSize) });
+}
+
+export function useCotReports(q: { instrument: string; reportType: CotReportType; page: number; pageSize: number; start?: string; end?: string }) {
+  const mock = useMock();
+  return useQuery({ queryKey: ['cot-reports', mock, q], queryFn: ({ signal }) => getCotReports({ mock, signal }, q), placeholderData: (prev) => prev });
+}
+
+export function useCotReportDetail(id: number | null) {
+  const mock = useMock();
+  return useQuery({
+    queryKey: ['cot-report', mock, id],
+    queryFn: ({ signal }) => getCotReportDetail({ mock, signal }, id as number),
+    enabled: id != null,
+    staleTime: COT_STALE,
   });
 }
 

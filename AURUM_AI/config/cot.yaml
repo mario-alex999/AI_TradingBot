@@ -1,0 +1,223 @@
+# AURUM AI - Module 02 (COT Institutional Intelligence Engine) configuration.
+# Edit this file to change datasets, contract mappings, release timing or classification thresholds -
+# no Python changes needed. `python -m aurum.cli cot sync-config` (also run by backfill/update) copies it
+# into the cot_datasets / cot_contract_mappings tables.
+
+# --------------------------------------------------------------------------------------------- sources
+# auto   = try the CFTC Public Reporting Environment (Socrata API); if it is unreachable/blocked use the
+#          official CFTC weekly-updated history files on www.cftc.gov (same CFTC publication).
+# socrata | files = force one source.
+source: auto
+
+socrata:
+  base_url: https://publicreporting.cftc.gov
+  page_size: 5000          # Socrata $limit per request
+  timeout_seconds: 30
+  max_retries: 5
+  backoff_seconds: 2.0     # exponential: 2, 4, 8, 16 ... (Retry-After honoured on HTTP 429)
+  app_token_env: CFTC_APP_TOKEN   # optional Socrata app token, read from the environment (never stored here)
+
+files:
+  base_url: https://www.cftc.gov/files/dea/history
+  timeout_seconds: 120
+  max_retries: 4
+  backoff_seconds: 3.0
+  polite_delay_seconds: 1.0   # pause between file downloads
+
+# --------------------------------------------------------------------------------------------- datasets
+# history_start = first report date the CFTC publishes for that family (dataset-specific coverage).
+# yearly_file / history_file: official CFTC history archives ({year} is substituted).
+# dataset_id_status: verified | corroborated | unverified | mismatch.
+#   verified     - confirmed by the CFTC portal's own metadata (python -m aurum.cli cot verify-datasets writes this).
+#   corroborated - several independent public sources agree, but the portal itself could not be queried.
+# All Socrata portals (incl. publicreporting.cftc.gov) return HTTP 403 to this network's IP at the nginx layer
+# (2026-11-02); the engine uses the official CFTC history files, which are unaffected.
+datasets:
+  legacy:
+    name: Legacy - Futures Only
+    report_scope: futures_only
+    dataset_id: 6dca-aqww
+    dataset_id_status: corroborated   # independent public sources agree: Legacy futures-only (2026-11-02)
+    history_start: "1986-01-15"
+    yearly_file: deacot{year}.zip
+    history_file: deacot1986_2016.zip
+    history_file_last_year: 2016
+    description: CFTC Legacy report - commercial, non-commercial and non-reportable positions.
+  tff:
+    name: Traders in Financial Futures - Futures Only
+    report_scope: futures_only
+    dataset_id: gpe5-46if
+    dataset_id_status: corroborated   # independent public sources agree: TFF futures-only (2026-11-02)
+    history_start: "2006-06-13"
+    yearly_file: fut_fin_txt_{year}.zip
+    history_file: fin_fut_txt_2006_2016.zip
+    history_file_last_year: 2016
+    description: CFTC TFF report - dealers, asset managers, leveraged funds, other reportables (financial futures only).
+  disaggregated:
+    name: Disaggregated - Futures Only
+    report_scope: futures_only
+    dataset_id: 72hh-3qpy
+    dataset_id_status: corroborated   # independent public sources agree: Disaggregated futures-only; combined = kh3c-gbw2 (2026-11-02)
+    history_start: "2006-06-13"
+    yearly_file: fut_disagg_txt_{year}.zip
+    history_file: fut_disagg_txt_hist_2006_2016.zip
+    history_file_last_year: 2016
+    description: CFTC Disaggregated report - producers/merchants, swap dealers, managed money, other reportables (physical commodities).
+
+# --------------------------------------------------------------------------------------------- mappings
+# One entry per (AURUM instrument, report family). primary_category = participant group used for the
+# headline classification of that family. Contract names/codes verified against the official CFTC
+# history files (deacot2025.zip, fut_fin_txt_2025.zip, fut_disagg_txt_2025.zip) on 2026-11-02.
+mappings:
+  - aurum_symbol: EURUSD
+    report_type: legacy
+    cftc_contract_name: EURO FX - CHICAGO MERCANTILE EXCHANGE
+    cftc_contract_code: "099741"
+    exchange: CME
+    contract_description: Euro FX futures (EUR 125,000)
+    currency: USD
+    mapping_status: verified
+    verification_source: CFTC history file deacot2025.zip + deacot2026.zip (re-checked to 2026-10-27)
+    verified_at: "2026-11-02"
+    primary_category: non_commercial
+  - aurum_symbol: EURUSD
+    report_type: tff
+    cftc_contract_name: EURO FX - CHICAGO MERCANTILE EXCHANGE
+    cftc_contract_code: "099741"
+    exchange: CME
+    contract_description: Euro FX futures (EUR 125,000)
+    currency: USD
+    mapping_status: verified
+    verification_source: CFTC history file fut_fin_txt_2025.zip + fut_fin_txt_2026.zip (re-checked to 2026-10-27)
+    verified_at: "2026-11-02"
+    primary_category: leveraged_funds
+  - aurum_symbol: GBPUSD
+    report_type: legacy
+    cftc_contract_name: BRITISH POUND - CHICAGO MERCANTILE EXCHANGE
+    cftc_contract_code: "096742"
+    exchange: CME
+    contract_description: British Pound futures (GBP 62,500)
+    currency: USD
+    mapping_status: verified
+    verification_source: CFTC history file deacot2025.zip + deacot2026.zip (re-checked to 2026-10-27)
+    verified_at: "2026-11-02"
+    primary_category: non_commercial
+  - aurum_symbol: GBPUSD
+    report_type: tff
+    cftc_contract_name: BRITISH POUND - CHICAGO MERCANTILE EXCHANGE
+    cftc_contract_code: "096742"
+    exchange: CME
+    contract_description: British Pound futures (GBP 62,500)
+    currency: USD
+    mapping_status: verified
+    verification_source: CFTC history file fut_fin_txt_2025.zip + fut_fin_txt_2026.zip (re-checked to 2026-10-27)
+    verified_at: "2026-11-02"
+    primary_category: leveraged_funds
+  - aurum_symbol: XAUUSD
+    report_type: legacy
+    cftc_contract_name: GOLD - COMMODITY EXCHANGE INC.
+    cftc_contract_code: "088691"
+    exchange: COMEX
+    contract_description: Gold futures (100 troy oz)
+    currency: USD
+    mapping_status: verified
+    verification_source: CFTC history file deacot2025.zip + deacot2026.zip (re-checked to 2026-10-27)
+    verified_at: "2026-11-02"
+    primary_category: non_commercial
+  - aurum_symbol: XAUUSD
+    report_type: disaggregated
+    cftc_contract_name: GOLD - COMMODITY EXCHANGE INC.
+    cftc_contract_code: "088691"
+    exchange: COMEX
+    contract_description: Gold futures (100 troy oz)
+    currency: USD
+    mapping_status: verified
+    verification_source: CFTC history file fut_disagg_txt_2025.zip + fut_disagg_txt_2026.zip (re-checked to 2026-10-27)
+    verified_at: "2026-11-02"
+    primary_category: managed_money
+  # US30: the CFTC lists the E-mini Dow ($5) under the Chicago Board of Trade (a CME Group exchange).
+  # "DJIA Consolidated" (12460+) aggregates several Dow contracts and is deliberately NOT mapped
+  # (it would double-count 124603). Micro E-mini Dow (124608) is a different contract and not combined.
+  - aurum_symbol: US30
+    report_type: legacy
+    cftc_contract_name: DJIA x $5 - CHICAGO BOARD OF TRADE
+    cftc_contract_code: "124603"
+    exchange: CBOT (CME Group)
+    contract_description: E-mini Dow ($5 x DJIA) futures
+    currency: USD
+    mapping_status: verified
+    verification_source: CFTC history file deacot2025.zip + deacot2026.zip (re-checked to 2026-10-27)
+    verified_at: "2026-11-02"
+    primary_category: non_commercial
+  - aurum_symbol: US30
+    report_type: tff
+    cftc_contract_name: DJIA x $5 - CHICAGO BOARD OF TRADE
+    cftc_contract_code: "124603"
+    exchange: CBOT (CME Group)
+    contract_description: E-mini Dow ($5 x DJIA) futures
+    currency: USD
+    mapping_status: verified
+    verification_source: CFTC history file fut_fin_txt_2025.zip + fut_fin_txt_2026.zip (re-checked to 2026-10-27)
+    verified_at: "2026-11-02"
+    primary_category: leveraged_funds
+
+# --------------------------------------------------------------------------------------------- release timing
+# Positions are "as of" Tuesday (report_date); the CFTC releases them at 15:30 US/Eastern, normally on the
+# Friday of the same week. Rule used when no explicit override exists: Friday 15:30 ET; if a US federal
+# holiday falls Tue-Fri of that week the release moves to the next business day after that Friday.
+# Overrides below come from official CFTC publications and win over the rule.
+release:
+  timezone: America/New_York
+  time: "15:30"
+  overrides:
+    # Catch-up after the Oct-Nov 2025 lapse in appropriations - CFTC press release 9147-25 (accelerated schedule)
+    "2025-09-30": "2025-11-19"
+    "2025-10-07": "2025-11-21"
+    "2025-10-14": "2025-11-25"
+    "2025-10-21": "2025-12-02"
+    "2025-10-28": "2025-12-05"
+    "2025-11-04": "2025-12-09"
+    "2025-11-10": "2025-12-10"
+    "2025-11-18": "2025-12-12"
+    "2025-11-25": "2025-12-15"
+    "2025-12-02": "2025-12-17"
+    "2025-12-09": "2025-12-19"
+    "2025-12-16": "2025-12-23"
+    "2025-12-23": "2025-12-29"
+    # Holiday-delayed releases - CFTC 2026 release schedule
+    "2025-12-30": "2026-01-05"
+    "2026-06-16": "2026-06-22"
+    "2026-06-30": "2026-07-06"
+    "2026-11-10": "2026-11-16"
+    "2026-11-24": "2026-11-30"
+    "2026-12-22": "2026-12-28"
+  # Report dates whose release date could not be established from an official source are flagged with a
+  # data-quality issue; the rule-based date is still used. Known lapses older than the default 4-year window
+  # (2013-10, 2018-12/2019-01) are listed so a long backfill warns about them.
+  uncertain_ranges:
+    - ["2013-10-01", "2013-11-05"]
+    - ["2018-12-18", "2019-02-26"]
+
+# --------------------------------------------------------------------------------------------- analytics
+analytics:
+  percentile_lookbacks_weeks: {12m: 52, 24m: 104, 36m: 156, 48m: 208}
+  cot_index_lookback_weeks: 156     # 3 years
+  zscore_lookback_weeks: 156
+  min_history_weeks: 26             # fewer observations -> percentile / index / z-score are NULL
+  significant_change_z: 2.0         # |weekly change| > 2 std of past weekly changes -> significant
+  unusual_percentile: [5, 95]       # outside this band -> unusual historical positioning
+  # Classification score = mean(36m percentile, COT index). Thresholds are AURUM conventions, not industry standards.
+  classification:
+    extremely_bullish: 90
+    strong_bullish: 75
+    moderately_bullish: 60
+    moderately_bearish: 40
+    strong_bearish: 25
+    extremely_bearish: 10
+    require_direction_for_extremes: true   # "extremely bullish" also needs net long (and bearish net short)
+  divergence:
+    price_timeframe: D1
+    window_reports: 4                # compare price vs positioning over the last N report intervals
+    extreme_lookback_reports: 26     # new-high / new-low confirmation window
+    min_price_change_pct: 0.5
+  stale_after_days: 10               # latest release older than this (and a newer one expected) -> stale

@@ -114,6 +114,27 @@ class BrokerClock:
     def to_utc(self, server_seconds: float) -> datetime:
         return self.series_to_utc(np.array([server_seconds])).iloc[0].round("ms").to_pydatetime()
 
+    def offset_seconds_at(self, when_utc: datetime) -> float:
+        """Server-minus-UTC offset this clock assumes at ``when_utc`` (DST-aware for IANA zones)."""
+        if self.fixed_offset_seconds is not None:
+            return float(self.fixed_offset_seconds)
+        return self.tz.utcoffset(when_utc.astimezone(self.tz).replace(tzinfo=None)).total_seconds()
+
+
+@dataclass(frozen=True)
+class ClockCheck:
+    """Result of comparing the configured broker clock with the live server clock."""
+
+    status: str                      # "ok" | "mismatch" | "unknown"
+    message: str
+    symbol: str | None = None
+    observed_offset_h: float | None = None
+    expected_offset_h: float | None = None
+
+    @property
+    def ok(self) -> bool:
+        return self.status != "mismatch"
+
 
 # --------------------------------------------------------------------------- results
 @dataclass(frozen=True)
@@ -235,7 +256,61 @@ class MT5Gateway:
                                  "no recent ticks). Set MT5_SERVER_TIMEZONE to an IANA zone, e.g. Europe/Athens.")
 
     def _probe_symbols(self) -> list[str]:
-        return [self.settings.enabled_instruments[0]] if self.settings.enabled_instruments else []
+        """Broker symbols to read live ticks from (mapped through instruments.yaml when possible)."""
+        names = list(self.settings.enabled_instruments)
+        try:
+            from aurum.config import load_instruments
+            mapping = load_instruments(self.settings.resolve(self.settings.instruments_config))
+            return [mapping[n].broker_symbol if n in mapping else n for n in names]
+        except Exception:  # pragma: no cover - fall back to canonical names
+            return names
+
+    def verify_clock(self, instruments: list[Any], now_utc: datetime | None = None,
+                     tolerance_seconds: int = 900) -> ClockCheck:
+        """Check that MT5_SERVER_TIMEZONE matches the broker's live clock *today*.
+
+        Brokers on "GMT+2 winter / GMT+3 summer" clocks shift by an hour twice a year. An IANA zone handles
+        that automatically; a wrong zone (or a fixed ``auto`` offset across a DST switch) silently shifts
+        every candle. This compares the freshest live tick's server time with ``now`` converted through the
+        configured clock. A tick *ahead* of the expected server time is always a mismatch; a tick *behind*
+        it is only a mismatch while the instrument's market should be open (otherwise it may just be stale).
+        """
+        if self.clock is None:
+            raise MT5ConnectionError("Not connected to MT5")
+        from aurum.services.validation_service import is_market_open
+        now = now_utc or datetime.now(timezone.utc)
+        expected = self.clock.offset_seconds_at(now)
+        best: tuple[float, Any] | None = None
+        for inst in instruments:
+            tick = self.mt5.symbol_info_tick(inst.broker_symbol)
+            if tick is None or not getattr(tick, "time", 0):
+                continue
+            diff = (float(tick.time) - now.timestamp()) - expected   # >0: tick is "in the future"
+            if best is None or diff > best[0]:
+                best = (diff, inst)
+        if best is None:
+            return ClockCheck("unknown", "no live ticks available - broker clock not verified")
+        diff, inst = best
+        observed_h = round((diff + expected) / 3600, 2)
+        expected_h = round(expected / 3600, 2)
+        fields = dict(symbol=inst.broker_symbol, observed_offset_h=observed_h, expected_offset_h=expected_h)
+        hint = (f"Broker clock is UTC{observed_h:+.1f}h but MT5_SERVER_TIMEZONE={self.clock.describe()} implies "
+                f"UTC{expected_h:+.1f}h today. Fix MT5_SERVER_TIMEZONE (e.g. Etc/UTC, Europe/Athens) - "
+                f"collected candle times would otherwise be shifted.")
+        if diff > tolerance_seconds:
+            return ClockCheck("mismatch", hint, **fields)
+        if diff < -tolerance_seconds:
+            # A tick "behind" is either a wrong zone (a whole / half-hour offset) or simply stale ticks (feed lag,
+            # thin market). Only a zone-like offset while the market should be open counts as a mismatch.
+            rounded = round(diff / 1800) * 1800
+            zone_like = abs(rounded) >= 3600 and abs(diff - rounded) < 600
+            if zone_like and is_market_open(now, inst.trading_hours):
+                return ClockCheck("mismatch", hint, **fields)
+            why = "market closed" if not is_market_open(now, inst.trading_hours) else \
+                f"{abs(diff) / 60:.0f} min old - stale feed, not a time-zone offset"
+            return ClockCheck("unknown", f"latest {inst.broker_symbol} tick is old ({why}) - "
+                                         f"broker clock not verified", **fields)
+        return ClockCheck("ok", f"server clock UTC{expected_h:+.1f}h matches {self.clock.describe()}", **fields)
 
     def _safe_shutdown(self) -> None:
         try:

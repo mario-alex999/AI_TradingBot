@@ -25,6 +25,8 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     css: false,
+    // Route pages are lazy chunks; cold on-demand transforms under a parallel run can exceed the 5 s default.
+    testTimeout: 30_000,
     env: { VITE_ENABLE_MOCK_DATA: 'true' },
   },
 });
