@@ -160,9 +160,13 @@ $env:AURUM_TEST_DATABASE_URL="postgresql+psycopg://aurum:your_password@localhost
 ## 14. Common errors
 | Message | Fix |
 |---|---|
+| `The term 'py' is not recognized` | Python isn't installed (or has no launcher). `winget install -e --id Python.Python.3.11`, or the python.org installer with **Add python.exe to PATH** ticked; then open a new PowerShell window |
+| `Activate.ps1 cannot be loaded because running scripts is disabled` | `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned`, then activate again; or skip activation and use `.\.venv\Scripts\python.exe` instead of `python` |
+| `The term 'docker' is not recognized` | Docker Desktop isn't installed. Install it (restart, open it once), or use the SQLite quick start: `DATABASE_URL=sqlite:///data/aurum.db` in `.env`, then `init-db` |
+| Database `connection timeout expired` on port 5432 | The database isn't running: start Docker Desktop, `docker compose --env-file .env up -d`, wait for `docker ps` to show `healthy` |
 | `The 'MetaTrader5' package is not installed` | Run on Windows inside the venv: `pip install MetaTrader5` |
 | `initialize() failed (-10003 …)` | Terminal not found: set `MT5_TERMINAL_PATH`, start MT5 once manually, use 64-bit Python |
-| `initialize() failed (-6 …) Authorization failed` | Wrong `MT5_LOGIN`/`MT5_PASSWORD`/`MT5_SERVER` (server name exactly as in MT5) |
+| `initialize() failed (-6 …) Authorization failed` | Leave `MT5_LOGIN`, `MT5_PASSWORD`, `MT5_SERVER` empty to use the account already logged in; otherwise fix them (trading password, server name exactly as in MT5). Also check the terminal is logged in and `MT5_TERMINAL_PATH` points to that same terminal |
 | `terminal is running but not connected` | Check internet / broker server in the terminal's bottom-right status |
 | `… is a REAL account … only connects to DEMO` | By design. Log in to a demo account |
 | `broker symbol 'XAUUSD' not found` | Fix `broker_symbol` in `config/instruments.yaml` (look in Market Watch → Symbols) |
