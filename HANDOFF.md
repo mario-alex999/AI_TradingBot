@@ -9,6 +9,7 @@ that runs MetaTrader 5. Written 2026-11-02 at the end of the cloud build session
 |---|---|---|
 | `AURUM_AI/` | Module 01: read-only MT5 market data engine (Python, CLI) | Built; 51 tests pass with mocked MT5; DB tests also pass on PostgreSQL 16 |
 | `aurum-frontend/` | React/Vite dashboard (built in a separate session) | Builds clean; runs on labelled DEMO DATA because no backend API exists yet |
+| `smartflow-bot/` | First prototype: SmartFlow confluence strategy (COT index and extremes, street/informed money, SMC/ICT order blocks, FVG, OTE, sessions, S/R), backtester, AI trade reviewer | Reference for later AURUM analysis modules; runs offline with `python main.py demo`; never validated on real data |
 
 Module 01 commands (run from `AURUM_AI/` with the venv active): `check`, `init-db`, `specs`,
 `collect [--symbol X] [--timeframe TF] [--full] [--loop]`, `export` — e.g. `python -m aurum.cli check`.
