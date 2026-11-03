@@ -93,7 +93,7 @@ export const CandlestickChart = forwardRef<CandlestickChartHandle, Props>(functi
         ? candles.map((c) => ({
             time: c.time as UTCTimestamp,
             value: c.volume,
-            color: c.close >= c.open ? 'rgba(22,199,132,0.35)' : 'rgba(234,57,67,0.35)',
+            color: c.close >= c.open ? 'rgba(26,127,82,0.22)' : 'rgba(214,69,69,0.22)',
           }))
         : [],
     );
@@ -179,7 +179,7 @@ export const CandlestickChart = forwardRef<CandlestickChartHandle, Props>(functi
       )}
       {watermark && (
         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
-          <span className="select-none text-3xl font-bold uppercase tracking-[0.3em] text-white/[0.05] sm:text-5xl">{watermark}</span>
+          <span className="select-none text-3xl font-bold uppercase tracking-[0.3em] text-black/[0.04] sm:text-5xl">{watermark}</span>
         </div>
       )}
     </div>

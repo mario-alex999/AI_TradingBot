@@ -10,6 +10,13 @@ export function AccountSummary() {
   const cur = a?.currency ?? 'USD';
   return (
     <KpiStrip
+      variant="feature"
+      title="Account summary"
+      actions={
+        <span className="rounded-full bg-feature-tag px-2.5 py-0.5 text-xs font-semibold text-gold">
+          {a ? (a.environment === 'live' ? 'Live' : 'Demo account') : 'Awaiting MT5'}
+        </span>
+      }
       label="Account summary"
       items={[
         { label: 'Account balance', value: formatCurrency(a?.balance, cur), hint },

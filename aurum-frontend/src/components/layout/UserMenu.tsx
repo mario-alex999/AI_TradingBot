@@ -39,9 +39,9 @@ export function UserMenu() {
         aria-expanded={open}
         aria-label="User menu"
         onClick={() => setOpen((o) => !o)}
-        className="flex h-9 items-center gap-2 rounded-md px-1.5 hover:bg-base-elevated"
+        className="flex h-10 items-center gap-2 rounded-full p-0.5 hover:bg-base-card"
       >
-        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-base-elevated text-xs font-semibold text-ink-muted">
+        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gold-faint text-xs font-semibold text-gold">
           {initials}
         </span>
         <span className="hidden text-left 2xl:block">
@@ -51,7 +51,7 @@ export function UserMenu() {
         <ChevronDown className="hidden h-3.5 w-3.5 text-neutral 2xl:block" aria-hidden />
       </button>
       {open && (
-        <div role="menu" className="absolute right-0 top-11 z-30 w-56 animate-fade-in rounded-card border border-line-control bg-base-elevated p-1 shadow-float">
+        <div role="menu" className="absolute right-0 top-11 z-30 w-56 animate-fade-in rounded-xl bg-base-card p-1 shadow-float">
           <div className="border-b border-line-soft px-3 py-2">
             <p className="text-sm font-medium text-ink">{user.name}</p>
             <p className="text-xs text-neutral">{user.email}</p>

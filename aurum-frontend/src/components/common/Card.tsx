@@ -5,7 +5,7 @@ export function Card({ className, elevated, ...rest }: HTMLAttributes<HTMLDivEle
   return (
     <div
       className={cn(
-        'rounded-card border border-line',
+        'rounded-card',
         elevated ? 'bg-base-elevated' : 'bg-base-card',
         className,
       )}
@@ -28,7 +28,7 @@ export function CardHeader({ title, subtitle, icon, actions, className }: CardHe
       <div className="flex min-w-0 items-start gap-2">
         {icon && <span className="mt-0.5 text-neutral" aria-hidden>{icon}</span>}
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-ink">{title}</h2>
+          <h2 className="text-base font-semibold text-ink">{title}</h2>
           {subtitle && <p className="mt-0.5 text-xs text-neutral">{subtitle}</p>}
         </div>
       </div>

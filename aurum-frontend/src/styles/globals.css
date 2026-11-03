@@ -4,7 +4,7 @@
 
 @layer base {
   :root {
-    color-scheme: dark;
+    color-scheme: light;
   }
   html,
   body,
@@ -16,20 +16,20 @@
     font-feature-settings: 'cv11', 'ss01';
   }
   /* Financial numbers: monospaced with tabular figures so columns align. */
+  /* Figures: the text face with tabular digits so columns align. */
   .num {
-    @apply font-mono;
     font-variant-numeric: tabular-nums;
-    font-feature-settings: 'tnum', 'zero';
+    font-feature-settings: 'tnum';
   }
   :focus-visible {
-    @apply outline-none ring-1 ring-gold ring-offset-2 ring-offset-base;
+    @apply outline-none ring-2 ring-gold/60 ring-offset-2 ring-offset-base;
   }
   ::selection {
-    background: rgba(214, 173, 96, 0.3);
+    background: rgba(15, 74, 58, 0.18);
   }
   * {
     scrollbar-width: thin;
-    scrollbar-color: #273449 transparent;
+    scrollbar-color: #D4D7D5 transparent;
   }
 }
 
@@ -38,9 +38,14 @@
   .eyebrow {
     @apply text-xs font-normal text-neutral;
   }
+  /* Filled grey fields, as in the template; the border appears on hover/focus. */
   .field {
-    @apply h-8 w-full rounded-md border border-line-control bg-base-raised px-3 text-sm text-ink placeholder:text-neutral
-      transition-colors hover:border-[#4a4a4f] focus-visible:border-gold/70 disabled:cursor-not-allowed disabled:opacity-60;
+    @apply h-9 w-full rounded-lg border border-transparent bg-base-raised px-3 text-sm text-ink placeholder:text-neutral
+      transition-colors hover:border-line-control focus-visible:border-gold disabled:cursor-not-allowed disabled:opacity-60;
+  }
+  /* Sidebar group label ("MAIN MENU") */
+  .group-label {
+    @apply text-xs font-semibold uppercase tracking-[0.06em] text-ink;
   }
   /* The one selection mark: a 1px accent line exactly as wide as its label. */
   .selected-line {

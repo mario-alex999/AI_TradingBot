@@ -12,19 +12,19 @@ export function Sidebar() {
       data-testid="sidebar"
       data-collapsed={collapsed}
       className={cn(
-        'sticky top-0 hidden h-screen shrink-0 flex-col border-r border-line bg-base transition-[width] duration-200 lg:flex',
-        collapsed ? 'w-[68px]' : 'w-60',
+        'sticky top-0 hidden h-screen shrink-0 flex-col bg-base-card transition-[width] duration-200 lg:flex',
+        collapsed ? 'w-[72px]' : 'w-64',
       )}
     >
-      <div className={cn('flex h-12 items-center', collapsed ? 'justify-center' : 'px-4')}>
+      <div className={cn('flex h-20 items-center', collapsed ? 'justify-center' : 'justify-between px-5')}>
         <Link to="/" aria-label="AURUM AI dashboard">
           <Logo collapsed={collapsed} />
         </Link>
       </div>
-      <div className="flex-1 overflow-y-auto px-2 py-4">
+      <div className="flex-1 overflow-y-auto px-3 pb-4">
         <NavList collapsed={collapsed} />
       </div>
-      <div className="border-t border-line p-2">
+      <div className="border-t border-line-soft p-3">
         {!collapsed && (
           <div className="mb-1 flex items-center gap-2 px-3 py-2 text-xs text-neutral">
             <ShieldCheck className="h-3.5 w-3.5" aria-hidden />

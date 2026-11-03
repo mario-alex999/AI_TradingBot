@@ -55,11 +55,11 @@ export function SessionPanel({ detailed = false }: { detailed?: boolean }) {
                   <span className="text-sm font-medium text-ink">{s.def.name}</span>
                 </div>
                 <div className="order-3 col-span-2 sm:order-none sm:col-span-1">
-                  <div className="relative h-5 rounded-sm bg-base-raised" aria-hidden>
+                  <div className="relative h-5 rounded-full bg-base-raised" aria-hidden>
                     {segments(s.intervals, dayStart).map((seg, i) => (
                       <span
                         key={i}
-                        className={s.isOpen ? 'absolute inset-y-1.5 rounded-sm bg-gold' : 'absolute inset-y-1.5 rounded-sm bg-[#3a3a3e]'}
+                        className={s.isOpen ? 'absolute inset-y-1.5 rounded-full bg-gold' : 'absolute inset-y-1.5 rounded-full bg-line-control'}
                         style={{ left: `${seg.left}%`, width: `${seg.width}%` }}
                       />
                     ))}

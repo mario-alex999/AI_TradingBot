@@ -9,45 +9,67 @@ export interface Kpi {
   tone?: 'up' | 'down' | 'flat';
 }
 
+interface Props {
+  items: Kpi[];
+  label: string;
+  /** Optional title row (feature cards carry one, like the template's "Asset Allocation"). */
+  title?: ReactNode;
+  actions?: ReactNode;
+  /** `feature` = the dark-green card; `plain` = white card. */
+  variant?: 'feature' | 'plain';
+  className?: string;
+}
+
 /**
- * Peer figures in ONE container split by 1px dividers (no tile per KPI, no icons).
- * A missing value is a small grey dash, never a full-size "--" that reads as loading.
+ * Peer figures in ONE card split by thin dividers (no tile or icon per figure).
+ * A missing value is a small dash, never a full-size "--" that reads as loading.
  */
-export function KpiStrip({ items, label, className }: { items: Kpi[]; label: string; className?: string }) {
+export function KpiStrip({ items, label, title, actions, variant = 'plain', className }: Props) {
+  const feature = variant === 'feature';
   return (
     <section
       aria-label={label}
-      className={cn(
-        'grid grid-cols-2 overflow-hidden rounded-card border border-line bg-base-card md:grid-cols-3 xl:grid-cols-6',
-        // 1px dividers drawn by the gap over the line-coloured background
-        'gap-px bg-line',
-        className,
-      )}
+      className={cn('overflow-hidden rounded-card', feature ? 'bg-feature text-white' : 'bg-base-card', className)}
     >
-      {items.map((k) => {
-        const missing = k.value === PLACEHOLDER;
-        return (
-          <div key={k.label} className="flex min-w-0 flex-col gap-1.5 bg-base-card px-4 py-3.5">
-            <span className="eyebrow truncate">{k.label}</span>
-            {missing ? (
-              <span className="text-sm text-neutral" aria-label={`${k.label}: not available`}>
-                —
-              </span>
-            ) : (
-              <span
-                className={cn(
-                  'num text-xl text-ink',
-                  k.tone === 'up' && 'text-up',
-                  k.tone === 'down' && 'text-down-text',
-                )}
-              >
-                {k.value}
-              </span>
-            )}
-            {k.hint && <span className="truncate text-xs text-neutral">{k.hint}</span>}
-          </div>
-        );
-      })}
+      {title && (
+        <div className={cn('flex items-center justify-between gap-3 px-5 py-4', feature ? 'border-b border-feature-line' : 'border-b border-line-soft')}>
+          <h2 className={cn('text-base font-semibold', feature ? 'text-white' : 'text-ink')}>{title}</h2>
+          {actions}
+        </div>
+      )}
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+        {items.map((k, i) => {
+          const missing = k.value === PLACEHOLDER;
+          return (
+            <div
+              key={k.label}
+              className={cn(
+                'flex min-w-0 flex-col gap-1 px-5 py-4',
+                i > 0 && (feature ? 'border-l border-feature-line' : 'border-l border-line-soft'),
+              )}
+            >
+              <span className={cn('truncate text-sm', feature ? 'text-white' : 'text-ink')}>{k.label}</span>
+              <span className={cn('truncate text-xs', feature ? 'text-feature-muted' : 'text-neutral')}>{k.hint}</span>
+              {missing ? (
+                <span className={cn('mt-1 text-sm', feature ? 'text-feature-muted' : 'text-neutral')} aria-label={`${k.label}: not available`}>
+                  —
+                </span>
+              ) : (
+                <span
+                  className={cn(
+                    'num mt-1 text-lg font-semibold',
+                    feature ? 'text-white' : 'text-ink',
+                    !feature && k.tone === 'up' && 'text-up',
+                    !feature && k.tone === 'down' && 'text-down-text',
+                  )}
+                >
+                  {k.value}
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </section>
   );
 }

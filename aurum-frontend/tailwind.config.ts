@@ -1,12 +1,12 @@
 import type { Config } from 'tailwindcss';
 
 /**
- * AURUM AI design tokens — "data terminal" app style (taste-skill), brand gold
- * kept as the single accent. Colour belongs on data and on the one selection
- * line; chrome stays neutral. Every colour in the UI should come from here.
+ * AURUM AI design tokens — light "private-bank" layout (white sidebar, light grey
+ * canvas, white rounded cards, one deep-green accent with dark-green feature cards).
+ * Every colour in the UI should come from here.
  *
- * Ground model: true neutral darks (no navy). Cards sit one step DARKER than
- * the ground, separated by a 1px line, never by a shadow.
+ * Note: the accent keeps the token name `gold` so components did not need renaming;
+ * its value is the deep green brand colour.
  */
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
@@ -14,44 +14,39 @@ export default {
     extend: {
       colors: {
         base: {
-          DEFAULT: '#171719', // ground (page, sidebar, top bar)
-          raised: '#1c1c1f', // fields, wells, quiet fills
-          card: '#121215', // cards: one step darker than the ground
-          elevated: '#212023', // hover, menus, popovers
+          DEFAULT: '#EEEFEE', // canvas
+          raised: '#F3F4F3', // filled inputs, wells, quiet fills
+          card: '#FFFFFF', // cards and the sidebar
+          elevated: '#F7F8F7', // hover, menus
         },
-        // The one accent: data marks and the 1px selection line. Never a fill on chrome.
-        gold: { DEFAULT: '#D6AD60', muted: '#C5A15A', faint: 'rgba(214,173,96,0.10)' },
-        up: { DEFAULT: '#16C784', faint: 'rgba(22,199,132,0.12)' },
-        // #EA3943 is the brand negative; down-text is a lighter step that keeps 4.5:1
-        // contrast for small text on card backgrounds.
-        down: { DEFAULT: '#EA3943', text: '#F2606A', faint: 'rgba(234,57,67,0.12)' },
-        warn: { DEFAULT: '#D9A441', faint: '#2a2416' },
-        info: { DEFAULT: '#8FB4E3', faint: '#1a2230' },
-        // Two greys that read apart, both >= 4.5:1 on cards.
-        neutral: '#8A8C92', // meta, labels, axis text
-        ink: { DEFAULT: '#F2F2F3', muted: '#B4B5BA' }, // primary / secondary text
-        line: { DEFAULT: '#26262A', soft: '#1E1E22', control: '#3A3A3E' },
+        // Deep green accent: active nav, primary data series, feature cards.
+        gold: { DEFAULT: '#0F4A3A', muted: '#1B5E4B', faint: '#E3EFE9' },
+        // Feature (dark green) card palette
+        feature: { DEFAULT: '#0F4A3A', line: 'rgba(255,255,255,0.14)', tag: '#C7F0A8', muted: 'rgba(255,255,255,0.72)' },
+        up: { DEFAULT: '#1A7F52', faint: '#E3F4EA' },
+        down: { DEFAULT: '#D64545', text: '#C4242A', faint: '#FDECEC' },
+        warn: { DEFAULT: '#B45309', faint: '#FEF3C7' },
+        info: { DEFAULT: '#1D4ED8', faint: '#EFF6FF' },
+        neutral: '#6B7280', // meta, labels, axis text (>= 4.5:1 on white)
+        ink: { DEFAULT: '#111827', muted: '#4B5563' }, // primary / secondary text
+        line: { DEFAULT: '#E5E7E6', soft: '#F0F1F0', control: '#D4D7D5' },
       },
       fontFamily: {
-        // One grotesk for text; a monospace for every figure (the style's decision).
-        sans: ['"Public Sans"', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
       },
       fontSize: {
         '2xs': ['0.6875rem', { lineHeight: '1rem' }],
       },
-      borderRadius: { card: '6px' },
+      borderRadius: { card: '16px' },
       boxShadow: {
-        // Resting surfaces carry no shadow; only floating layers (menus, dialogs) do.
         card: 'none',
-        float: '0 12px 28px rgba(0,0,0,.35)',
+        float: '0 12px 32px rgba(17,24,39,.12)',
       },
       keyframes: {
-        shimmer: { '100%': { transform: 'translateX(100%)' } },
         'fade-in': { from: { opacity: '0', transform: 'translateY(4px)' }, to: { opacity: '1', transform: 'none' } },
       },
       animation: {
-        shimmer: 'shimmer 1.6s infinite',
         'fade-in': 'fade-in 160ms ease-out',
       },
     },

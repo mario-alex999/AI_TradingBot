@@ -14,19 +14,18 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   disabledReason?: string;
 }
 
-// One filled primary per screen, inverted white on the dark ground; the gold
-// accent is kept for data and selection, never spent on button fills.
+// Pill buttons: a near-black filled primary and an outlined secondary, as in the template.
 const variants: Record<Variant, string> = {
-  primary: 'bg-ink text-[#121215] font-semibold hover:bg-white active:bg-[#d9d9db]',
-  secondary: 'border border-line-control text-ink hover:border-[#55555b] hover:bg-base-elevated active:bg-base-raised',
-  ghost: 'text-ink-muted hover:bg-base-elevated hover:text-ink active:bg-base-raised',
-  danger: 'border border-down/50 text-down-text hover:bg-[#2c1a20]',
+  primary: 'rounded-full bg-ink text-white font-medium hover:bg-[#1f2937] active:bg-black',
+  secondary: 'rounded-full border border-line-control bg-base-card text-ink hover:border-ink/40 active:bg-base-raised',
+  ghost: 'rounded-full text-ink-muted hover:bg-base-raised hover:text-ink active:bg-line-soft',
+  danger: 'rounded-full border border-down/50 bg-base-card text-down-text hover:bg-down-faint',
 };
 
 const sizes: Record<Size, string> = {
-  sm: 'h-7 px-2.5 text-xs gap-1.5',
-  md: 'h-8 px-3.5 text-sm gap-2',
-  icon: 'h-8 w-8 justify-center',
+  sm: 'h-8 px-3.5 text-xs gap-1.5',
+  md: 'h-9 px-5 text-sm gap-2',
+  icon: 'h-9 w-9 justify-center',
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
@@ -42,7 +41,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       title={isDisabled && disabledReason ? disabledReason : rest.title}
       aria-description={isDisabled && disabledReason ? disabledReason : undefined}
       className={cn(
-        'inline-flex shrink-0 items-center rounded-md font-medium transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50',
+        'inline-flex shrink-0 items-center font-medium transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-45',
         variants[variant],
         sizes[size],
         className,

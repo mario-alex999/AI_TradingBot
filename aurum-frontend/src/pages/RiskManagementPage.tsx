@@ -21,7 +21,7 @@ function ExposureChart({ title, data }: { title: string; data: { name: string; v
           <XAxis type="number" {...axisProps} tickFormatter={(v: number) => `${v}%`} />
           <YAxis type="category" dataKey="name" {...axisProps} width={72} />
           <Tooltip {...tooltipProps} formatter={(v: number) => `${v.toFixed(2)}%`} />
-          <Bar dataKey="value" fill="#D6AD60" radius={[0, 3, 3, 0]} />
+          <Bar dataKey="value" fill="#0F4A3A" radius={[0, 4, 4, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </ChartCard>

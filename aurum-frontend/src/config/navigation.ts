@@ -33,7 +33,7 @@ export interface NavGroup {
 
 export const NAV_GROUPS: NavGroup[] = [
   {
-    label: 'Overview',
+    label: 'Main menu',
     items: [
       { path: '/', label: 'Dashboard', icon: LayoutDashboard, permission: 'view:dashboard' },
       { path: '/market', label: 'Market Overview', icon: Globe2, permission: 'view:dashboard' },
@@ -60,7 +60,7 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    label: 'System',
+    label: 'Others',
     items: [
       { path: '/data', label: 'Data Centre', icon: Database, permission: 'view:dashboard' },
       { path: '/agents', label: 'Agent Centre', icon: Bot, permission: 'view:system' },

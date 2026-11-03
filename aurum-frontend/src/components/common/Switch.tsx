@@ -28,13 +28,13 @@ export function Switch({ checked, onChange, label, description, disabled, disabl
         onClick={() => onChange(!checked)}
         className={cn(
           'relative mt-0.5 inline-flex h-[18px] w-8 shrink-0 rounded-full border transition-colors',
-          checked ? 'border-ink bg-ink' : 'border-line-control bg-base-raised',
+          checked ? 'border-gold bg-gold' : 'border-line-control bg-line',
         )}
       >
         <span
           className={cn(
             'absolute top-px h-3.5 w-3.5 rounded-full transition-transform',
-            checked ? 'translate-x-[15px] bg-[#121215]' : 'translate-x-px bg-neutral',
+            checked ? 'translate-x-[15px] bg-white' : 'translate-x-px bg-white'
           )}
         />
       </button>

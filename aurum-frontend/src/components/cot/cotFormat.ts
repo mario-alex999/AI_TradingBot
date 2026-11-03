@@ -5,17 +5,17 @@ import { formatInteger, PLACEHOLDER } from '@/utils/format';
 // One hue per screen: the speculative category (the one COT screens ask about) takes the gold;
 // hedgers are near-white and everything else a neutral grey. No blue, teal or violet.
 export const CATEGORY_COLORS: Record<string, string> = {
-  commercial: '#F2F2F3',
-  non_commercial: '#D6AD60',
-  non_reportable: '#8A8C92',
-  total_reportable: '#6E7076',
-  dealer: '#F2F2F3',
-  asset_manager: '#B4B5BA',
-  leveraged_funds: '#D6AD60',
-  other_reportable: '#8A8C92',
-  producer_merchant: '#F2F2F3',
-  swap_dealer: '#B4B5BA',
-  managed_money: '#D6AD60',
+  commercial: '#5E9C7E',
+  non_commercial: '#0F4A3A',
+  non_reportable: '#A9D4BC',
+  total_reportable: '#9CA3AF',
+  dealer: '#5E9C7E',
+  asset_manager: '#6B7280',
+  leveraged_funds: '#0F4A3A',
+  other_reportable: '#A9D4BC',
+  producer_merchant: '#5E9C7E',
+  swap_dealer: '#6B7280',
+  managed_money: '#0F4A3A',
 };
 
 export const signed = (v: number | null | undefined): string => (v == null ? PLACEHOLDER : `${v > 0 ? '+' : ''}${formatInteger(v)}`);

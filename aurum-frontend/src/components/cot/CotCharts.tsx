@@ -83,9 +83,9 @@ export function NetHistoryChart({ series, categories }: Props) {
           <YAxis {...axisProps} tickFormatter={yTick} width={56} />
           <Tooltip {...tooltipProps} formatter={num} labelFormatter={tooltipLabel} />
           <Legend {...legendProps} />
-          <ReferenceLine y={0} stroke="#3a4c69" />
+          <ReferenceLine y={0} stroke="#D4D7D5" />
           {cats.map((c) => (
-            <Line key={c.key} type="monotone" dataKey={`${c.key}_net`} name={c.label} stroke={CATEGORY_COLORS[c.key] ?? '#8B98AA'} dot={false} strokeWidth={1.4} connectNulls={false} />
+            <Line key={c.key} type="monotone" dataKey={`${c.key}_net`} name={c.label} stroke={CATEGORY_COLORS[c.key] ?? '#9CA3AF'} dot={false} strokeWidth={1.4} connectNulls={false} />
           ))}
         </LineChart>
       </ResponsiveContainer>
@@ -124,7 +124,7 @@ export function WeeklyChangeChart({ series, categories, primary }: Props) {
           <XAxis dataKey="reportDate" {...axisProps} tickFormatter={xTick} minTickGap={28} />
           <YAxis {...axisProps} tickFormatter={yTick} width={56} />
           <Tooltip {...tooltipProps} formatter={num} labelFormatter={tooltipLabel} />
-          <ReferenceLine y={0} stroke="#3a4c69" />
+          <ReferenceLine y={0} stroke="#D4D7D5" />
           <Bar dataKey={key} name="Weekly change">
             {rows.map((r) => (
               <Cell key={String(r.reportDate)} fill={Number(r[key] ?? 0) >= 0 ? SERIES.up : SERIES.down} fillOpacity={0.75} />
@@ -191,7 +191,7 @@ export function CotIndexChart({ series, categories, primary }: Props) {
           <XAxis dataKey="reportDate" {...axisProps} tickFormatter={xTick} minTickGap={28} />
           <YAxis {...axisProps} domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} width={36} />
           <Tooltip {...tooltipProps} formatter={(v: number) => v.toFixed(1)} labelFormatter={tooltipLabel} />
-          <ReferenceLine y={50} stroke="#3a4c69" />
+          <ReferenceLine y={50} stroke="#D4D7D5" />
           <Area type="monotone" dataKey={key} name="COT index" stroke={SERIES.nonCommercial} fill={SERIES.nonCommercial} fillOpacity={0.1} strokeWidth={1.5} dot={false} />
         </AreaChart>
       </ResponsiveContainer>

@@ -27,11 +27,11 @@ export function IndicatorPane({ pane, candles, subscribeRange }: Props) {
     pane.lines.forEach((spec, idx) => {
       const data = candles.map((c, i) => (spec.values[i] == null ? { time: c.time as UTCTimestamp } : { time: c.time as UTCTimestamp, value: spec.values[i]! }));
       if (spec.kind === 'histogram') {
-        const s = chart.addHistogramSeries({ color: '#3a4c69', priceLineVisible: false, lastValueVisible: false });
+        const s = chart.addHistogramSeries({ color: '#D4D7D5', priceLineVisible: false, lastValueVisible: false });
         s.setData(
           data.map((d) =>
             'value' in d && d.value !== undefined
-              ? { ...d, color: d.value >= 0 ? 'rgba(22,199,132,0.45)' : 'rgba(234,57,67,0.45)' }
+              ? { ...d, color: d.value >= 0 ? 'rgba(26,127,82,0.4)' : 'rgba(214,69,69,0.4)' }
               : { time: d.time },
           ),
         );
@@ -39,7 +39,7 @@ export function IndicatorPane({ pane, candles, subscribeRange }: Props) {
         const s = chart.addLineSeries({ color: spec.color, lineWidth: 1, priceLineVisible: false, lastValueVisible: idx === 0 });
         s.setData(data);
         if (idx === 0)
-          pane.levels?.forEach((lv) => s.createPriceLine({ price: lv, color: '#3a4c69', lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: false, title: '' }));
+          pane.levels?.forEach((lv) => s.createPriceLine({ price: lv, color: '#D4D7D5', lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: false, title: '' }));
       }
     });
     const unsub = subscribeRange?.((r) => r && chart.timeScale().setVisibleLogicalRange(r));

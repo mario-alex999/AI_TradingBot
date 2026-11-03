@@ -8,16 +8,16 @@ import { cn } from '@/utils/cn';
 export function NavList({ collapsed = false, onNavigate }: { collapsed?: boolean; onNavigate?: () => void }) {
   const role = useAuthStore((s) => s.user?.role);
   return (
-    <nav aria-label="Primary" className="flex flex-col gap-4">
+    <nav aria-label="Primary" className="flex flex-col gap-6">
       {NAV_GROUPS.map((group) => {
         const items = group.items.filter((i) => hasPermission(role, i.permission));
         if (items.length === 0) return null;
         return (
           <div key={group.label}>
             {collapsed ? (
-              <div className="mx-3 mb-2 border-t border-line-soft" aria-hidden />
+              <div className="mx-3 mb-2 border-t border-line" aria-hidden />
             ) : (
-              <p className="eyebrow mb-1 px-3">{group.label}</p>
+              <p className="group-label mb-2 px-3">{group.label}</p>
             )}
             <ul className="flex flex-col gap-0.5">
               {items.map((item) => {
@@ -32,18 +32,16 @@ export function NavList({ collapsed = false, onNavigate }: { collapsed?: boolean
                       aria-label={collapsed ? item.label : undefined}
                       className={({ isActive }) =>
                         cn(
-                          'group relative flex h-8 items-center gap-2.5 rounded-md px-3 text-[13px] transition-colors',
+                          'group relative flex h-9 items-center gap-2.5 rounded-lg px-3 text-[13px] transition-colors',
                           collapsed && 'justify-center px-0',
-                          isActive ? 'text-ink' : 'text-neutral hover:text-ink',
+                          isActive ? 'bg-gold font-medium text-white' : 'text-ink hover:bg-base-raised',
                         )
                       }
                     >
                       {({ isActive }) => (
                         <>
-                          <Icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-ink' : 'text-neutral group-hover:text-ink-muted')} aria-hidden />
-                          {/* Selection = the one 1px gold line, as wide as the label. */}
-                          {!collapsed && <span className={cn('truncate', isActive && 'selected-line font-medium')}>{item.label}</span>}
-                          {collapsed && isActive && <span className="absolute bottom-1 left-1/2 h-px w-4 -translate-x-1/2 bg-gold" aria-hidden />}
+                          <Icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-white' : 'text-ink-muted group-hover:text-ink')} aria-hidden />
+                          {!collapsed && <span className="truncate">{item.label}</span>}
                         </>
                       )}
                     </NavLink>
