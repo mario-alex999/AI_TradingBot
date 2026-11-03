@@ -1,6 +1,7 @@
 import { PanelLeftClose, PanelLeftOpen, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Logo } from '@/components/common/Logo';
+import { env } from '@/config/env';
 import { useUiStore } from '@/stores/uiStore';
 import { cn } from '@/utils/cn';
 import { NavList } from './NavList';
@@ -26,9 +27,14 @@ export function Sidebar() {
       </div>
       <div className="border-t border-line-soft p-3">
         {!collapsed && (
-          <div className="mb-1 flex items-center gap-2 px-3 py-2 text-xs text-neutral">
-            <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
-            Read-only · no order execution
+          <div className="mb-1 flex flex-col gap-1 px-3 py-2 text-xs text-neutral">
+            <span className="flex items-center gap-2">
+              <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
+              Read-only · no order execution
+            </span>
+            <Link to="/settings?tab=about" className="truncate hover:text-ink" data-testid="built-by">
+              Built by <span className="font-medium text-ink">{env.builtBy}</span> · v{__APP_VERSION__}
+            </Link>
           </div>
         )}
         <button

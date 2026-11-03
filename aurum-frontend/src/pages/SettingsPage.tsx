@@ -19,18 +19,20 @@ import { DEFAULT_INSTRUMENTS, TIMEFRAMES } from '@/config/instruments';
 import { CATEGORY_LABEL } from '@/config/notifications';
 import { ROLE_LABEL, ROLE_PERMISSIONS } from '@/config/permissions';
 import { env } from '@/config/env';
-import { formatNumber } from '@/utils/format';
+import { formatDateTime, formatNumber } from '@/utils/format';
+import { useUiStore } from '@/stores/uiStore';
 import type { NotificationCategory } from '@/types/system';
 import type { Permission, Role } from '@/types/auth';
 import type { Timeframe } from '@/types/market';
 
-type Tab = 'general' | 'market' | 'data' | 'notifications' | 'security';
+type Tab = 'general' | 'market' | 'data' | 'notifications' | 'security' | 'about';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'general', label: 'General' },
   { id: 'market', label: 'Market' },
   { id: 'data', label: 'Data' },
   { id: 'notifications', label: 'Notifications' },
   { id: 'security', label: 'Security' },
+  { id: 'about', label: 'About' },
 ];
 
 const BACKEND_MANAGED = <span className="text-xs text-neutral">Managed by the backend · read-only here</span>;
@@ -251,6 +253,47 @@ function Security() {
   );
 }
 
+const STACK = ['React 18', 'TypeScript (strict)', 'Vite', 'Tailwind CSS', 'TanStack Query', 'Zustand', 'Lightweight Charts', 'Recharts', 'React Hook Form + Zod', 'Python FastAPI backend'];
+
+function About() {
+  const setShortcutsOpen = useUiStore((s) => s.setShortcutsOpen);
+  const rows: [string, string][] = [
+    ['Built by', env.builtBy],
+    ['Version', `v${__APP_VERSION__}`],
+    ['Build', `${formatDateTime(__BUILD_TIME__)} UTC`],
+    ['Commit', __COMMIT__],
+    ['Backend API', env.apiBaseUrl],
+  ];
+  return (
+    <>
+      <SettingRow title="AURUM AI" description="Institutional market intelligence and AI-assisted trading command centre. Read-only: no order execution.">
+        <dl className="grid gap-1.5 text-sm">
+          {rows.map(([k, v]) => (
+            <div key={k} className="flex gap-3">
+              <dt className="w-28 shrink-0 text-neutral">{k}</dt>
+              <dd className={k === 'Commit' || k === 'Backend API' ? 'font-mono text-xs text-ink' : 'text-ink'} data-testid={k === 'Built by' ? 'about-built-by' : undefined}>
+                {v}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </SettingRow>
+      <SettingRow title="Engineering" description="How the interface is put together.">
+        <div className="flex flex-wrap gap-1.5">
+          {STACK.map((s) => (
+            <Badge key={s}>{s}</Badge>
+          ))}
+        </div>
+      </SettingRow>
+      <SettingRow title="Keyboard shortcuts" description="Press ? anywhere to see them.">
+        <Button size="sm" onClick={() => setShortcutsOpen(true)}>
+          Show shortcuts
+        </Button>
+      </SettingRow>
+    </>
+  );
+}
+
 export default function SettingsPage() {
   const [params, setParams] = useSearchParams();
   const tab = (TABS.find((t) => t.id === params.get('tab'))?.id ?? 'general') as Tab;
@@ -267,6 +310,7 @@ export default function SettingsPage() {
           {tab === 'data' && <Data />}
           {tab === 'notifications' && <Notifications />}
           {tab === 'security' && <Security />}
+          {tab === 'about' && <About />}
         </CardBody>
       </Card>
     </div>

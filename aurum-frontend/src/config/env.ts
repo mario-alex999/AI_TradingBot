@@ -10,6 +10,8 @@ export const env = {
   mockDataDefault: bool(import.meta.env.VITE_ENABLE_MOCK_DATA, true),
   requestTimeoutMs: Number(import.meta.env.VITE_API_TIMEOUT_MS ?? 10_000) || 10_000,
   realtimeUrl: import.meta.env.VITE_REALTIME_URL?.trim() || null,
+  /** Name shown in the "Built by" credit (sidebar and Settings → About). */
+  builtBy: import.meta.env.VITE_BUILT_BY?.trim() || 'the AURUM AI engineering team',
 } as const;
 
 /**

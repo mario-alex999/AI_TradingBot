@@ -4,6 +4,7 @@ import { Badge } from '@/components/common/Badge';
 import { formatCurrency, formatInteger, formatNumber, formatPercent } from '@/utils/format';
 import type { PerformanceReport } from '@/types/trading';
 import { ChartCard } from './ChartCard';
+import { GLOSSARY } from '@/config/glossary';
 import { axisProps, gridProps, SERIES, tooltipProps } from './chartStyles';
 
 interface Props {
@@ -52,8 +53,8 @@ export function PerformanceView({ report, kind, emptyDescription }: Props) {
         <MetricCard label="Total trades" value={formatInteger(m?.totalTrades)} tone={tone} hint={label} />
         <MetricCard label="Winning / losing" value={m ? `${m.winningTrades} / ${m.losingTrades}` : '—'} tone={tone} />
         <MetricCard label="Win rate" value={formatPercent(m?.winRate)} tone={tone} />
-        <MetricCard label="Profit factor" value={formatNumber(m?.profitFactor, 2)} tone={tone} />
-        <MetricCard label="Expectancy" value={formatCurrency(m?.expectancy)} tone={tone} />
+        <MetricCard label="Profit factor" value={formatNumber(m?.profitFactor, 2)} tone={tone} info={GLOSSARY.profit_factor} />
+        <MetricCard label="Expectancy" value={formatCurrency(m?.expectancy)} tone={tone} info={GLOSSARY.expectancy} />
         <MetricCard label="Average profit" value={formatCurrency(m?.averageProfit)} tone={m ? 'up' : 'muted'} />
         <MetricCard label="Average loss" value={formatCurrency(m?.averageLoss)} tone={m ? 'down' : 'muted'} />
         <MetricCard label="Max drawdown" value={formatPercent(m?.maxDrawdownPct)} tone={tone} />

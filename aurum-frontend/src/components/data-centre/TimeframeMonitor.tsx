@@ -6,6 +6,7 @@ import { Badge } from '@/components/common/Badge';
 import { DataSourceBadge } from '@/components/common/DataSourceBadge';
 import { QueryState } from '@/components/common/QueryState';
 import { useDataQuality } from '@/hooks/queries';
+import { scrollToLogs, useDataCentreStore } from '@/stores/dataCentreStore';
 import { formatDateTime, formatInteger } from '@/utils/format';
 import type { TimeframeHealth } from '@/types/system';
 
@@ -18,6 +19,7 @@ const AVAIL: Record<TimeframeHealth['availability'], 'up' | 'warn' | 'down' | 'n
 
 export function TimeframeMonitor() {
   const dq = useDataQuality();
+  const setTimeframe = useDataCentreStore((st) => st.setTimeframe);
   const columns: Column<TimeframeHealth>[] = [
     { key: 'tf', header: 'Timeframe', cell: (r) => <span className="num font-semibold text-ink">{r.timeframe}</span> },
     { key: 'latest', header: 'Latest candle', cell: (r) => <span className="num text-xs text-ink-muted">{formatDateTime(r.latestCandle)}</span> },
@@ -29,7 +31,18 @@ export function TimeframeMonitor() {
   return (
     <Card>
       <CardHeader icon={<Layers3 className="h-4 w-4" />} title="Timeframe monitoring" actions={<DataSourceBadge source={dq.data?.source} />} />
-      <QueryState query={dq}>{(d) => <DataTable caption="Timeframe health" dense columns={columns} rows={d.data.byTimeframe} rowKey={(r) => r.timeframe} />}</QueryState>
+      <QueryState query={dq}>{(d) => <DataTable
+            caption="Timeframe health"
+            dense
+            columns={columns}
+            rows={d.data.byTimeframe}
+            rowKey={(r) => r.timeframe}
+            onRowClick={(r) => {
+              setTimeframe(r.timeframe);
+              scrollToLogs();
+            }}
+            rowLabel={(r) => `Show ${r.timeframe} collection logs`}
+          />}</QueryState>
     </Card>
   );
 }

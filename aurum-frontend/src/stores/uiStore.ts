@@ -5,6 +5,8 @@ interface UiState {
   sidebarCollapsed: boolean;
   mobileNavOpen: boolean;
   paletteOpen: boolean;
+  shortcutsOpen: boolean;
+  setShortcutsOpen: (open: boolean) => void;
   setPaletteOpen: (open: boolean) => void;
   toggleSidebar: () => void;
   setMobileNavOpen: (open: boolean) => void;
@@ -16,6 +18,8 @@ export const useUiStore = create<UiState>()(
       sidebarCollapsed: false,
       mobileNavOpen: false,
       paletteOpen: false,
+      shortcutsOpen: false,
+      setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
       setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
       setMobileNavOpen: (mobileNavOpen) => set({ mobileNavOpen }),
