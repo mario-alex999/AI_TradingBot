@@ -18,7 +18,7 @@ import {
 import type { CotReportType } from '@/types/cot';
 import { getMarketStructure, getOverlays, getSignals } from '@/services/analysisService';
 import { getAccountSummary, getOpenTrades, getPerformance, getRiskOverview, getTradeHistory, type PerformanceFilters } from '@/services/tradingService';
-import { getAgentStatus, getNotifications } from '@/services/systemService';
+import { getAgentStatus, getLearningLineage, getNotifications } from '@/services/systemService';
 import type { Capability } from '@/types/system';
 import type { Timeframe } from '@/types/market';
 
@@ -214,4 +214,9 @@ export function useAgents() {
 export function useNotifications() {
   const mock = useMock();
   return useQuery({ queryKey: ['notifications', mock], queryFn: ({ signal }) => getNotifications({ mock, signal }) });
+}
+
+export function useLearningLineage() {
+  const mock = useMock();
+  return useQuery({ queryKey: ['learning', mock], queryFn: ({ signal }) => getLearningLineage({ mock, signal }), staleTime: 60_000 });
 }

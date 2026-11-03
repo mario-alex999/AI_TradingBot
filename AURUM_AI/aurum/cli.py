@@ -269,5 +269,9 @@ from aurum.cot.cli import cot_app  # noqa: E402 - Module 02 commands: python -m 
 
 app.add_typer(cot_app, name="cot")
 
+from aurum.learning.cli import learn_app  # noqa: E402 - Trade Learning Agent: python -m aurum.cli learn ...
+
+app.add_typer(learn_app, name="learn")
+
 if __name__ == "__main__":
     app()

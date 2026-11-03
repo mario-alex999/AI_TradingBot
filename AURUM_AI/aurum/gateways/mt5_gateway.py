@@ -51,6 +51,9 @@ class ReadOnlyMT5:
         "initialize", "shutdown", "last_error", "version", "account_info", "terminal_info",
         "symbols_total", "symbols_get", "symbol_info", "symbol_info_tick", "symbol_select",
         "copy_rates_from_pos", "copy_rates_from", "copy_rates_range",
+        # Account history is read-only (it reports deals that already happened). Order functions
+        # such as order_send / order_check / positions_* stay blocked.
+        "history_deals_get", "history_deals_total",
     })
     ALLOWED_CONSTANT_PREFIXES = ("TIMEFRAME_", "ACCOUNT_TRADE_MODE_", "SYMBOL_TRADE_MODE_")
 
@@ -383,6 +386,20 @@ class MT5Gateway:
         return {"broker_symbol": broker_symbol, "ts_utc": clock.to_utc(msc / 1000.0), "mt5_time_msc": int(msc),
                 "bid": float(t.bid), "ask": float(t.ask), "last": float(getattr(t, "last", 0.0) or 0.0) or None,
                 "volume": float(getattr(t, "volume", 0) or 0), "spread_points": spread}
+
+    # ---- account history (read-only)
+    def closed_trades(self, from_utc: "datetime", to_utc: "datetime") -> list[Any]:
+        """Closed trades between two UTC instants, rebuilt from the account's deal history.
+
+        Read-only: uses ``history_deals_get`` only. Returns :class:`aurum.learning.models.Trade` items.
+        """
+        from aurum.learning.sources import deals_to_trades
+        clock = self._require()
+        deals = self.mt5.history_deals_get(from_utc, to_utc)
+        if deals is None:
+            log.warning("history_deals_get returned no data", extra={"mt5_error": self._last_error()})
+            return []
+        return deals_to_trades([_asdict(d) for d in deals], clock.to_utc)
 
     # ---- candles
     def copy_rates(self, broker_symbol: str, timeframe: str, start_pos: int, count: int) -> np.ndarray | None:

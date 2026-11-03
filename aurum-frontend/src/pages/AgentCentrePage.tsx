@@ -8,6 +8,7 @@ import { QueryState } from '@/components/common/QueryState';
 import { Button } from '@/components/common/Button';
 import { EmptyState } from '@/components/common/EmptyState';
 import { useAgents } from '@/hooks/queries';
+import { LearningAgentPanel } from '@/components/agents/LearningAgentPanel';
 import { usePermission } from '@/hooks/usePermission';
 import { formatDateTime, formatInteger, PLACEHOLDER } from '@/utils/format';
 import type { AgentInfo } from '@/types/system';
@@ -93,6 +94,7 @@ export default function AgentCentrePage() {
         description="Specialised AURUM AI agents. Status is shown only as reported by the backend; no agent is assumed to be running."
         actions={<DataSourceBadge source={q.data?.source} fetchedAt={q.data?.fetchedAt} />}
       />
+      <LearningAgentPanel />
       <QueryState query={q} isEmpty={(d) => d.data.length === 0} empty={<EmptyState title="No agents registered" />}>
         {(d) => (
           <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-4">

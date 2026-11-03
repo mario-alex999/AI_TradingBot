@@ -104,6 +104,8 @@ def create_app(settings: Settings | None = None, cfg: CotConfig | None = None, e
 
     from aurum.api.routes.cot import build_router
     app.include_router(build_router(state), prefix=f"{API_PREFIX}/cot", tags=["cot"])
+    from aurum.api.routes.learning import build_router as build_learning_router
+    app.include_router(build_learning_router(state), prefix=f"{API_PREFIX}/agents", tags=["agents"])
     return app
 
 
