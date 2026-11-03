@@ -23,6 +23,8 @@ export const healthSchema = z.object({
   collection: connection.default('unknown'),
   broker_name: z.string().nullable().catch(null).default(null),
   terminal_version: z.string().nullable().catch(null).default(null),
+  brokerName: z.string().nullable().catch(null).default(null),
+  terminalVersion: z.string().nullable().catch(null).default(null),
   capabilities: z.array(z.string()).catch([]).default([]),
 });
 
@@ -39,8 +41,8 @@ export async function fetchHealth(signal?: AbortSignal): Promise<HealthStatus> {
     mt5: h.mt5,
     database: h.database,
     collection: h.collection,
-    brokerName: h.broker_name,
-    terminalVersion: h.terminal_version,
+    brokerName: h.brokerName ?? h.broker_name,
+    terminalVersion: h.terminalVersion ?? h.terminal_version,
     capabilities: h.capabilities as HealthStatus['capabilities'],
     checkedAt: new Date().toISOString(),
   };

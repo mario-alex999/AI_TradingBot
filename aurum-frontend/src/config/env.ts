@@ -5,11 +5,22 @@
 const bool = (value: string | undefined, fallback: boolean): boolean =>
   value === undefined || value === '' ? fallback : value.toLowerCase() === 'true';
 
+function realtimeUrl(): string | null {
+  const v = import.meta.env.VITE_REALTIME_URL?.trim();
+  if (v === 'off') return null;
+  if (v) return v;
+  const base = (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1').replace(/\/+$/, '');
+  return `${base}/market/stream/quotes`;
+}
+
 export const env = {
   apiBaseUrl: (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1').replace(/\/+$/, ''),
   mockDataDefault: bool(import.meta.env.VITE_ENABLE_MOCK_DATA, true),
   requestTimeoutMs: Number(import.meta.env.VITE_API_TIMEOUT_MS ?? 10_000) || 10_000,
-  realtimeUrl: import.meta.env.VITE_REALTIME_URL?.trim() || null,
+  /**
+   * Server-Sent Events quote stream. Defaults to the backend's own stream; set VITE_REALTIME_URL=off to disable.
+   */
+  realtimeUrl: realtimeUrl(),
   /** Name shown in the "Built by" credit (sidebar and Settings → About). */
   builtBy: import.meta.env.VITE_BUILT_BY?.trim() || 'the AURUM AI engineering team',
 } as const;

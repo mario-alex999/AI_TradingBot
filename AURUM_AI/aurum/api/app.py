@@ -98,12 +98,27 @@ def create_app(settings: Settings | None = None, cfg: CotConfig | None = None, e
             db_ok = True
         except Exception as exc:  # noqa: BLE001
             db, db_ok = {"error": type(exc).__name__}, False
+        feed = {"mt5": "unknown", "collection": "unknown"}
+        if db_ok:
+            try:
+                from aurum.api.market_queries import MarketQueries
+                feed = MarketQueries(engine).feed_state(settings.collection_interval_seconds)
+            except Exception:  # noqa: BLE001 - Module 01 tables may be absent on a COT-only database
+                pass
         return camelize({"status": "ok" if db_ok else "degraded", "database": {"ok": db_ok,
                          "dialect": db.get("dialect"), "timescaledb": bool(db.get("timescaledb"))},
+                         # Module 01 only ever connects to DEMO accounts (non-demo accounts are rejected).
+                         "environment": "demo",
+                         "mt5": feed["mt5"], "collection": feed["collection"],
+                         # Endpoints the frontend may enable buttons for. Collection itself runs in the
+                         # Module 01 service on the MT5 machine, so it is not triggered from the API.
+                         "capabilities": ["market.export.csv", "market.export.parquet"] if db_ok else [],
                          "modules": {"cot": service.repo.schema_ready() if db_ok else False}})
 
     from aurum.api.routes.cot import build_router
     app.include_router(build_router(state), prefix=f"{API_PREFIX}/cot", tags=["cot"])
+    from aurum.api.routes.market import build_router as build_market_router
+    app.include_router(build_market_router(state), prefix=f"{API_PREFIX}/market", tags=["market"])
     from aurum.api.routes.learning import build_router as build_learning_router
     app.include_router(build_learning_router(state), prefix=f"{API_PREFIX}/agents", tags=["agents"])
     return app

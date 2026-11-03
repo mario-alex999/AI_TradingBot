@@ -221,6 +221,43 @@ def collect(symbol: Optional[str] = typer.Option(None, "--symbol", "-s", help="C
         _fail(str(exc))
 
 
+@app.command("stream-ticks")
+def stream_ticks(interval: float = typer.Option(1.0, "--interval", min=0.25, help="Seconds between quote reads"),
+                 symbol: Optional[str] = typer.Option(None, "--symbol", "-s", help="Canonical symbol, e.g. EURUSD")) -> None:
+    """Record live bid/ask from MT5 every --interval seconds so the dashboard updates in real time (read-only)."""
+    import uuid
+    from aurum.collectors.tick_collector import collect_tick
+    from aurum.gateways.mt5_gateway import MT5Error
+    s = _settings()
+    try:
+        instruments = _instruments(s, symbol)
+        repo = _repo(s)
+    except (SymbolMappingError, FileNotFoundError) as exc:
+        _fail(str(exc))
+    run_id = f"stream-{uuid.uuid4()}"
+    stored = 0
+    try:
+        with _gateway(s) as gw:
+            ids = {}
+            for inst in instruments:
+                ids[inst.symbol] = repo.instrument_id(inst.symbol) or repo.upsert_instrument(
+                    inst.symbol, inst.broker_symbol, inst.asset_class, inst.description)
+            console.print(f"Streaming quotes for {', '.join(ids)} every {interval:g}s [muted]· Ctrl+C to stop[/]")
+            last: dict[str, int] = {}
+            while True:
+                for inst in instruments:
+                    tick = collect_tick(gw, inst)
+                    if tick and last.get(inst.symbol) != tick["mt5_time_msc"]:
+                        last[inst.symbol] = tick["mt5_time_msc"]
+                        repo.upsert_tick(ids[inst.symbol], tick, run_id)
+                        stored += 1
+                time.sleep(interval)
+    except KeyboardInterrupt:
+        console.print(f"Stopped. [muted]{stored:,} quotes recorded.[/]")
+    except MT5Error as exc:
+        _fail(str(exc))
+
+
 def _print_summary(summary) -> None:
     t = Table(title=f"Collection run {summary.run_id} · {status(summary.status)}",
               numeric=("Received", "Stored", "Forming excluded"))

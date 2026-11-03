@@ -81,3 +81,20 @@ describe('dashboard interactions', () => {
     expect(await within(movers).findAllByRole('link')).toHaveLength(4);
   });
 });
+
+describe('performance chart with a partial backend', () => {
+  it('drops instruments the backend does not have and still draws the rest', async () => {
+    const { mockApi } = await import('./mockApi');
+    const candles = Array.from({ length: 30 }, (_, i) => ({ time: 1_700_000_000 + i * 3600, open: 1, high: 1.1, low: 0.9, close: 1 + i / 100, volume: 1 }));
+    mockApi({
+      'GET /health': { status: 'ok' },
+      'GET /market/candles': (cfg: { params?: { symbol?: string } }) =>
+        cfg.params?.symbol === 'EURUSD' ? { status: 200, data: candles } : { status: 404, data: { detail: 'Unknown instrument' } },
+    });
+    renderWithProviders(<DashboardPage />, { mock: false });
+    expect(await screen.findByText('GBPUSD · no data')).toBeInTheDocument();
+    expect(screen.getByText('US30 · no data')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^EURUSD/ })).toHaveTextContent('+29.00%');
+    expect(within(screen.getByTestId('performance-chart')).queryByText(/awaiting backend module/i)).not.toBeInTheDocument();
+  });
+});

@@ -38,8 +38,11 @@ export function PerformanceChart() {
     useCandles(SYMBOLS[2]!, tf, bars),
     useCandles(SYMBOLS[3]!, tf, bars),
   ];
-  const pending = queries.some((q) => q.isPending);
-  const failed = queries.find((q) => q.isError);
+  const pending = queries.every((q) => q.isPending);
+  // One missing instrument (e.g. not configured on the backend) only drops its own line;
+  // the chart fails only when no instrument has data.
+  const failed = queries.every((q) => q.isError) ? queries.find((q) => q.isError) : undefined;
+  const missing = SYMBOLS.filter((_, i) => queries[i]!.isError || (queries[i]!.isSuccess && (queries[i]!.data?.data.length ?? 0) === 0));
 
   const { rows, last } = useMemo(() => {
     const byTime = new Map<number, Record<string, number>>();
@@ -79,6 +82,13 @@ export function PerformanceChart() {
           {SYMBOLS.map((s) => {
             const off = hidden.includes(s);
             const pct = last[s];
+            if (missing.includes(s)) {
+              return (
+                <span key={s} className="flex items-center gap-2 rounded-full border border-dashed border-line-control px-3 py-1 text-xs text-neutral" title="No stored candles for this instrument">
+                  {s} · no data
+                </span>
+              );
+            }
             return (
               <button
                 key={s}
@@ -128,7 +138,7 @@ export function PerformanceChart() {
                   labelFormatter={(t: number) => `${formatInZone(t * 1000, 'UTC', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })} UTC`}
                   formatter={(v: number, name: string) => [`${v > 0 ? '+' : ''}${v.toFixed(2)}%`, name]}
                 />
-                {SYMBOLS.filter((s) => !hidden.includes(s)).map((s) => (
+                {SYMBOLS.filter((s) => !hidden.includes(s) && !missing.includes(s)).map((s) => (
                   <Line
                     key={s}
                     type="linear"

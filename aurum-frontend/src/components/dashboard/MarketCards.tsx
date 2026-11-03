@@ -7,8 +7,11 @@ import { Skeleton } from '@/components/common/Skeleton';
 import { Card } from '@/components/common/Card';
 import { useInstruments, useQuotes } from '@/hooks/queries';
 import { DEFAULT_INSTRUMENTS } from '@/config/instruments';
+import { cn } from '@/utils/cn';
 
 const SYMBOLS = DEFAULT_INSTRUMENTS.map((i) => i.symbol);
+// Cards fill the row whatever the number of instruments the backend serves.
+const XL_COLS: Record<number, string> = { 1: 'xl:grid-cols-1', 2: 'xl:grid-cols-2', 3: 'xl:grid-cols-3', 4: 'xl:grid-cols-4' };
 
 export function MarketCards() {
   const quotes = useQuotes(SYMBOLS);
@@ -43,7 +46,7 @@ export function MarketCards() {
           <ErrorState error={quotes.error} onRetry={() => void quotes.refetch()} compact />
         </Card>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className={cn('grid gap-3 sm:grid-cols-2', XL_COLS[Math.min(4, Math.max(1, quotes.data.data.length))])}>
           {quotes.data.data.map((q) => (
             <QuoteCard key={q.symbol} quote={q} instrument={bySymbol.get(q.symbol)} source={quotes.data.source} />
           ))}
