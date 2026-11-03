@@ -1,5 +1,7 @@
-import { useCallback, useMemo, useRef } from 'react';
+import type { ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Card } from '@/components/common/Card';
+import { cn } from '@/utils/cn';
 import { DataSourceBadge } from '@/components/common/DataSourceBadge';
 import { ErrorState } from '@/components/common/ErrorState';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -21,6 +23,11 @@ interface Props {
   onInstrument: (s: string) => void;
   onTimeframe: (t: Timeframe) => void;
   height?: string;
+  /** Fill the parent's height (the chart grows to whatever space the container gives it). */
+  fill?: boolean;
+  /** Extra toolbar controls (e.g. an Overlays button). */
+  toolbarExtra?: ReactNode;
+  className?: string;
 }
 
 /** Inferred price precision: backend-provided via specs later; demo profile for now. */
@@ -33,7 +40,7 @@ function precisionFor(symbol: string, sample?: number): number {
   return demoProfile(symbol).digits;
 }
 
-export function ChartWorkspace({ instrument, timeframe, onInstrument, onTimeframe, height = 'h-[480px]' }: Props) {
+export function ChartWorkspace({ instrument, timeframe, onInstrument, onTimeframe, height = 'h-[480px]', fill = false, toolbarExtra, className }: Props) {
   const chartRef = useRef<CandlestickChartHandle>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const instruments = useInstruments();
@@ -60,12 +67,22 @@ export function ChartWorkspace({ instrument, timeframe, onInstrument, onTimefram
     else if (el.requestFullscreen) void el.requestFullscreen().catch(() => toast({ tone: 'warning', title: 'Fullscreen unavailable' }));
   };
 
+  // Browser fullscreen always switches to fill mode so the chart uses the whole monitor.
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(document.fullscreenElement === wrapRef.current && !!wrapRef.current);
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+  const filling = fill || isFullscreen;
+  const area = filling ? 'min-h-[260px] flex-1' : height;
+
   const digits = precisionFor(instrument, data[data.length - 1]?.close);
   const isDemo = candles.data?.source === 'demo';
 
   return (
-    <Card className="overflow-hidden">
-      <div ref={wrapRef} className="flex flex-col bg-base-card">
+    <Card className={cn('overflow-hidden', fill && 'flex flex-col', className)}>
+      <div ref={wrapRef} className={cn('flex flex-col bg-base-card', filling && 'min-h-0 flex-1', isFullscreen && 'h-screen')}>
         <ChartToolbar
           instruments={instruments.data?.data ?? DEFAULT_INSTRUMENTS}
           instrument={instrument}
@@ -77,6 +94,8 @@ export function ChartWorkspace({ instrument, timeframe, onInstrument, onTimefram
           onReset={() => chartRef.current?.reset()}
           onExport={() => chartRef.current?.exportPng(`${instrument}_${timeframe}${isDemo ? '_DEMO' : ''}.png`)}
           onFullscreen={fullscreen}
+          isFullscreen={isFullscreen}
+          extra={toolbarExtra}
         />
         <div className="flex items-center justify-between gap-2 px-3 py-1.5 text-2xs text-neutral">
           <span className="num">
@@ -85,13 +104,13 @@ export function ChartWorkspace({ instrument, timeframe, onInstrument, onTimefram
           <DataSourceBadge source={candles.data?.source} fetchedAt={candles.data?.fetchedAt} />
         </div>
         {candles.isPending ? (
-          <Skeleton className={`${height} m-3 rounded`} />
+          <Skeleton className={cn(area, 'm-3 rounded')} />
         ) : candles.isError ? (
-          <div className={height}>
+          <div className={area}>
             <ErrorState error={candles.error} onRetry={() => void candles.refetch()} />
           </div>
         ) : data.length === 0 ? (
-          <div className={height}>
+          <div className={area}>
             <EmptyState title="No candles stored" description="Run a collection from the Data Centre to populate this instrument and timeframe." />
           </div>
         ) : (
@@ -104,7 +123,7 @@ export function ChartWorkspace({ instrument, timeframe, onInstrument, onTimefram
               overlays={visibleOverlays}
               showVolume={showVolume}
               watermark={isDemo ? 'Demo data' : undefined}
-              className={`relative w-full ${height}`}
+              className={cn('relative w-full', area)}
             />
             {panes.map((p) => (
               <IndicatorPane key={p.id} pane={p} candles={data} subscribeRange={subscribeRange} />

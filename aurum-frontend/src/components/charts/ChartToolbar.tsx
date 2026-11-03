@@ -1,4 +1,5 @@
-import { Download, Maximize2, PenTool, RefreshCw, RotateCcw, Settings2, SlidersHorizontal } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { Download, Maximize2, Minimize2, PenTool, RefreshCw, RotateCcw, Settings2, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/common/Button';
 import { SegmentedControl } from '@/components/common/SegmentedControl';
 import { Select } from '@/components/common/Select';
@@ -19,6 +20,8 @@ interface Props {
   onExport: () => void;
   onReset: () => void;
   onFullscreen: () => void;
+  isFullscreen?: boolean;
+  extra?: ReactNode;
   refreshing?: boolean;
 }
 
@@ -91,6 +94,7 @@ export function ChartToolbar(p: Props) {
         <p className="eyebrow mb-2">Chart settings</p>
         <Switch label="Volume histogram" checked={showVolume} onChange={setShowVolume} />
       </Popover>
+      {p.extra}
       <div className="ml-auto flex items-center gap-1">
         <Button size="icon" variant="ghost" aria-label="Refresh data" onClick={p.onRefresh}>
           <RefreshCw className={p.refreshing ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />
@@ -101,8 +105,14 @@ export function ChartToolbar(p: Props) {
         <Button size="icon" variant="ghost" aria-label="Export chart as PNG" onClick={p.onExport}>
           <Download className="h-4 w-4" />
         </Button>
-        <Button size="icon" variant="ghost" aria-label="Fullscreen" onClick={p.onFullscreen}>
-          <Maximize2 className="h-4 w-4" />
+        <Button
+          size="icon"
+          variant="ghost"
+          aria-label={p.isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+          title={p.isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
+          onClick={p.onFullscreen}
+        >
+          {p.isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
         </Button>
       </div>
     </div>
