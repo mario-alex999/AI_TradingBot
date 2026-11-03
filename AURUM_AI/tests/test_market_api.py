@@ -29,6 +29,15 @@ def _candle(inst_id: int, tf: str, ts: datetime, o: float, h: float, lo: float, 
                         mt5_time=int(ts.timestamp()))
 
 
+@pytest.fixture(autouse=True)
+def _fresh_clock():
+    """Re-anchor NOW/DAY when each test starts. They were fixed at import time, so in a full run (minutes later)
+    the '5 s old' tick looked stale and the live-feed assertions failed although the API was right."""
+    global NOW, DAY
+    NOW = datetime.now(timezone.utc).replace(microsecond=0)
+    DAY = NOW.replace(hour=0, minute=0, second=0)
+
+
 @pytest.fixture
 def engine(tmp_path):
     settings = Settings(_env_file=None, database_url=f"sqlite:///{(tmp_path / 'm.db').as_posix()}", data_dir=tmp_path / "data",

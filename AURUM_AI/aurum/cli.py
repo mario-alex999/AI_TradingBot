@@ -124,6 +124,38 @@ def check() -> None:
     raise typer.Exit(0 if ok else 1)
 
 
+@app.command()
+def diagnose(mt5: bool = typer.Option(True, "--mt5/--no-mt5", help="Diagnose the MetaTrader 5 connection"),
+             db: bool = typer.Option(True, "--db/--no-db", help="Diagnose the database connection")) -> None:
+    """Step-by-step, read-only diagnosis of the MT5 and database connections (explains errors such as -6)."""
+    from aurum.diagnostics import FAIL, OK, WARN, diagnose_database, diagnose_mt5
+    s = _settings()
+    steps = []
+    if mt5:
+        try:
+            instruments = _instruments(s, None)
+        except (SymbolMappingError, FileNotFoundError) as exc:
+            _fail(str(exc))
+        steps += diagnose_mt5(s, instruments)
+    if db:
+        steps += diagnose_database(s)
+    t = Table(title="AURUM AI - connection diagnosis (read-only)")
+    for c in ("Area", "Step", "Result", "Detail"):
+        t.add_column(c)
+    for st in steps:
+        t.add_row(st.area, st.name, status(st.status), st.detail)
+    console.print(t)
+    for st in steps:
+        if st.hint and st.status != OK:
+            console.print(f"[{'negative' if st.status == FAIL else 'warning'}]{st.area} - {st.name}:[/] {st.hint}")
+    failed = [st for st in steps if st.status == FAIL]
+    warned = [st for st in steps if st.status == WARN]
+    console.rule("[negative]Problems found[/]" if failed else ("[warning]Passed with warnings[/]" if warned
+                                                               else "[positive]All diagnostics passed[/]"),
+                 style="muted", align="left")
+    raise typer.Exit(1 if failed else 0)
+
+
 @app.command("init-db")
 def init_db() -> None:
     """Create or upgrade the database schema (idempotent)."""

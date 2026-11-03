@@ -110,6 +110,34 @@ def test_persistence_is_idempotent(env):
     assert len(svc.store.runs("EURUSD", "H4")) == 2
 
 
+def test_historical_recalculation_does_not_roll_back_zone_states(env):
+    _, _, svc = env
+    later = AS_OF
+    svc.cache.clear()
+    svc.analyze("EURUSD", "H1", later, persist=True)
+    latest = {z["zone_uid"]: (z["state"], z["last_run_uid"]) for z in svc.store.zones("EURUSD", "H1")}
+
+    def evolved(as_of):
+        a = svc.analyze("EURUSD", "H1", as_of)
+        zones = a.fair_value_gaps + a.order_blocks + a.balanced_price_ranges + a.liquidity_pools
+        return [z.id for z in zones if z.id in latest and z.state != latest[z.id][0]]
+
+    earlier = next((later - timedelta(hours=h) for h in range(6, 24 * 15, 6) if evolved(later - timedelta(hours=h))),
+                   None)
+    assert earlier is not None, "fixture must contain zones whose state evolves between two dates"
+    svc.cache.clear()
+    svc.analyze("EURUSD", "H1", earlier, persist=True)                 # recalculate an earlier point in time
+    after = {z["zone_uid"]: (z["state"], z["last_run_uid"]) for z in svc.store.zones("EURUSD", "H1")}
+    assert all(after[k] == latest[k] for k in latest)                  # later state and writer kept
+    assert len(svc.store.runs("EURUSD", "H1")) >= 2                    # the historical run is still recorded
+    svc.cache.clear()
+    newer = svc.analyze("EURUSD", "H1", later + timedelta(hours=1), persist=True)   # a newer run still updates
+    reported = {z.id: z.state for z in newer.fair_value_gaps + newer.order_blocks + newer.liquidity_pools}
+    stored = {z["zone_uid"]: z for z in svc.store.zones("EURUSD", "H1")}
+    assert reported and all(stored[k]["state"] == st and stored[k]["last_run_uid"] != latest.get(k, (None, None))[1]
+                            for k, st in reported.items())
+
+
 def test_api_routes(env):
     from aurum.api.app import create_app
     settings, engine, svc = env
