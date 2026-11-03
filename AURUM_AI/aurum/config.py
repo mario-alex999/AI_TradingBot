@@ -79,13 +79,23 @@ class Settings(BaseSettings):
     api_port: int = Field(8000, ge=1, le=65535)
     api_cors_origins: Annotated[list[str], NoDecode] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
+    # Module 04 - market intelligence. Provider keys are secrets: never logged, never returned by the API.
+    economic_calendar_enabled: bool = True
+    economic_calendar_provider: str | None = None          # fmp | finnhub | tradingeconomics
+    economic_calendar_api_key: SecretStr | None = None
+    economic_calendar_base_url: str | None = None
+    fred_api_key: SecretStr | None = None                  # optional: FRED release dates + US macro vintages
+    official_data_enabled: bool = True                     # keyless official central-bank / statistics sources
+    news_enabled: bool = True                              # official central-bank RSS feeds (+ Finnhub news if keyed)
+
     @field_validator("api_cors_origins", mode="before")
     @classmethod
     def _split_origins(cls, v: Any) -> Any:
         return [x.strip() for x in v.split(",") if x.strip()] if isinstance(v, str) else v
 
     @field_validator("mt5_login", "mt5_terminal_path", "mt5_server", "mt5_password", "database_url",
-                     "aurum_admin_api_key", mode="before")
+                     "aurum_admin_api_key", "economic_calendar_provider", "economic_calendar_api_key",
+                     "economic_calendar_base_url", "fred_api_key", mode="before")
     @classmethod
     def _blank_is_none(cls, v: Any) -> Any:
         return None if isinstance(v, str) and v.strip() == "" else v

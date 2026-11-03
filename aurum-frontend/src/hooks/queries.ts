@@ -20,6 +20,19 @@ import { getMarketStructure, getOverlays, getSignals } from '@/services/analysis
 import { getAccountSummary, getOpenTrades, getPerformance, getRiskOverview, getTradeHistory, type PerformanceFilters } from '@/services/tradingService';
 import { getAgentStatus, getLearningLineage, getNotifications } from '@/services/systemService';
 import type { Capability } from '@/types/system';
+import {
+  getCalendar,
+  getEventRisk,
+  getIntelligenceStatus,
+  getMacroOverview,
+  getMarketIntelligence,
+  getNews,
+  getSessionLevels,
+  getSessionLiquidity,
+  getSessionsNow,
+  getVolatility,
+} from '@/services/intelligenceService';
+import type { CalendarQuery } from '@/types/intelligence';
 import type { Timeframe } from '@/types/market';
 
 /**
@@ -219,4 +232,76 @@ export function useNotifications() {
 export function useLearningLineage() {
   const mock = useMock();
   return useQuery({ queryKey: ['learning', mock], queryFn: ({ signal }) => getLearningLineage({ mock, signal }), staleTime: 60_000 });
+}
+
+// ---------------------------------------------------------------- Module 04: market intelligence
+const MI_STALE = 60_000;
+
+export function useIntelligenceStatus() {
+  const mock = useMock();
+  return useQuery({ queryKey: ['mi-status', mock], queryFn: ({ signal }) => getIntelligenceStatus({ mock, signal }), staleTime: MI_STALE });
+}
+
+export function useBackendSessions(symbol?: string) {
+  const mock = useMock();
+  return useQuery({
+    queryKey: ['mi-sessions', mock, symbol ?? ''],
+    queryFn: ({ signal }) => getSessionsNow({ mock, signal }, symbol),
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+}
+
+export function useSessionLevels(symbol: string) {
+  const mock = useMock();
+  return useQuery({ queryKey: ['mi-levels', mock, symbol], queryFn: ({ signal }) => getSessionLevels({ mock, signal }, symbol), staleTime: MI_STALE });
+}
+
+export function useSessionLiquidity(symbol: string) {
+  const mock = useMock();
+  return useQuery({ queryKey: ['mi-liquidity', mock, symbol], queryFn: ({ signal }) => getSessionLiquidity({ mock, signal }, symbol), staleTime: MI_STALE });
+}
+
+export function useEconomicCalendar(q: CalendarQuery) {
+  const mock = useMock();
+  return useQuery({
+    queryKey: ['mi-calendar', mock, q],
+    queryFn: ({ signal }) => getCalendar({ mock, signal }, q),
+    staleTime: MI_STALE,
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useEventRisk(symbol: string) {
+  const mock = useMock();
+  return useQuery({ queryKey: ['mi-risk', mock, symbol], queryFn: ({ signal }) => getEventRisk({ mock, signal }, symbol), staleTime: 30_000 });
+}
+
+export function useMacroOverview() {
+  const mock = useMock();
+  return useQuery({ queryKey: ['mi-macro', mock], queryFn: ({ signal }) => getMacroOverview({ mock, signal }), staleTime: 5 * 60_000 });
+}
+
+export function useMarketNews(symbol?: string, page = 1) {
+  const mock = useMock();
+  return useQuery({
+    queryKey: ['mi-news', mock, symbol ?? '', page],
+    queryFn: ({ signal }) => getNews({ mock, signal }, symbol, page),
+    staleTime: 5 * 60_000,
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useVolatility(symbol: string) {
+  const mock = useMock();
+  return useQuery({ queryKey: ['mi-volatility', mock, symbol], queryFn: ({ signal }) => getVolatility({ mock, signal }, symbol), staleTime: MI_STALE });
+}
+
+export function useMarketIntelligence(symbol: string) {
+  const mock = useMock();
+  return useQuery({
+    queryKey: ['mi-market', mock, symbol],
+    queryFn: ({ signal }) => getMarketIntelligence({ mock, signal }, symbol),
+    staleTime: MI_STALE,
+  });
 }

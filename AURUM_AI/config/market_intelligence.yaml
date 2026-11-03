@@ -1,0 +1,286 @@
+# AURUM AI - Module 04 (Trading Sessions and Market Intelligence) settings.
+# Every key is optional: anything left out uses the built-in default (aurum/market_intelligence/config.py).
+#
+# All session, kill-zone and trading-day times are WALL-CLOCK times in the given IANA time zone, so
+# daylight-saving changes in London, New York and Sydney are applied by the tz database - no UTC offsets here.
+# Weekdays are the LOCAL day on which a window STARTS (MON..SUN). A close earlier than the open means the
+# window crosses local midnight. Holidays are local dates on which the window does not open.
+# These are configurable reference periods, not universal market rules.
+
+sessions:
+  sydney:   {timezone: Australia/Sydney, open: "07:00", close: "16:00", weekdays: [MON, TUE, WED, THU, FRI],
+             holidays: ["2026-12-25", "2026-12-28", "2027-01-01"]}
+  tokyo:    {timezone: Asia/Tokyo,       open: "09:00", close: "18:00", weekdays: [MON, TUE, WED, THU, FRI],
+             holidays: ["2026-12-31", "2027-01-01"]}
+  # The "Asian" range used for SMC session liquidity: Tokyo-anchored, ends at or before the London open.
+  asian:    {timezone: Asia/Tokyo,       open: "07:00", close: "16:00", weekdays: [MON, TUE, WED, THU, FRI],
+             holidays: ["2027-01-01"]}
+  london:   {timezone: Europe/London,    open: "08:00", close: "17:00", weekdays: [MON, TUE, WED, THU, FRI],
+             holidays: ["2026-12-25", "2026-12-28", "2027-01-01"], pre_minutes: 60, post_minutes: 0}
+  new_york: {timezone: America/New_York, open: "08:00", close: "17:00", weekdays: [MON, TUE, WED, THU, FRI],
+             holidays: ["2026-11-26", "2026-12-25", "2027-01-01"], pre_minutes: 30, post_minutes: 0}
+
+kill_zones:
+  asian_kz:        {timezone: America/New_York, open: "20:00", close: "00:00", weekdays: [SUN, MON, TUE, WED, THU]}
+  london_kz:       {timezone: Europe/London,    open: "07:00", close: "10:00", weekdays: [MON, TUE, WED, THU, FRI]}
+  new_york_kz:     {timezone: America/New_York, open: "07:00", close: "10:00", weekdays: [MON, TUE, WED, THU, FRI]}
+  london_close_kz: {timezone: Europe/London,    open: "15:00", close: "17:00", weekdays: [MON, TUE, WED, THU, FRI]}
+
+# Optional per-instrument restriction / override: kill zones listed here replace the global list for that symbol.
+instrument_kill_zones:
+  US30: [new_york_kz, london_close_kz]
+
+overlaps:
+  # priority order; "transition_minutes" builds a window around the hand-over when the sessions do not overlap
+  - {name: london_new_york, sessions: [london, new_york]}
+  - {name: asian_london,    sessions: [asian, london], transition_minutes: 60}
+  - {name: sydney_tokyo,    sessions: [sydney, tokyo]}
+
+# The FX "trading day" rolls at 17:00 New York time (also used for weekly levels: Sunday 17:00 -> Friday 17:00).
+trading_day: {timezone: America/New_York, roll: "17:00"}
+
+levels:
+  sessions: [asian, london, new_york]      # previous/current session high & low are tracked for these
+  timeframes: [M5, M15, H1]                 # finest stored timeframe that covers the period is used
+  daily_fallback_timeframe: D1              # used (with a note) when intraday history does not reach back far enough
+
+liquidity:
+  confirm_bars: 2              # closes needed beyond a level (after the breakout close) to confirm a breakout
+  false_breakout_bars: 3       # a close back inside within this many bars -> false-breakout candidate
+  expansion_ratio: 1.5         # session range / average of previous same sessions -> range expansion
+  expansion_lookback: 10
+  module03_timeframe: M15      # Module 03 structure events are matched on this timeframe (H1 fallback)
+  module03_match_minutes: 120  # a BOS/CHoCH within this many minutes after a sweep is reported as related
+  pairs:                       # which session sweeps which level (prompt section 9)
+    - {sweeper: london,   level: asian}
+    - {sweeper: new_york, level: london}
+    - {sweeper: new_york, level: asian}
+
+statistics:
+  windows: [5, 10, 20, 30, 60]          # completed sessions / trading days
+  timeframe: H1
+  min_sample: 3                         # fewer completed samples -> value reported but flagged insufficient
+
+volatility:
+  atr_period: 14
+  returns_window: 20
+  percentile_lookback: 250              # bars of past ATR values used for the percentile (causal)
+  min_bars: 60
+  regimes: {very_low: 10, low: 30, high: 70, very_high: 90}   # ATR percentile cut-offs
+  expansion: {short: 5, long: 20, expansion_ratio: 1.25, contraction_ratio: 0.8}
+  abnormal_range_atr: 2.5               # candle range / ATR above this -> abnormal movement
+  abnormal_return_z: 3.0
+
+event_risk:
+  # minutes; by importance. approaching > high_risk > release > post
+  windows:
+    high:   {approaching: 1440, high_risk: 60, release: 5, post: 60}
+    medium: {approaching: 240,  high_risk: 30, release: 5, post: 30}
+    low:    {approaching: 60,   high_risk: 0,  release: 5, post: 15}
+  reported_windows: [1440, 240, 60, 30, 15, 5]     # labels reported as "within_<n>m"
+  post_reported_windows: [5, 15, 30, 60]
+  instrument_overrides: {}                         # e.g. {XAUUSD: {high: {post: 90}}}
+  history_window_minutes: 60                       # post-release range measured for historical context
+  stale_after_hours: 36                            # calendar data older than this -> stale
+
+conditions:
+  timeframe: H1
+  efficiency_window: 20        # Kaufman efficiency ratio window (price-derived trend measure)
+  trending_efficiency: 0.35
+  ranging_efficiency: 0.20
+  transition_minutes: 30       # within this many minutes of a session open/close -> SESSION_TRANSITION
+  liquidity_lookback_hours: 6  # session sweep/breakout within this period -> LIQUIDITY_EXPANSION
+
+scoring:
+  methodology_version: "4.0.0"
+  event_risk:
+    importance: {high: 1.0, medium: 0.6, low: 0.3}
+    proximity:                 # minutes-to-release upper bound -> factor (first match wins)
+      - {max_minutes: 0, factor: 1.0}      # release window / post windows handled separately
+      - {max_minutes: 5, factor: 0.95}
+      - {max_minutes: 15, factor: 0.85}
+      - {max_minutes: 30, factor: 0.75}
+      - {max_minutes: 60, factor: 0.6}
+      - {max_minutes: 240, factor: 0.35}
+      - {max_minutes: 1440, factor: 0.15}
+    post_decay: {5: 0.9, 15: 0.75, 30: 0.6, 60: 0.4}
+    weights: {historical_sensitivity: 0.15, current_volatility: 0.15}   # modifier = 1 + sum w x (2v - 1)
+  session_activity:
+    weights: {range_vs_history: 0.5, volatility_percentile: 0.3, overlap_history: 0.2}
+  conditions:
+    min_confidence: 0.35       # tags below this confidence are listed under "considered" not "active"
+
+# Currency -> instrument relevance. "direct": the currency is a leg of the instrument.
+# "macro": broader relevance (explained); categories limit which event categories apply.
+impact:
+  currencies:
+    USD:
+      - {instrument: EURUSD, relation: direct, explanation: "USD is the quote currency of EURUSD."}
+      - {instrument: GBPUSD, relation: direct, explanation: "USD is the quote currency of GBPUSD."}
+      - {instrument: XAUUSD, relation: direct, explanation: "Gold is priced in USD; USD data moves the dollar and US real rates."}
+      - {instrument: US30, relation: macro, categories: [employment, inflation, monetary_policy, growth, government_fiscal],
+         explanation: "US employment, inflation, Federal Reserve, growth and fiscal releases are macro drivers of US equity indices."}
+    EUR:
+      - {instrument: EURUSD, relation: direct, explanation: "EUR is the base currency of EURUSD."}
+    GBP:
+      - {instrument: GBPUSD, relation: direct, explanation: "GBP is the base currency of GBPUSD."}
+  # Gold: major central-bank policy and inflation developments outside the US are of broader macro relevance.
+  extra:
+    - {instrument: XAUUSD, relation: macro, categories: [monetary_policy], currencies: [EUR, GBP, JPY, CHF, AUD, NZD, CAD, CNY],
+       min_importance: high, explanation: "Major central-bank policy decisions affect global real rates and the dollar, which gold is sensitive to."}
+    - {instrument: XAUUSD, relation: macro, categories: [commodities], min_importance: medium,
+       explanation: "Important commodity-supply reports can move the commodity complex."}
+
+# Economic-event classification. Rules are explicit: a rule matches only when one of its patterns matches the
+# event name AND (when given) the event's country/currency is listed. Importance comes from the provider when it
+# supplies one; "default_importance" is used only when the provider gives none and the rule's constraints matched.
+classification:
+  rules:
+    - {category: inflation, subcategory: core_cpi, patterns: ["\\bcore (cpi|consumer price)", "cpi.*(ex|excl).*(food|energy)"], default_importance: high, currencies: [USD, EUR, GBP]}
+    - {category: inflation, subcategory: cpi, patterns: ["\\bcpi\\b", "consumer price index", "\\bhicp\\b", "inflation rate"], default_importance: high, currencies: [USD, EUR, GBP]}
+    - {category: inflation, subcategory: core_pce, patterns: ["core pce"], default_importance: high, currencies: [USD]}
+    - {category: inflation, subcategory: pce, patterns: ["\\bpce\\b", "personal consumption expenditures? price"], default_importance: medium, currencies: [USD]}
+    - {category: inflation, subcategory: ppi, patterns: ["\\bppi\\b", "producer price"], default_importance: medium}
+    - {category: inflation, subcategory: inflation_expectations, patterns: ["inflation expectations"], default_importance: medium}
+    - {category: employment, subcategory: nonfarm_payrolls, patterns: ["non[- ]?farm payrolls", "\\bnfp\\b", "employment situation"], default_importance: high, currencies: [USD]}
+    - {category: employment, subcategory: unemployment_rate, patterns: ["unemployment rate", "claimant count"], default_importance: high, currencies: [USD, GBP, EUR]}
+    - {category: employment, subcategory: adp, patterns: ["\\badp\\b"], default_importance: medium, currencies: [USD]}
+    - {category: employment, subcategory: jobless_claims, patterns: ["jobless claims", "initial claims", "continuing claims"], default_importance: medium, currencies: [USD]}
+    - {category: employment, subcategory: wage_growth, patterns: ["average (hourly )?earnings", "wage growth"], default_importance: medium}
+    - {category: employment, subcategory: employment_change, patterns: ["employment change"], default_importance: medium}
+    - {category: monetary_policy, subcategory: rate_decision, patterns: ["interest rate decision", "rate decision", "fed(eral)? funds rate", "bank rate", "deposit facility rate", "refinancing rate", "monetary policy (decision|statement|meeting)", "fomc (statement|decision|meeting)", "mpc (decision|announcement)", "cash rate"], default_importance: high}
+    - {category: monetary_policy, subcategory: minutes, patterns: ["minutes"], default_importance: medium}
+    - {category: monetary_policy, subcategory: press_conference, patterns: ["press conference"], default_importance: high}
+    - {category: monetary_policy, subcategory: speech, patterns: ["speaks", "speech", "testimony"], default_importance: medium}
+    - {category: growth, subcategory: gdp, patterns: ["\\bgdp\\b", "gross domestic product"], default_importance: high, currencies: [USD, EUR, GBP]}
+    - {category: growth, subcategory: ism, patterns: ["\\bism\\b"], default_importance: high, currencies: [USD]}
+    - {category: growth, subcategory: pmi, patterns: ["\\bpmi\\b", "purchasing managers"], default_importance: medium}
+    - {category: growth, subcategory: retail_sales, patterns: ["retail sales"], default_importance: medium}
+    - {category: growth, subcategory: industrial_production, patterns: ["industrial production", "manufacturing production"], default_importance: low}
+    - {category: growth, subcategory: consumer_confidence, patterns: ["consumer (confidence|sentiment)"], default_importance: medium}
+    - {category: housing, subcategory: housing_starts, patterns: ["housing starts"], default_importance: low}
+    - {category: housing, subcategory: building_permits, patterns: ["building permits"], default_importance: low}
+    - {category: housing, subcategory: existing_home_sales, patterns: ["existing home sales"], default_importance: low}
+    - {category: housing, subcategory: new_home_sales, patterns: ["new home sales"], default_importance: low}
+    - {category: government_fiscal, subcategory: treasury, patterns: ["treasury", "bond auction", "note auction", "gilt auction"], default_importance: low}
+    - {category: government_fiscal, subcategory: budget, patterns: ["budget", "fiscal"], default_importance: medium}
+    - {category: government_fiscal, subcategory: borrowing, patterns: ["borrowing"], default_importance: low}
+    - {category: commodities, subcategory: eia_crude, patterns: ["eia crude", "crude oil inventories"], default_importance: medium}
+    - {category: commodities, subcategory: opec, patterns: ["\\bopec\\b"], default_importance: medium}
+  country_currency:
+    US: USD
+    United States: USD
+    EU: EUR
+    EMU: EUR
+    Euro Area: EUR
+    Euro Zone: EUR
+    Germany: EUR
+    France: EUR
+    Italy: EUR
+    Spain: EUR
+    UK: GBP
+    GB: GBP
+    United Kingdom: GBP
+    JP: JPY
+    Japan: JPY
+    AU: AUD
+    Australia: AUD
+    NZ: NZD
+    New Zealand: NZD
+    CA: CAD
+    Canada: CAD
+    CH: CHF
+    Switzerland: CHF
+    CN: CNY
+    China: CNY
+
+# FRED release-date calendar (only with FRED_API_KEY). FRED gives release DATES; "time" is the agency's usual release
+# time (America/New_York) and the event is marked time_precision=typical. Releases not matched here are ignored.
+fred_releases:
+  releases:
+    - {pattern: "^Consumer Price Index$", name: "US CPI (BLS)", time: "08:30"}
+    - {pattern: "^Employment Situation$", name: "US Employment Situation (nonfarm payrolls)", time: "08:30"}
+    - {pattern: "^Gross Domestic Product$", name: "US GDP (BEA)", time: "08:30"}
+    - {pattern: "^Personal Income and Outlays$", name: "US Personal Income and Outlays (PCE)", time: "08:30"}
+    - {pattern: "^Producer Price Index$", name: "US PPI (BLS)", time: "08:30"}
+    - {pattern: "^Advance Monthly Sales for Retail and Food Services$", name: "US Retail Sales", time: "08:30"}
+    - {pattern: "^Unemployment Insurance Weekly Claims", name: "US Initial Jobless Claims", time: "08:30"}
+
+macro:
+  stale_after_days: {policy_rate: 7, monthly: 75, daily: 7}
+  rate_history_start: "2024-01-01"
+
+# Official statistical-agency release calendars (keyless). Only releases matched by a rule are kept; importance is
+# AURUM's documented rating (the agencies publish none). These calendars carry schedules, never consensus values.
+# Coverage: a currency counts as covered by OFFICIAL calendars when every provider listed for it (plus the central-bank
+# schedule) succeeded within `stale_after_hours`. Event risk can then be NORMAL, with the listed gaps reported.
+official_calendars:
+  stale_after_hours: 168
+  coverage:
+    USD: [bls_ics, bea_ics, census_calendar]
+    EUR: [eurostat_ical]
+    GBP: [ons_releases]
+  gaps:
+    USD: ["ISM manufacturing / services PMI", "S&P Global flash PMI", "University of Michigan sentiment",
+          "Conference Board consumer confidence", "ADP employment", "weekly jobless claims (DOL) unless FRED_API_KEY is set",
+          "Treasury auctions", "Fed speeches"]
+    EUR: ["national releases (e.g. German flash CPI, Ifo, ZEW)", "HCOB / S&P Global PMI", "ECB speeches"]
+    GBP: ["S&P Global UK PMI", "GfK consumer confidence", "BoE speeches"]
+    other: ["RBNZ meeting dates (site refuses automated access)", "PBoC loan prime rate", "consensus forecasts and actual values (full calendar provider required)"]
+  providers:
+    bls_ics:
+      source_page: https://www.bls.gov/schedule/news_release/
+      releases:
+        - {pattern: '^Employment Situation$', category: employment, subcategory: nfp, importance: high}
+        - {pattern: '^Consumer Price Index$', category: inflation, subcategory: cpi, importance: high}
+        - {pattern: '^Producer Price Index$', category: inflation, subcategory: ppi, importance: medium}
+        - {pattern: '^Job Openings and Labor Turnover Survey$', category: employment, subcategory: jolts, importance: medium}
+        - {pattern: '^Employment Cost Index$', category: employment, subcategory: wages, importance: medium}
+        - {pattern: '^Productivity and Costs$', category: employment, subcategory: productivity, importance: low}
+        - {pattern: '^U\.S\. Import and Export Price Indexes$', category: inflation, subcategory: import_prices, importance: low}
+    bea_ics:
+      source_page: https://www.bea.gov/news/schedule
+      releases:
+        - {pattern: '^(Gross Domestic Product|GDP)\b(?!.*(State|County|Puerto Rico))', category: growth, subcategory: gdp, importance: high}
+        - {pattern: '^Personal Income and Outlays', category: inflation, subcategory: pce, importance: high}
+        - {pattern: '^U\.S\. International Trade in Goods and Services', category: trade, subcategory: trade_balance, importance: medium}
+    census_calendar:
+      releases:
+        - {pattern: '^Advance Monthly Sales for Retail and Food Services', category: growth, subcategory: retail_sales, importance: high}
+        - {pattern: '^Advance Report on Durable Goods', category: growth, subcategory: durable_goods, importance: medium}
+        - {pattern: '^New Residential Construction', category: housing, subcategory: housing_starts, importance: low}
+        - {pattern: '^New Residential Sales', category: housing, subcategory: new_home_sales, importance: low}
+        - {pattern: '^Construction Spending', category: housing, subcategory: construction, importance: low}
+        - {pattern: '^Advance Economic Indicators', category: trade, subcategory: advance_indicators, importance: low}
+    ons_releases:
+      queries: ["consumer price inflation", "labour market", "GDP monthly estimate", "GDP first quarterly estimate",
+                "GDP quarterly national accounts", "retail sales", "public sector finances"]
+      releases:
+        - {pattern: '^Consumer price inflation, UK: \w+ \d{4}$', category: inflation, subcategory: cpi, importance: high}
+        - {pattern: '^UK Labour Market: \w+ \d{4}$', category: employment, subcategory: labour_market, importance: high}
+        - {pattern: '^GDP monthly estimate, UK: \w+ \d{4}$', category: growth, subcategory: gdp, importance: high}
+        - {pattern: '^GDP first quarterly estimate, UK: (?!.*time ?series)', category: growth, subcategory: gdp, importance: high}
+        - {pattern: '^GDP quarterly national accounts, UK: (?!.*time ?series)', category: growth, subcategory: gdp, importance: medium}
+        - {pattern: '^Retail sales, Great Britain: \w+ \d{4}$', category: growth, subcategory: retail_sales, importance: medium}
+        - {pattern: '^Public sector finances, UK: \w+ \d{4}$', category: government_fiscal, subcategory: public_finances, importance: low}
+    eurostat_ical:
+      source_page: https://ec.europa.eu/eurostat/news/release-calendar
+      require_category: "Euro indicators release"
+      uid_unstable: true                  # the feed's UIDs change on every download; key events by title + date
+      all_day_time: "11:00"
+      all_day_timezone: Europe/Luxembourg
+      time_note: "Eurostat's calendar lists the date; euro indicators are released at 11:00 Luxembourg time under Eurostat's release policy."
+      releases:
+        - {pattern: '^Flash estimate inflation euro area', category: inflation, subcategory: cpi_flash, importance: high}
+        - {pattern: '^Inflation \(HICP\)', category: inflation, subcategory: cpi, importance: medium}
+        - {pattern: '^(Preliminary flash estimate GDP|Flash estimate GDP and employment)', category: growth, subcategory: gdp, importance: high}
+        - {pattern: '^GDP main aggregates and employment', category: growth, subcategory: gdp, importance: medium}
+        - {pattern: '^Unemployment$', category: employment, subcategory: unemployment, importance: medium}
+        - {pattern: '^Retail trade$', category: growth, subcategory: retail_sales, importance: low}
+        - {pattern: '^Industrial production$', category: growth, subcategory: industrial_production, importance: low}
+        - {pattern: '^Industrial producer prices', category: inflation, subcategory: ppi, importance: low}
+        - {pattern: '^International trade in goods$', category: trade, subcategory: trade_balance, importance: low}
+
+# Analysis result cache (seconds). Results are keyed per as_of minute; refresh jobs clear the cache.
+performance:
+  analysis_cache_seconds: 60

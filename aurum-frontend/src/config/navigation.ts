@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   Sparkles,
   ArrowLeftRight,
+  Radar,
 } from 'lucide-react';
 import type { Permission } from '@/types/auth';
 
@@ -47,6 +48,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { path: '/institutional', label: 'Institutional Intelligence', icon: Building2, permission: 'view:dashboard' },
       { path: '/cot', label: 'COT Analysis', icon: BarChart3, permission: 'view:dashboard' },
       { path: '/sessions', label: 'Trading Sessions', icon: Clock3, permission: 'view:dashboard' },
+      { path: '/intelligence', label: 'Market Intelligence', icon: Radar, permission: 'view:dashboard' },
     ],
   },
   {
