@@ -8,9 +8,10 @@ Only DEMO accounts are accepted; real and contest accounts are rejected and disc
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Callable
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import numpy as np
@@ -67,6 +68,34 @@ class ReadOnlyMT5:
 
     def __setattr__(self, name: str, value: Any) -> None:
         raise ReadOnlyViolation("The MT5 proxy is immutable.")
+
+
+# MetaTrader5 Python API result codes (mt5.last_error()) -> what usually causes them on a Windows PC.
+MT5_ERROR_HINTS: dict[int, str] = {
+    -1: "Generic failure inside the terminal. Restart the MT5 terminal and try again.",
+    -2: "Invalid parameters passed to initialize(). Check MT5_TERMINAL_PATH / MT5_LOGIN / MT5_SERVER in .env.",
+    -4: "Not found. The requested symbol or terminal object does not exist.",
+    -5: "Unsupported terminal version. Update the MT5 terminal (Help > Check for updates).",
+    -6: ("Authorization failed: the terminal has no authorised trading-account session. With MT5_LOGIN empty "
+         "(recommended) AURUM attaches to the account the terminal is logged in to - open this terminal, use "
+         "File > Login to Trade Account, sign in to your DEMO account and tick 'Save password' so it signs in "
+         "again after a restart. It is also reported for a minute or two after Windows starts (terminal still "
+         "logging in) or when the broker session drops; the supervised collector retries by itself. If MT5_LOGIN "
+         "is set, the login, password or server in .env do not match."),
+    -7: "Not supported by this terminal build.",
+    -10001: "IPC send failed: the terminal closed or hung during the call. Restart the terminal.",
+    -10002: "IPC receive failed: the terminal closed or hung during the call. Restart the terminal.",
+    -10003: ("IPC initialisation failed: no MetaTrader 5 terminal could be started or found. MT5_TERMINAL_PATH must "
+             "point to terminal64.exe (not the folder), and Python and the terminal must run as the same Windows "
+             "user."),
+    -10004: "No IPC connection to the terminal. Start the terminal (or let initialize() start it) and retry.",
+    -10005: ("IPC timeout: the terminal did not answer in MT5_TIMEOUT_MS. It may still be starting, updating, or "
+             "showing a dialog (login, update, licence) - bring it to the front and close the dialog."),
+}
+
+
+def explain_mt5_error(code: int | None) -> str:
+    return MT5_ERROR_HINTS.get(code, "See the MT5 terminal's Journal tab for details.") if code is not None else ""
 
 
 def load_mt5_module() -> Any:
@@ -155,6 +184,20 @@ class ConnectionReport:
     broker_clock: str
 
 
+def _tick_ms(tick: Any) -> float | None:
+    if tick is None:
+        return None
+    ms = getattr(tick, "time_msc", 0) or 0
+    return float(ms) if ms else float(getattr(tick, "time", 0) or 0) * 1000 or None
+
+
+def _error_code(err: str) -> int | None:
+    try:
+        return int(str(err).split(":", 1)[0])
+    except ValueError:
+        return None
+
+
 def _asdict(obj: Any) -> dict[str, Any]:
     if obj is None:
         return {}
@@ -207,9 +250,10 @@ class MT5Gateway:
             raise MT5ConnectionError(f"MT5 initialize() raised: {exc}") from exc
         if not ok:
             err = self._last_error()
+            code = _error_code(err)
             self._safe_shutdown()
-            raise MT5ConnectionError(f"MT5 initialize() failed ({err}). Is the MT5 terminal installed, "
-                                     f"running and logged in? Check MT5_TERMINAL_PATH / credentials.")
+            raise MT5ConnectionError(f"MT5 initialize() failed ({err}). {explain_mt5_error(code)} "
+                                     f"For a step-by-step check run: python -m aurum.cli diagnose")
         self.connected = True
         try:
             term = self.mt5.terminal_info()
@@ -269,7 +313,8 @@ class MT5Gateway:
             return names
 
     def verify_clock(self, instruments: list[Any], now_utc: datetime | None = None,
-                     tolerance_seconds: int = 900) -> ClockCheck:
+                     tolerance_seconds: int = 900, resample_seconds: float = 15.0,
+                     sleep: Callable[[float], None] = time.sleep) -> ClockCheck:
         """Check that MT5_SERVER_TIMEZONE matches the broker's live clock *today*.
 
         Brokers on "GMT+2 winter / GMT+3 summer" clocks shift by an hour twice a year. An IANA zone handles
@@ -307,10 +352,24 @@ class MT5Gateway:
             # thin market). Only a zone-like offset while the market should be open counts as a mismatch.
             rounded = round(diff / 1800) * 1800
             zone_like = abs(rounded) >= 3600 and abs(diff - rounded) < 600
-            if zone_like and is_market_open(now, inst.trading_hours):
-                return ClockCheck("mismatch", hint, **fields)
-            why = "market closed" if not is_market_open(now, inst.trading_hours) else \
+            market_open = is_market_open(now, inst.trading_hours)
+            why = "market closed" if not market_open else \
                 f"{abs(diff) / 60:.0f} min old - stale feed, not a time-zone offset"
+            if zone_like and market_open:
+                # A single old tick cannot tell a wrong zone from a stale feed: right after Windows starts the
+                # terminal still shows the tick from before shutdown (e.g. ~3 h old), which looks zone-like.
+                # Re-sample: a live feed on a wrong zone keeps ticking at the same offset; a stale one does not move.
+                first = self.mt5.symbol_info_tick(inst.broker_symbol)
+                sleep(resample_seconds)
+                second = self.mt5.symbol_info_tick(inst.broker_symbol)
+                t1, t2 = (_tick_ms(first), _tick_ms(second))
+                if t1 is not None and t2 is not None and t2 > t1:
+                    later = now.timestamp() + resample_seconds
+                    diff2 = (float(second.time) - later) - expected
+                    if abs(round(diff2 / 1800) * 1800 - rounded) < 1:
+                        return ClockCheck("mismatch", hint, **fields)
+                why = (f"{abs(diff) / 60:.0f} min old and not updating for {resample_seconds:.0f}s - terminal still "
+                       f"syncing or feed stalled, not a time-zone offset")
             return ClockCheck("unknown", f"latest {inst.broker_symbol} tick is old ({why}) - "
                                          f"broker clock not verified", **fields)
         return ClockCheck("ok", f"server clock UTC{expected_h:+.1f}h matches {self.clock.describe()}", **fields)

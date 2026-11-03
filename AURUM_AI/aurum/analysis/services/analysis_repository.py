@@ -6,7 +6,7 @@ import json
 import uuid
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import bindparam, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import Engine
@@ -57,7 +57,8 @@ class AnalysisRepository:
                 s.execute(stmt.on_conflict_do_update(
                     index_elements=["symbol", "timeframe", "scope", "event_type", "direction", "break_candle_time"],
                     set_={"last_run_uid": uid, "confirmed": stmt.excluded.confirmed, "updated_at": now,
-                          "detail": stmt.excluded.detail}))
+                          "detail": stmt.excluded.detail},
+                    where=self._not_older(TaStructureEvent, a.as_of)))
             for kind, zid, d, top, bottom, state, det, obj in self._zones(a):
                 stmt = self._insert(TaZone).values(zone_uid=zid, symbol=a.symbol, timeframe=a.timeframe, kind=kind,
                                                    direction=d, top=top, bottom=bottom, state=state, detected_at=det,
@@ -66,8 +67,23 @@ class AnalysisRepository:
                 s.execute(stmt.on_conflict_do_update(
                     index_elements=["symbol", "timeframe", "kind", "zone_uid"],
                     set_={"top": stmt.excluded.top, "bottom": stmt.excluded.bottom, "state": stmt.excluded.state,
-                          "detail": stmt.excluded.detail, "last_run_uid": uid, "updated_at": now}))
+                          "detail": stmt.excluded.detail, "last_run_uid": uid, "updated_at": now},
+                    where=self._not_older(TaZone, a.as_of)))
         return uid
+
+    @staticmethod
+    def _not_older(table, as_of):
+        """Upsert guard: a stored row is only overwritten by a run whose as_of is not older than the as_of of the run
+        that last wrote it. Without it, re-analysing an earlier point in time (historical recalculation) after a
+        later one rolled zone states back, e.g. a filled FVG reverted to 'unfilled'. The historical run itself is
+        still recorded in ta_analysis_runs (with its full summary); only the 'latest known state' is protected."""
+        # Written as SQL so the subquery refers to the *conflicting row* (<table>.last_run_uid). SQLAlchemy does not
+        # correlate a subquery inside INSERT ... ON CONFLICT; uncorrelated, it returns many rows (PostgreSQL rejects
+        # it, SQLite silently takes the first). The bound value keeps the column type so both dialects compare alike.
+        name = table.__tablename__
+        last = f"(SELECT r.as_of FROM ta_analysis_runs AS r WHERE r.run_uid = {name}.last_run_uid)"
+        return text(f"{last} IS NULL OR {last} <= :guard_as_of").bindparams(
+            bindparam("guard_as_of", as_of, type_=TaAnalysisRun.__table__.c.as_of.type))
 
     @staticmethod
     def _zones(a: TimeframeAnalysis):

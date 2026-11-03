@@ -120,20 +120,24 @@ FX = InstrumentConfig("EURUSD", "EURUSD", "forex", "Euro",
 class ClockFake(FakeMT5):
     """FakeMT5 whose tick carries a chosen *server wall-clock* time."""
 
-    def __init__(self, server_epoch: float):
+    def __init__(self, server_epoch: float, live: bool = True):
         super().__init__()
-        self.server_epoch = server_epoch
+        self.server_epoch, self.live = server_epoch, live
+
+    def advance(self, seconds: float):              # used as verify_clock's sleep(): time passes on a live feed
+        if self.live:
+            self.server_epoch += seconds
 
     def symbol_info_tick(self, name):
         return Tick(int(self.server_epoch), 1.1, 1.1002, 0.0, 0, int(self.server_epoch * 1000), 6)
 
 
-def _clock_check(tmp_path, tz: str, now: datetime, server_offset_h: float):
+def _clock_check(tmp_path, tz: str, now: datetime, server_offset_h: float, live: bool = True):
     s = Settings(_env_file=None, mt5_server_timezone=tz, data_dir=tmp_path / "d", log_dir=tmp_path / "l",
                  database_url="sqlite:///:memory:")
-    fake = ClockFake(now.timestamp() + server_offset_h * 3600 - 5)   # tick 5s old
+    fake = ClockFake(now.timestamp() + server_offset_h * 3600 - 5, live)   # tick 5s old
     with MT5Gateway(s, fake) as gw:
-        return gw.verify_clock([FX], now_utc=now)
+        return gw.verify_clock([FX], now_utc=now, sleep=fake.advance)
 
 
 TUE_WINTER = datetime(2026, 1, 6, 12, tzinfo=timezone.utc)
@@ -162,9 +166,10 @@ def test_clock_mismatch_when_fixed_offset_crosses_dst(tmp_path):
     s = Settings(_env_file=None, mt5_server_timezone="Etc/UTC", data_dir=tmp_path / "d", log_dir=tmp_path / "l",
                  database_url="sqlite:///:memory:")
     from aurum.gateways.mt5_gateway import BrokerClock
-    with MT5Gateway(s, ClockFake(TUE_WINTER.timestamp() + 2 * 3600)) as gw:
+    fake = ClockFake(TUE_WINTER.timestamp() + 2 * 3600)
+    with MT5Gateway(s, fake) as gw:
         gw.clock = BrokerClock(fixed_offset_seconds=3 * 3600)      # "auto" detected in summer
-        assert gw.verify_clock([FX], now_utc=TUE_WINTER).status == "mismatch"
+        assert gw.verify_clock([FX], now_utc=TUE_WINTER, sleep=fake.advance).status == "mismatch"
 
 
 def test_clock_unknown_when_market_closed_and_tick_stale(tmp_path):
@@ -172,8 +177,8 @@ def test_clock_unknown_when_market_closed_and_tick_stale(tmp_path):
     s = Settings(_env_file=None, mt5_server_timezone="Etc/UTC", data_dir=tmp_path / "d", log_dir=tmp_path / "l",
                  database_url="sqlite:///:memory:")
     last_friday_tick = (saturday - timedelta(hours=15)).timestamp()
-    with MT5Gateway(s, ClockFake(last_friday_tick)) as gw:
-        cc = gw.verify_clock([FX], now_utc=saturday)
+    with MT5Gateway(s, ClockFake(last_friday_tick, live=False)) as gw:
+        cc = gw.verify_clock([FX], now_utc=saturday, sleep=lambda s: None)
     assert cc.status == "unknown" and cc.ok
 
 
@@ -183,3 +188,21 @@ def test_stale_ticks_while_open_are_not_a_clock_mismatch(tmp_path):
     assert cc.status == "unknown" and cc.ok and "stale feed" in cc.message
     # a whole-hour offset during market hours is still a mismatch
     assert _clock_check(tmp_path, "Etc/UTC", TUE_WINTER, -2).status == "mismatch"
+
+
+def test_stale_tick_after_pc_start_is_not_a_clock_mismatch(tmp_path):
+    # 2026-11-03 13:01: terminal just started, last tick ~2.9 h old (looks like a whole-hour offset), market open.
+    # The feed does not move during the re-sample -> stale, not a wrong zone; collection must not stop.
+    cc = _clock_check(tmp_path, "Etc/UTC", TUE_WINTER, -2.9, live=False)
+    assert cc.status == "unknown" and cc.ok and "not updating" in cc.message
+    # the same offset on a feed that keeps ticking is a genuine mismatch
+    assert _clock_check(tmp_path, "Etc/UTC", TUE_WINTER, -2.9, live=True).status == "mismatch"
+
+
+def test_clock_resample_only_when_suspicious(tmp_path):
+    slept = []
+    s = Settings(_env_file=None, mt5_server_timezone="Etc/UTC", data_dir=tmp_path / "d", log_dir=tmp_path / "l",
+                 database_url="sqlite:///:memory:")
+    with MT5Gateway(s, ClockFake(TUE_WINTER.timestamp() - 5)) as gw:
+        assert gw.verify_clock([FX], now_utc=TUE_WINTER, sleep=slept.append).status == "ok"
+    assert slept == []                       # a healthy clock costs no waiting
