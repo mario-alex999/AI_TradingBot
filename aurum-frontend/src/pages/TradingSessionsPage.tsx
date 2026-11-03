@@ -15,6 +15,7 @@ import { demoProfile } from '@/mocks/market';
 import { formatInZone, formatNumber, formatPercent, PLACEHOLDER } from '@/utils/format';
 import { sessionStats } from '@/utils/sessionStats';
 import { Link } from 'react-router-dom';
+import { BackendSessionsPanel, SessionLevelsPanel, SessionLiquidityPanel } from '@/components/intelligence/SessionPanels';
 
 const HM: Intl.DateTimeFormatOptions = { weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' };
 
@@ -47,6 +48,7 @@ export default function TradingSessionsPage() {
         }
       />
       <SessionPanel detailed />
+      <BackendSessionsPanel symbol={symbol} />
       <Card>
         <CardHeader
           title="Session ranges"
@@ -110,6 +112,10 @@ export default function TradingSessionsPage() {
           )}
         </QueryState>
       </Card>
+      <div className="grid gap-5 2xl:grid-cols-2">
+        <SessionLevelsPanel symbol={symbol} digits={digits} />
+        <SessionLiquidityPanel symbol={symbol} digits={digits} />
+      </div>
     </div>
   );
 }

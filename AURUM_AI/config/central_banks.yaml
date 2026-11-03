@@ -1,0 +1,140 @@
+# AURUM AI - Module 04 central-bank registry.
+#
+# rate_source: which official, keyless, machine-readable source supplies the policy rate (null = not sourced;
+#              AURUM then reports the rate as unavailable - it never infers a rate from news headlines).
+# meetings:    scheduled monetary-policy decision dates, copied from the bank's OFFICIAL calendar page on the
+#              date given in "verified_on". The pages list dates only; "announcement_time" is the bank's usual
+#              announcement time and is marked time_precision=typical. Re-verify after each calendar update
+#              (banks occasionally reschedule). Dates are local to "timezone".
+
+banks:
+  fed:
+    name: Federal Reserve (FOMC)
+    currency: USD
+    timezone: America/New_York
+    rate_source: nyfed_effr_target          # https://markets.newyorkfed.org (target range from the EFFR release)
+    official_url: https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm
+    verified_on: "2026-11-03"
+    announcement_time: "14:00"
+    # second day of each two-day meeting (decision day); * = Summary of Economic Projections on the official page
+    meetings: ["2026-01-28", "2026-03-18", "2026-04-29", "2026-06-17", "2026-07-29", "2026-09-16", "2026-10-28",
+               "2026-12-09", "2027-01-27", "2027-03-17", "2027-04-28", "2027-06-09", "2027-07-28", "2027-09-15",
+               "2027-10-27", "2027-12-08"]
+    meetings_note: "2027 dates are tentative until confirmed at the preceding meeting (official page)."
+  ecb:
+    name: European Central Bank
+    currency: EUR
+    timezone: Europe/Berlin
+    rate_source: ecb_data_portal
+    official_url: https://www.ecb.europa.eu/press/calendars/mgcgc/html/index.en.html
+    verified_on: "2026-11-03"
+    announcement_time: "14:15"
+    # the official page currently lists only the remaining 2026 meeting and the 2027 meetings (Day 2 = decision)
+    meetings: ["2026-12-17", "2027-02-04", "2027-03-18", "2027-04-29", "2027-06-10", "2027-07-22", "2027-09-09",
+               "2027-10-28", "2027-12-16"]
+  boe:
+    name: Bank of England (MPC)
+    currency: GBP
+    timezone: Europe/London
+    rate_source: boe_iadb
+    official_url: https://www.bankofengland.co.uk/monetary-policy/upcoming-mpc-dates
+    verified_on: "2026-11-03"
+    announcement_time: "12:00"
+    meetings: ["2026-02-05", "2026-03-19", "2026-04-30", "2026-06-18", "2026-07-30", "2026-09-17", "2026-11-05",
+               "2026-12-17", "2027-02-04", "2027-03-18", "2027-04-29", "2027-06-17", "2027-07-29", "2027-09-16",
+               "2027-11-04", "2027-12-16"]
+  boj:
+    name: Bank of Japan
+    currency: JPY
+    timezone: Asia/Tokyo
+    rate_source: bis_cbpol                  # BIS WS_CBPOL daily policy-rate series (official BoJ rate as compiled by BIS)
+    official_url: https://www.boj.or.jp/en/mopo/mpmsche_minu/index.htm
+    verified_on: "2026-11-03"
+    announcement_time: null                 # the BoJ announces "after the meeting ends" - no fixed time
+    time_precision: date_only
+    # second day of each two-day Monetary Policy Meeting (official schedule page)
+    meetings: ["2026-01-23", "2026-03-19", "2026-04-28", "2026-06-16", "2026-07-31", "2026-09-18", "2026-10-30",
+               "2026-12-18", "2027-01-22", "2027-03-18", "2027-04-28", "2027-06-11", "2027-07-22", "2027-09-22",
+               "2027-10-29", "2027-12-17"]
+  rba:
+    name: Reserve Bank of Australia
+    currency: AUD
+    timezone: Australia/Sydney
+    rate_source: rba_a2
+    official_url: https://www.rba.gov.au/schedules-events/board-meeting-schedules.html
+    verified_on: "2026-11-03"
+    announcement_time: "14:30"
+    # second day of each Monetary Policy Board meeting. The RBA A2 table dates are EFFECTIVE dates (day after).
+    meetings: ["2026-02-03", "2026-03-17", "2026-05-05", "2026-06-16", "2026-08-11", "2026-09-29", "2026-11-03",
+               "2026-12-08", "2027-02-09", "2027-03-23", "2027-05-04", "2027-06-22", "2027-08-10", "2027-09-28",
+               "2027-11-02", "2027-12-14"]
+  rbnz:
+    name: Reserve Bank of New Zealand
+    currency: NZD
+    timezone: Pacific/Auckland
+    rate_source: bis_cbpol                  # rbnz.govt.nz refuses automated clients (HTTP 403); BIS republishes the OCR
+    official_url: https://www.rbnz.govt.nz/monetary-policy
+    note: "OCR from the BIS central-bank policy-rate series (about 1-2 weeks publication lag). Meeting dates are not configured: the RBNZ site blocks automated access and AURUM does not circumvent it - add them by hand from the official page."
+    meetings: []
+  boc:
+    name: Bank of Canada
+    currency: CAD
+    timezone: America/Toronto
+    rate_source: boc_valet
+    official_url: https://www.bankofcanada.ca/core-functions/monetary-policy/key-interest-rate/
+    verified_on: "2026-11-03"
+    announcement_time: "09:45"
+    meetings: ["2026-01-28", "2026-03-18", "2026-04-29", "2026-06-10", "2026-07-15", "2026-09-02", "2026-10-28",
+               "2026-12-09", "2027-01-27", "2027-03-03", "2027-04-28", "2027-06-02", "2027-07-21", "2027-09-08",
+               "2027-10-27", "2027-12-08"]
+  snb:
+    name: Swiss National Bank
+    currency: CHF
+    timezone: Europe/Zurich
+    rate_source: snb_data_portal
+    official_url: https://www.snb.ch/en/services-events/digital-services/rss-calendar-feeds
+    verified_on: "2026-11-03"
+    announcement_time: "09:30"              # exact time in the SNB's official iCal calendar
+    time_precision: exact
+    meetings: ["2026-03-19", "2026-06-18", "2026-09-24", "2026-12-10", "2027-03-18", "2027-06-24", "2027-09-23",
+               "2027-12-16"]
+
+# Official RSS feeds used as the "official announcements" news source (no key; published for automated reading).
+official_feeds:
+  - {id: fed_monetary, bank: fed, url: "https://www.federalreserve.gov/feeds/press_monetary.xml", category: central_bank}
+  - {id: ecb_press,    bank: ecb, url: "https://www.ecb.europa.eu/rss/press.html", category: central_bank}
+  - {id: boe_news,     bank: boe, url: "https://www.bankofengland.co.uk/rss/news", category: central_bank}
+
+# Keyless official macro series (no vintages: values become "known" when AURUM first retrieves them).
+# The ECB's ICP series M.U2.N.000000.4.ANR stopped at 2025-12 when HICP moved to ECOICOP v2; Eurostat's prc_hicp_minr
+# (coicop18) is the continuing official series. BLS API v1 is keyless but limited to 25 requests per day.
+official_series:
+  - {id: EA_HICP_YOY, source: eurostat, dataset: prc_hicp_minr, params: {geo: EA, coicop18: TOTAL, unit: RCH_A},
+     name: "Euro area HICP inflation (y/y, Eurostat)", category: inflation, currency: EUR, unit: percent, frequency: monthly}
+  - {id: US_CPI_SA, source: bls, series: CUSR0000SA0, name: "US CPI-U all items (SA index, BLS)", category: inflation,
+     currency: USD, unit: index, frequency: monthly}
+  - {id: US_CORE_CPI_SA, source: bls, series: CUSR0000SA0L1E, name: "US core CPI-U (SA index, BLS)", category: inflation,
+     currency: USD, unit: index, frequency: monthly}
+  - {id: US_NFP, source: bls, series: CES0000000001, name: "US nonfarm payrolls (thousands, BLS)", category: employment,
+     currency: USD, unit: thousands, frequency: monthly}
+  - {id: US_UNRATE, source: bls, series: LNS14000000, name: "US unemployment rate (BLS)", category: employment,
+     currency: USD, unit: percent, frequency: monthly}
+  - {id: US_2Y, source: treasury, column: "2 Yr", name: "US 2-year Treasury par yield", category: rates, currency: USD,
+     unit: percent, frequency: daily}
+  - {id: US_10Y, source: treasury, column: "10 Yr", name: "US 10-year Treasury par yield", category: rates,
+     currency: USD, unit: percent, frequency: daily}
+  - {id: UK_CPI_YOY, source: ons, path: /economy/inflationandpriceindices/timeseries/d7g7/mm23,
+     name: "UK CPI inflation (y/y, ONS)", category: inflation, currency: GBP, unit: percent, frequency: monthly}
+# FRED (St. Louis Fed) series, used only when FRED_API_KEY is set. FRED/ALFRED vintages (realtime_start) are stored so
+# historical analysis never sees a revision before it was published.
+fred_series:
+  - {id: CPIAUCSL, name: "US CPI (all items, SA index)", category: inflation, currency: USD, unit: index}
+  - {id: CPILFESL, name: "US core CPI (SA index)", category: inflation, currency: USD, unit: index}
+  - {id: PCEPI,    name: "US PCE price index", category: inflation, currency: USD, unit: index}
+  - {id: PAYEMS,   name: "US nonfarm payrolls (thousands)", category: employment, currency: USD, unit: thousands}
+  - {id: UNRATE,   name: "US unemployment rate", category: employment, currency: USD, unit: percent}
+  - {id: GDPC1,    name: "US real GDP", category: growth, currency: USD, unit: billions_chained_2017_usd}
+  - {id: RSAFS,    name: "US retail sales", category: growth, currency: USD, unit: millions_usd}
+  - {id: UMCSENT,  name: "University of Michigan consumer sentiment", category: growth, currency: USD, unit: index}
+  - {id: DGS10,    name: "US 10-year Treasury yield", category: rates, currency: USD, unit: percent}
+  - {id: DGS2,     name: "US 2-year Treasury yield", category: rates, currency: USD, unit: percent}

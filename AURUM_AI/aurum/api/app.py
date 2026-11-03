@@ -66,7 +66,8 @@ def _camel(s: str) -> str:
 
 
 def create_app(settings: Settings | None = None, cfg: CotConfig | None = None, engine: Engine | None = None,
-               client: CftcClient | None = None, analysis_service: Any = None) -> FastAPI:
+               client: CftcClient | None = None, analysis_service: Any = None,
+               intelligence_service: Any = None) -> FastAPI:
     from aurum.database.connection import engine_from_settings
     settings = settings or get_settings()
     cfg = cfg or load_cot_config()
@@ -74,9 +75,10 @@ def create_app(settings: Settings | None = None, cfg: CotConfig | None = None, e
     service = CotService(settings, cfg, engine, client=client)
     state = AppState(settings, cfg, engine, service, JobManager())
 
-    app = FastAPI(title="AURUM AI API", version="0.3.0",
+    app = FastAPI(title="AURUM AI API", version="0.4.0",
                   description="AURUM AI backend. Module 02: COT Institutional Intelligence Engine; Module 03: Technical Analysis and SMC "
-                              "Engine (read-only research; no trading endpoints). Admin operations need the X-AURUM-Admin-Key header.")
+                              "Engine; Module 04: Trading Sessions and Market Intelligence (read-only research; no trading "
+                              "endpoints). Admin operations need the X-AURUM-Admin-Key header.")
     app.state.aurum = state
     app.add_middleware(CORSMiddleware, allow_origins=settings.api_cors_origins, allow_credentials=True,
                        allow_methods=["GET", "POST"], allow_headers=["*"])
@@ -113,7 +115,8 @@ def create_app(settings: Settings | None = None, cfg: CotConfig | None = None, e
                          # Endpoints the frontend may enable buttons for. Collection itself runs in the
                          # Module 01 service on the MT5 machine, so it is not triggered from the API.
                          "capabilities": ["market.export.csv", "market.export.parquet"] if db_ok else [],
-                         "modules": {"cot": service.repo.schema_ready() if db_ok else False}})
+                         "modules": {"cot": service.repo.schema_ready() if db_ok else False,
+                                     "intelligence": _mi_ready(engine) if db_ok else False}})
 
     from aurum.api.routes.cot import build_router
     app.include_router(build_router(state), prefix=f"{API_PREFIX}/cot", tags=["cot"])
@@ -122,9 +125,20 @@ def create_app(settings: Settings | None = None, cfg: CotConfig | None = None, e
                        tags=["technical-analysis"])
     from aurum.api.routes.market import build_router as build_market_router
     app.include_router(build_market_router(state), prefix=f"{API_PREFIX}/market", tags=["market"])
+    from aurum.api.routes.market_intelligence import build_router as build_mi_router
+    app.include_router(build_mi_router(state, intelligence_service), prefix=f"{API_PREFIX}/intelligence",
+                       tags=["market-intelligence"])
     from aurum.api.routes.learning import build_router as build_learning_router
     app.include_router(build_learning_router(state), prefix=f"{API_PREFIX}/agents", tags=["agents"])
     return app
+
+
+def _mi_ready(engine: Engine) -> bool:
+    try:
+        from aurum.market_intelligence.repository import MiRepository
+        return MiRepository(engine).schema_ready()
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def require_admin(request: Request, x_aurum_admin_key: str | None = Header(default=None)) -> None:

@@ -28,7 +28,8 @@ log = logging.getLogger("aurum.cli")
 
 def _settings() -> Settings:
     s = get_settings()
-    secrets = [x.get_secret_value() for x in (s.mt5_password, s.db_password, s.database_url, s.aurum_admin_api_key)
+    secrets = [x.get_secret_value() for x in (s.mt5_password, s.db_password, s.database_url, s.aurum_admin_api_key,
+                                              s.economic_calendar_api_key, s.fred_api_key)
                if x is not None]
     setup_logging(s.log_level, s.resolve(s.log_dir), secrets)
     return s
@@ -346,6 +347,10 @@ app.add_typer(analysis_app, name="analyze")
 from aurum.learning.cli import learn_app  # noqa: E402 - Trade Learning Agent: python -m aurum.cli learn ...
 
 app.add_typer(learn_app, name="learn")
+
+from aurum.market_intelligence.cli import intelligence_app  # noqa: E402 - Module 04: python -m aurum.cli intelligence ...
+
+app.add_typer(intelligence_app, name="intelligence")
 
 if __name__ == "__main__":
     app()
