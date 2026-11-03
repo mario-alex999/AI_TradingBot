@@ -5,6 +5,8 @@ import { SessionPanel } from '@/components/dashboard/SessionPanel';
 import { DataHealthPanel } from '@/components/dashboard/DataHealthPanel';
 import { IntelligenceSummary } from '@/components/dashboard/IntelligenceSummary';
 import { RecentAlerts } from '@/components/dashboard/RecentAlerts';
+import { PerformanceChart } from '@/components/dashboard/PerformanceChart';
+import { TopMovers } from '@/components/dashboard/TopMovers';
 
 export default function DashboardPage() {
   return (
@@ -12,6 +14,10 @@ export default function DashboardPage() {
       <WelcomeSection />
       <AccountSummary />
       <MarketCards />
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <PerformanceChart />
+        <TopMovers />
+      </div>
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <SessionPanel />
         <DataHealthPanel />

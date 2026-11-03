@@ -1,4 +1,4 @@
-import { Bell, Database, Menu } from 'lucide-react';
+import { Bell, Database, Menu, Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useClock } from '@/hooks/useClock';
 import { useHealth, useNotifications } from '@/hooks/queries';
@@ -29,6 +29,7 @@ export function Topbar() {
   const health = useHealth();
   const mockMode = useSettingsStore((s) => s.mockMode);
   const setMobileNavOpen = useUiStore((s) => s.setMobileNavOpen);
+  const setPaletteOpen = useUiStore((s) => s.setPaletteOpen);
   const notifications = useNotifications();
   const readIds = useNotificationStore((s) => s.readIds);
   const unread = notifications.data?.data.filter((n) => !n.read && !readIds.includes(n.id)).length ?? 0;
@@ -94,6 +95,9 @@ export function Topbar() {
           <time className="num hidden text-xs text-ink-muted lg:block" dateTime={new Date(now).toISOString()} aria-label="Current UTC time">
             {formatInZone(now, 'UTC')} <span className="text-neutral">UTC</span>
           </time>
+          <button type="button" className={circle} aria-label="Search pages and instruments (Ctrl+K)" title="Search  ·  Ctrl+K" onClick={() => setPaletteOpen(true)}>
+            <Search className="h-4 w-4" />
+          </button>
           <Link to="/data" className={`${circle} hidden sm:flex`} aria-label="Data Centre" title="Data Centre">
             <Database className="h-4 w-4" />
           </Link>

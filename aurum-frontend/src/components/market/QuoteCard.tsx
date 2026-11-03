@@ -1,4 +1,7 @@
 import { Link } from 'react-router-dom';
+import { FavouriteButton } from '@/components/common/FavouriteButton';
+import { usePriceFlash } from '@/hooks/usePriceFlash';
+import { cn } from '@/utils/cn';
 import { Card } from '@/components/common/Card';
 import { Badge } from '@/components/common/Badge';
 import { PriceChange } from '@/components/common/PriceChange';
@@ -18,14 +21,18 @@ export function QuoteCard({ quote, instrument, source }: { quote: Quote; instrum
   const range = quote.dailyHigh - quote.dailyLow;
   const pos = range > 0 ? Math.min(100, Math.max(0, ((quote.bid - quote.dailyLow) / range) * 100)) : 50;
   const st = STATUS[quote.status];
+  const flash = usePriceFlash(quote.bid);
   return (
-    <Card className="group relative flex flex-col gap-3 p-4 transition-colors hover:border-line-control">
+    <Card className="group relative flex flex-col gap-3 p-4 transition duration-200 hover:-translate-y-0.5 hover:ring-1 hover:ring-gold/25">
       <div className="flex items-start justify-between gap-2">
-        <div>
+        <div className="flex items-start gap-1">
+          <FavouriteButton symbol={quote.symbol} className="-ml-2 -mt-1" />
+          <div>
           <Link to={`/market/${quote.symbol}`} className="num text-base font-semibold text-ink after:absolute after:inset-0 hover:underline hover:decoration-line-control hover:underline-offset-4">
             {quote.symbol}
           </Link>
           <p className="text-xs text-neutral">{instrument ? ASSET_CLASS_LABEL[instrument.assetClass] : '—'}</p>
+          </div>
         </div>
         <div className="flex flex-col items-end gap-1">
           {source === 'demo' ? <span className="text-xs text-neutral">Demo feed</span> : <Badge tone={st.tone}>{st.label}</Badge>}
@@ -37,7 +44,16 @@ export function QuoteCard({ quote, instrument, source }: { quote: Quote; instrum
         <div>
           <p className="eyebrow">Bid</p>
           {/* Prices stay in ink; only the daily change (the "what moved" figure) carries polarity. */}
-          <p className="num text-xl text-ink">{formatPrice(quote.bid, quote.digits)}</p>
+          <p
+            className={cn(
+              '-mx-1 inline-block rounded-md px-1 num text-xl text-ink transition-colors duration-700',
+              flash === 'up' && 'bg-up-faint text-up duration-75',
+              flash === 'down' && 'bg-down-faint text-down-text duration-75',
+            )}
+            aria-live="off"
+          >
+            {formatPrice(quote.bid, quote.digits)}
+          </p>
         </div>
         <div className="text-right">
           <p className="eyebrow">Ask</p>
@@ -46,8 +62,9 @@ export function QuoteCard({ quote, instrument, source }: { quote: Quote; instrum
       </div>
 
       <div>
-        <div className="relative h-1 rounded-full bg-base-elevated" aria-hidden>
-          <span className="absolute top-1/2 h-2.5 w-0.5 -translate-y-1/2 rounded bg-gold" style={{ left: `${pos}%` }} />
+        <div className="relative h-1 rounded-full bg-base-raised" aria-hidden>
+          <span className="absolute inset-y-0 left-0 rounded-full bg-gold/25 transition-[width] duration-500" style={{ width: `${pos}%` }} />
+          <span className="absolute top-1/2 h-2.5 w-0.5 -translate-y-1/2 rounded bg-gold transition-[left] duration-500" style={{ left: `${pos}%` }} />
         </div>
         <div className="num mt-1.5 flex justify-between text-xs text-neutral">
           <span>L {formatPrice(quote.dailyLow, quote.digits)}</span>

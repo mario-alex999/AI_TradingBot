@@ -19,6 +19,8 @@ export interface SettingsState {
   showSpreadInPips: boolean;
   mutedCategories: NotificationCategory[];
   sessions: SessionDefinition[];
+  /** Demo mode only: animate the demo quotes. */
+  demoTicks: boolean;
   setMockMode: (v: boolean) => void;
   setDisplayTimezone: (tz: string) => void;
   update: (patch: Partial<Omit<SettingsState, 'update' | 'setMockMode' | 'setDisplayTimezone'>>) => void;
@@ -36,6 +38,7 @@ export const useSettingsStore = create<SettingsState>()(
       showSpreadInPips: false,
       mutedCategories: [],
       sessions: DEFAULT_SESSIONS,
+      demoTicks: true,
       setMockMode: (mockMode) => set({ mockMode }),
       setDisplayTimezone: (displayTimezone) => set({ displayTimezone }),
       update: (patch) => set(patch),

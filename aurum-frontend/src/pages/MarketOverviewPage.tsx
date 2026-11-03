@@ -14,6 +14,9 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorState } from '@/components/common/ErrorState';
 import { SkeletonRows } from '@/components/common/Skeleton';
 import { useInstruments, useQuotes } from '@/hooks/queries';
+import { FavouriteButton } from '@/components/common/FavouriteButton';
+import { SegmentedControl } from '@/components/common/SegmentedControl';
+import { useWatchlistStore } from '@/stores/watchlistStore';
 import { ASSET_CLASS_LABEL } from '@/config/instruments';
 import { formatCompact, formatInZone, formatPrice } from '@/utils/format';
 import type { AssetClass, Instrument, MarketStatus, Quote } from '@/types/market';
@@ -28,6 +31,8 @@ export default function MarketOverviewPage() {
   const [search, setSearch] = useState('');
   const [assetClass, setAssetClass] = useState<AssetClass | ''>('');
   const [status, setStatus] = useState<MarketStatus | ''>('');
+  const [view, setView] = useState<'all' | 'favourites'>('all');
+  const favourites = useWatchlistStore((s) => s.favourites);
 
   const rows: Row[] = useMemo(() => {
     const map = new Map((instruments.data?.data ?? []).map((i) => [i.symbol, i]));
@@ -38,11 +43,13 @@ export default function MarketOverviewPage() {
         (r) =>
           (!s || r.symbol.includes(s) || (r.instrument?.name.toUpperCase().includes(s) ?? false)) &&
           (!assetClass || r.instrument?.assetClass === assetClass) &&
-          (!status || r.status === status),
+          (!status || r.status === status) &&
+          (view === 'all' || favourites.includes(r.symbol)),
       );
-  }, [quotes.data, instruments.data, search, assetClass, status]);
+  }, [quotes.data, instruments.data, search, assetClass, status, view, favourites]);
 
   const columns: Column<Row>[] = [
+    { key: 'fav', header: '', cell: (r) => <FavouriteButton symbol={r.symbol} className="-my-1" /> },
     {
       key: 'symbol',
       header: 'Symbol',
@@ -93,6 +100,18 @@ export default function MarketOverviewPage() {
         }
       />
       <Card>
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 pt-3">
+          <SegmentedControl
+            label="Show"
+            value={view}
+            onChange={setView}
+            options={[
+              { value: 'all', label: 'All instruments' },
+              { value: 'favourites', label: `Favourites (${favourites.length})` },
+            ]}
+          />
+          <span className="text-xs text-neutral">Star an instrument to add it to your favourites.</span>
+        </div>
         <div className="grid gap-3 border-b border-line p-3 sm:grid-cols-[minmax(0,1fr)_180px_180px]">
           <SearchInput label="Search instruments" value={search} onChange={setSearch} placeholder="Search symbol or name" />
           <Select
@@ -131,7 +150,13 @@ export default function MarketOverviewPage() {
             rowLabel={(r) => `Open ${r.symbol} analysis`}
             onRowClick={(r) => navigate(`/market/${r.symbol}`)}
             initialSort={{ key: 'symbol', dir: 'asc' }}
-            empty={<EmptyState compact title="No instruments match your filters" />}
+            empty={
+              view === 'favourites' && favourites.length === 0 ? (
+                <EmptyState compact title="No favourites yet" description="Tap the star next to an instrument to keep it here." />
+              ) : (
+                <EmptyState compact title="No instruments match your filters" />
+              )
+            }
           />
         )}
       </Card>

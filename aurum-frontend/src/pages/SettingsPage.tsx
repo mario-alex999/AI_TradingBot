@@ -115,7 +115,7 @@ function Market() {
 }
 
 function Data() {
-  const { mockMode, setMockMode } = useSettingsStore();
+  const { mockMode, setMockMode, demoTicks, update } = useSettingsStore();
   const [confirm, setConfirm] = useState(false);
   return (
     <>
@@ -144,6 +144,9 @@ function Data() {
             toast({ tone: 'info', title: mockMode ? 'Backend data mode' : 'Demo data mode' });
           }}
         />
+      </SettingRow>
+      <SettingRow title="Live demo prices" description="In demo mode only: demo quotes move every two seconds so the interface can be tried out. Never applied to backend data.">
+        <Switch label="Animate demo quotes" checked={demoTicks} disabled={!mockMode} disabledReason="Only available in demo-data mode" onChange={(v) => update({ demoTicks: v })} />
       </SettingRow>
       <SettingRow title="Backend API" description="Set VITE_API_BASE_URL in .env.local and restart the dev server to change it.">
         <code className="num rounded bg-base-raised px-2 py-1 text-xs text-ink-muted">{env.apiBaseUrl}</code>

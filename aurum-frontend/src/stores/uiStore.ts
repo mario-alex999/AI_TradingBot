@@ -4,6 +4,8 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 interface UiState {
   sidebarCollapsed: boolean;
   mobileNavOpen: boolean;
+  paletteOpen: boolean;
+  setPaletteOpen: (open: boolean) => void;
   toggleSidebar: () => void;
   setMobileNavOpen: (open: boolean) => void;
 }
@@ -13,6 +15,8 @@ export const useUiStore = create<UiState>()(
     (set) => ({
       sidebarCollapsed: false,
       mobileNavOpen: false,
+      paletteOpen: false,
+      setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
       setMobileNavOpen: (mobileNavOpen) => set({ mobileNavOpen }),
     }),
