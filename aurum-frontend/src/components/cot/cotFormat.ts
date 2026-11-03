@@ -2,17 +2,19 @@ import type { Tone } from '@/components/common/Badge';
 import type { CotFreshnessStatus, CotSeverity, CotStrength } from '@/types/cot';
 import { formatInteger, PLACEHOLDER } from '@/utils/format';
 
+// One hue per screen: the speculative category (the one COT screens ask about) takes the gold;
+// hedgers are near-white and everything else a neutral grey. No blue, teal or violet.
 export const CATEGORY_COLORS: Record<string, string> = {
-  commercial: '#5B9BEA',
+  commercial: '#F2F2F3',
   non_commercial: '#D6AD60',
-  non_reportable: '#B58CF0',
-  total_reportable: '#8B98AA',
-  dealer: '#5B9BEA',
-  asset_manager: '#4FD1C5',
+  non_reportable: '#8A8C92',
+  total_reportable: '#6E7076',
+  dealer: '#F2F2F3',
+  asset_manager: '#B4B5BA',
   leveraged_funds: '#D6AD60',
-  other_reportable: '#8B98AA',
-  producer_merchant: '#5B9BEA',
-  swap_dealer: '#4FD1C5',
+  other_reportable: '#8A8C92',
+  producer_merchant: '#F2F2F3',
+  swap_dealer: '#B4B5BA',
   managed_money: '#D6AD60',
 };
 

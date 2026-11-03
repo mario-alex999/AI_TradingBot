@@ -101,7 +101,7 @@ export default function MarketStructurePage() {
               <caption className="sr-only">Structure events by timeframe</caption>
               <thead>
                 <tr className="border-b border-line">
-                  <th scope="col" className="px-3 py-2.5 text-left text-2xs font-semibold uppercase tracking-wider text-neutral">
+                  <th scope="col" className="px-3 py-2.5 text-left text-xs font-normal text-neutral">
                     Event
                   </th>
                   {TIMEFRAMES.map((tf) => (
@@ -121,7 +121,7 @@ export default function MarketStructurePage() {
                       const s = byTf.get(tf);
                       return (
                         <td key={tf} className="num px-3 py-2 text-right text-ink">
-                          {s ? s.events.filter((e) => e.type === row.type).length : '--'}
+                          {s ? s.events.filter((e) => e.type === row.type).length : '—'}
                         </td>
                       );
                     })}
@@ -135,7 +135,7 @@ export default function MarketStructurePage() {
                     const pd = byTf.get(tf)?.premiumDiscount;
                     return (
                       <td key={tf} className="num px-3 py-2 text-right text-ink">
-                        {pd ? formatNumber(pd.equilibrium, 5) : '--'}
+                        {pd ? formatNumber(pd.equilibrium, 5) : '—'}
                       </td>
                     );
                   })}

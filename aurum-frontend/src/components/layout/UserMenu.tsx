@@ -41,17 +41,17 @@ export function UserMenu() {
         onClick={() => setOpen((o) => !o)}
         className="flex h-9 items-center gap-2 rounded-md px-1.5 hover:bg-base-elevated"
       >
-        <span className="flex h-7 w-7 items-center justify-center rounded-full border border-gold/40 bg-gold-faint text-2xs font-semibold text-gold">
+        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-base-elevated text-xs font-semibold text-ink-muted">
           {initials}
         </span>
-        <span className="hidden text-left xl:block">
+        <span className="hidden text-left 2xl:block">
           <span className="block text-xs font-medium leading-tight text-ink">{user.name}</span>
           <span className="block text-2xs leading-tight text-neutral">{ROLE_LABEL[user.role]}</span>
         </span>
-        <ChevronDown className="hidden h-3.5 w-3.5 text-neutral xl:block" aria-hidden />
+        <ChevronDown className="hidden h-3.5 w-3.5 text-neutral 2xl:block" aria-hidden />
       </button>
       {open && (
-        <div role="menu" className="absolute right-0 top-11 z-30 w-56 animate-fade-in rounded-card border border-line bg-base-elevated p-1 shadow-2xl">
+        <div role="menu" className="absolute right-0 top-11 z-30 w-56 animate-fade-in rounded-card border border-line-control bg-base-elevated p-1 shadow-float">
           <div className="border-b border-line-soft px-3 py-2">
             <p className="text-sm font-medium text-ink">{user.name}</p>
             <p className="text-xs text-neutral">{user.email}</p>

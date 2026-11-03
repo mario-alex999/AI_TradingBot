@@ -93,11 +93,11 @@ export default function NotificationsPage() {
           {() => (
             <ul>
               {items.map((n) => (
-                <li key={n.id} className={cn('flex gap-3 border-b border-line-soft px-4 py-3 last:border-0', !n.read && 'bg-gold/[0.03]')}>
+                <li key={n.id} className={cn('flex gap-3 border-b border-line-soft px-4 py-3 last:border-0', !n.read && 'bg-base-raised')}>
                   <SeverityIcon severity={n.severity} />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      {!n.read && <span className="h-1.5 w-1.5 rounded-full bg-gold" aria-label="Unread" />}
+                      {!n.read && <span className="h-1.5 w-1.5 rounded-full bg-ink" aria-label="Unread" />}
                       <p className={n.read ? 'text-sm text-ink-muted' : 'text-sm font-medium text-ink'}>{n.title}</p>
                       <Badge>{CATEGORY_LABEL[n.category]}</Badge>
                     </div>

@@ -30,7 +30,7 @@ export function Popover({ trigger, children, align = 'left', className }: Props)
         <div
           id={id}
           className={cn(
-            'absolute top-10 z-30 min-w-[240px] animate-fade-in rounded-card border border-line bg-base-elevated p-3 shadow-2xl',
+            'absolute top-10 z-30 min-w-[240px] animate-fade-in rounded-card border border-line-control bg-base-elevated p-3 shadow-float',
             align === 'right' ? 'right-0' : 'left-0',
             className,
           )}

@@ -52,15 +52,20 @@ React 18 · TypeScript (strict, `noUncheckedIndexedAccess`) · Vite 6 · Tailwin
 
 Tokens live in [`tailwind.config.ts`](tailwind.config.ts); global layers in [`src/styles/globals.css`](src/styles/globals.css).
 
+The UI follows the **"data terminal"** app style from [taste-skill](https://github.com/Leonxlnx/taste-skill): true neutral darks, colour only on data, status and the one selection line, no shadows on resting surfaces, sentence-case labels, and every figure in a monospace.
+
 | Token | Value | Use |
 | --- | --- | --- |
-| `base` / `base-raised` / `base-card` / `base-elevated` | `#080D16` / `#101827` / `#141F30` / `#19263A` | Backgrounds and surfaces |
-| `gold` / `gold-muted` | `#D6AD60` / `#C5A15A` | Brand, selected navigation, premium highlights (used sparingly) |
-| `up` / `down` | `#16C784` / `#EA3943` | Market movement |
-| `down-text` | `#F2606A` | Small negative text on cards (keeps 4.5:1 contrast; `#EA3943` measures ~4.1:1) |
-| `neutral`, `ink`, `ink-muted`, `line` | `#8B98AA`, `#F1F5F9`, `#A7B2C2`, `#273449` | Text and borders |
+| `base` / `base-card` / `base-raised` / `base-elevated` | `#171719` / `#121215` / `#1C1C1F` / `#212023` | Ground (page, sidebar, top bar) / cards, one step darker / fields and wells / menus and hover |
+| `gold` | `#D6AD60` | The single accent: the 1px selection line, the main data series, the logo. Never a button or panel fill |
+| `up` / `down` | `#16C784` / `#EA3943` | Market movement (only on the "what moved" figures and candles) |
+| `down-text` | `#F2606A` | Small negative text (keeps 4.5:1 contrast) |
+| `ink` / `ink-muted` / `neutral` | `#F2F2F3` / `#B4B5BA` / `#8A8C92` | Primary, secondary and meta text, all ≥ 4.5:1 on cards |
+| `line` / `line-soft` / `line-control` | `#26262A` / `#1E1E22` / `#3A3A3E` | Card edges / row rules / control borders |
 
-Typography: **Inter** for UI, **JetBrains Mono** with tabular figures (`.num` class) for every price, percentage and metric.
+Typography: **Public Sans** for text, **JetBrains Mono** with tabular figures (`.num` class) for every price, percentage and metric. Missing values print as a grey `—`; real zeros always print.
+
+The backend CLIs share the same rules through `AURUM_AI/aurum/ui.py`: one themed console, one table style, sentence-case status words.
 
 Reusable components (`src/components/common`): `Button` (with `disabledReason` tooltips), `Card`/`CardHeader`/`CardBody`, `Badge`, `StatusIndicator`, `DataSourceBadge`, `MetricCard`, `DataTable` (sortable, keyboard-accessible rows), `Pagination`, `SegmentedControl`, `Select`, `Switch`, `Tabs`, `Popover`, `ConfirmDialog`, `Toaster`, `Skeleton`, `EmptyState`, `ErrorState`, `QueryState`, `FeaturePending`, `PermissionGate`, `Logo`.
 

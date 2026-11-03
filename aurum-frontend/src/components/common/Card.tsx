@@ -5,7 +5,7 @@ export function Card({ className, elevated, ...rest }: HTMLAttributes<HTMLDivEle
   return (
     <div
       className={cn(
-        'rounded-card border border-line shadow-card',
+        'rounded-card border border-line',
         elevated ? 'bg-base-elevated' : 'bg-base-card',
         className,
       )}
@@ -24,9 +24,9 @@ interface CardHeaderProps {
 
 export function CardHeader({ title, subtitle, icon, actions, className }: CardHeaderProps) {
   return (
-    <div className={cn('flex flex-wrap items-start justify-between gap-3 border-b border-line-soft px-4 py-3', className)}>
-      <div className="flex min-w-0 items-start gap-2.5">
-        {icon && <span className="mt-0.5 text-gold" aria-hidden>{icon}</span>}
+    <div className={cn('flex flex-wrap items-start justify-between gap-3 px-4 pb-1 pt-4', className)}>
+      <div className="flex min-w-0 items-start gap-2">
+        {icon && <span className="mt-0.5 text-neutral" aria-hidden>{icon}</span>}
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-ink">{title}</h2>
           {subtitle && <p className="mt-0.5 text-xs text-neutral">{subtitle}</p>}

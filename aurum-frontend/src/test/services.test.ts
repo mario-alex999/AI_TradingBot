@@ -50,6 +50,13 @@ describe('data source switching', () => {
 });
 
 describe('health parsing', () => {
+  it('maps the AURUM backend database object to a connection state', async () => {
+    mockApi({ 'GET /health': { status: 'degraded', database: { ok: false, dialect: null }, modules: { cot: false } } });
+    expect((await fetchHealth()).database).toBe('failed');
+    mockApi({ 'GET /health': { status: 'ok', database: { ok: true, dialect: 'postgresql' } } });
+    expect((await fetchHealth()).database).toBe('connected');
+  });
+
   it('fills unknown fields with "unknown" rather than guessing', async () => {
     mockApi({ 'GET /health': { status: 'ok', mt5: 'connected' } });
     const h = await fetchHealth();

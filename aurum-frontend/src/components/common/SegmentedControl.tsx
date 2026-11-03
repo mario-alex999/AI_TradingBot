@@ -13,7 +13,7 @@ export function SegmentedControl<T extends string>({ value, options, onChange, l
     typeof o === 'string' ? { value: o, label: o } : o,
   );
   return (
-    <div role="radiogroup" aria-label={label} className={cn('inline-flex rounded-md border border-line bg-base-raised p-0.5', className)}>
+    <div role="radiogroup" aria-label={label} className={cn('inline-flex items-center gap-3 border-b border-line', className)}>
       {opts.map((o) => {
         const active = o.value === value;
         return (
@@ -24,8 +24,8 @@ export function SegmentedControl<T extends string>({ value, options, onChange, l
             aria-checked={active}
             onClick={() => onChange(o.value)}
             className={cn(
-              'num h-7 rounded px-2.5 text-xs font-medium transition-colors',
-              active ? 'bg-gold-faint text-gold' : 'text-ink-muted hover:text-ink',
+              'num h-8 px-0.5 text-xs font-medium transition-colors',
+              active ? 'selected-line' : 'text-neutral hover:text-ink',
             )}
           >
             {o.label}

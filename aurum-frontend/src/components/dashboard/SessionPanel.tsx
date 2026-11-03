@@ -55,11 +55,11 @@ export function SessionPanel({ detailed = false }: { detailed?: boolean }) {
                   <span className="text-sm font-medium text-ink">{s.def.name}</span>
                 </div>
                 <div className="order-3 col-span-2 sm:order-none sm:col-span-1">
-                  <div className="relative h-5 rounded bg-base-raised" aria-hidden>
+                  <div className="relative h-5 rounded-sm bg-base-raised" aria-hidden>
                     {segments(s.intervals, dayStart).map((seg, i) => (
                       <span
                         key={i}
-                        className={s.isOpen ? 'absolute inset-y-1 rounded-sm bg-gold/70' : 'absolute inset-y-1 rounded-sm bg-[#2c3d58]'}
+                        className={s.isOpen ? 'absolute inset-y-1.5 rounded-sm bg-gold' : 'absolute inset-y-1.5 rounded-sm bg-[#3a3a3e]'}
                         style={{ left: `${seg.left}%`, width: `${seg.width}%` }}
                       />
                     ))}
@@ -71,7 +71,7 @@ export function SessionPanel({ detailed = false }: { detailed?: boolean }) {
                 </div>
                 <div className="num col-span-2 flex flex-wrap justify-between gap-x-4 text-2xs text-neutral sm:col-span-3">
                   <span>
-                    {shown ? `${formatInZone(shown.start, tz, HM)} – ${formatInZone(shown.end, tz, HM)} ${tzLabel}` : '--'}
+                    {shown ? `${formatInZone(shown.start, tz, HM)} – ${formatInZone(shown.end, tz, HM)} ${tzLabel}` : '—'}
                     {!s.isOpen && shown && (
                       <span className="ml-1">({formatInZone(shown.start, tz, { weekday: 'short' })})</span>
                     )}
@@ -90,16 +90,16 @@ export function SessionPanel({ detailed = false }: { detailed?: boolean }) {
             );
           })}
         </ul>
-        <div className="num flex justify-between text-[10px] text-neutral" aria-hidden>
+        <div className="num flex justify-between text-2xs text-neutral" aria-hidden>
           {['00', '04', '08', '12', '16', '20', '24'].map((h) => (
             <span key={h}>{h}:00</span>
           ))}
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-line-soft bg-base-raised px-3 py-2 text-xs">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line-soft pt-3 text-xs">
           <span className="text-ink-muted">London / New York overlap</span>
           {overlapActive ? (
             <span className="flex items-center gap-2">
-              <Badge tone="gold">Active</Badge>
+              <Badge tone="up">Active</Badge>
               <span className="num text-ink-muted">ends {formatInZone(overlapActive.end, tz, HM)}</span>
             </span>
           ) : nextOverlap ? (
@@ -108,7 +108,7 @@ export function SessionPanel({ detailed = false }: { detailed?: boolean }) {
               {formatDuration(nextOverlap.start - now)}
             </span>
           ) : (
-            <span className="text-neutral">--</span>
+            <span className="text-neutral">—</span>
           )}
         </div>
       </CardBody>

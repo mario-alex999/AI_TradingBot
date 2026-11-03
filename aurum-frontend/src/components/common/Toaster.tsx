@@ -12,7 +12,7 @@ export function Toaster() {
       {toasts.map((t) => {
         const Icon = ICON[t.tone];
         return (
-          <div key={t.id} role="status" className="pointer-events-auto flex animate-fade-in gap-3 rounded-card border border-line bg-base-elevated p-3 shadow-2xl">
+          <div key={t.id} role="status" className="pointer-events-auto flex animate-fade-in gap-3 rounded-card border border-line-control bg-base-elevated p-3 shadow-float">
             <Icon className={cn('mt-0.5 h-4 w-4 shrink-0', COLOR[t.tone])} aria-hidden />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-ink">{t.title}</p>

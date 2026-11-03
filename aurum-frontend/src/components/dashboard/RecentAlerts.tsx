@@ -20,7 +20,7 @@ export function RecentAlerts() {
         actions={
           <>
             <DataSourceBadge source={q.data?.source} />
-            <Link to="/notifications" className="text-xs font-medium text-gold hover:underline">
+            <Link to="/notifications" className="text-xs font-medium text-ink underline decoration-line-control underline-offset-4 hover:decoration-ink">
               View all
             </Link>
           </>

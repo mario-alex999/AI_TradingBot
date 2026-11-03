@@ -41,7 +41,7 @@ function EditRow({ spec, onDone }: { spec: InstrumentSpecification; onDone: () =
         {errors.brokerSymbol && <span className="text-2xs text-down-text">{errors.brokerSymbol.message}</span>}
       </div>
       <label className="flex h-9 items-center gap-2 text-sm text-ink">
-        <input type="checkbox" className="h-4 w-4 accent-[#D6AD60]" {...register('enabled')} /> Enabled
+        <input type="checkbox" className="h-4 w-4 accent-[#F2F2F3]" {...register('enabled')} /> Enabled
       </label>
       <div className="ml-auto flex gap-2">
         <Button variant="ghost" onClick={onDone}>

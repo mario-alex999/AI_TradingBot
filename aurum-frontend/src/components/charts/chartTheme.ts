@@ -1,15 +1,16 @@
 import { ColorType, CrosshairMode, type DeepPartial, type ChartOptions } from 'lightweight-charts';
 
 export const CHART_COLORS = {
-  background: '#0B121F',
-  text: '#8B98AA',
-  grid: '#172235',
-  border: '#273449',
+  background: '#121215',
+  text: '#8A8C92',
+  grid: '#1E1E22',
+  border: '#26262A',
   up: '#16C784',
   down: '#EA3943',
   gold: '#D6AD60',
-  crosshair: '#A7B2C2',
-  series: ['#D6AD60', '#5B9BEA', '#B58CF0', '#E3A13B', '#4FD1C5'],
+  crosshair: '#8A8C92',
+  // Gold leads; the rest are neutrals so the price stays the loudest thing.
+  series: ['#D6AD60', '#F2F2F3', '#8A8C92', '#B4B5BA', '#6E7076'],
 };
 
 export const baseChartOptions: DeepPartial<ChartOptions> = {
@@ -26,8 +27,8 @@ export const baseChartOptions: DeepPartial<ChartOptions> = {
   },
   crosshair: {
     mode: CrosshairMode.Normal,
-    vertLine: { color: CHART_COLORS.crosshair, labelBackgroundColor: '#19263A' },
-    horzLine: { color: CHART_COLORS.crosshair, labelBackgroundColor: '#19263A' },
+    vertLine: { color: CHART_COLORS.crosshair, labelBackgroundColor: '#212023' },
+    horzLine: { color: CHART_COLORS.crosshair, labelBackgroundColor: '#212023' },
   },
   rightPriceScale: { borderColor: CHART_COLORS.border },
   timeScale: { borderColor: CHART_COLORS.border, timeVisible: true, secondsVisible: false, rightOffset: 6 },

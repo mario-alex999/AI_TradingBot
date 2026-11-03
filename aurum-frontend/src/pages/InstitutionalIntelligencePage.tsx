@@ -69,7 +69,7 @@ function InstrumentIntelligence({ symbol }: { symbol: string }) {
             <p className="text-ink-muted">{a.overall.interpretation}</p>
           </>
         )}
-        <Link to="/cot" className="text-2xs text-gold hover:underline">
+        <Link to="/cot" className="text-xs text-ink underline decoration-line-control underline-offset-4 hover:decoration-ink">
           Open full COT analysis →
         </Link>
       </CardBody>

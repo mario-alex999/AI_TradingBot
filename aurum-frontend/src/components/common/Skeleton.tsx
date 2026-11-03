@@ -2,9 +2,8 @@ import { cn } from '@/utils/cn';
 
 export function Skeleton({ className }: { className?: string }) {
   return (
-    <div className={cn('relative overflow-hidden rounded bg-base-elevated', className)} aria-hidden>
-      <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/[0.04] to-transparent" />
-    </div>
+    // A flat bar at the value's real size; no shimmer, so nothing shifts when data lands.
+    <div className={cn('rounded bg-base-elevated', className)} aria-hidden />
   );
 }
 

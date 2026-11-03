@@ -35,7 +35,7 @@ export function DataHealthPanel() {
         actions={
           <>
             <DataSourceBadge source={dq.data?.source} />
-            <Link to="/data" className="text-xs font-medium text-gold hover:underline">
+            <Link to="/data" className="text-xs font-medium text-ink underline decoration-line-control underline-offset-4 hover:decoration-ink">
               Data Centre
             </Link>
           </>

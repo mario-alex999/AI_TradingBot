@@ -6,17 +6,19 @@ import { renderWithProviders } from './render';
 import { mockApi } from './mockApi';
 
 describe('dashboard', () => {
-  it('shows "--" and awaiting-connection for account figures (never invented)', async () => {
+  it('shows a grey dash and awaiting-connection for account figures (never invented)', async () => {
     renderWithProviders(<DashboardPage />);
     const summary = screen.getByRole('region', { name: /account summary/i });
     expect(await within(summary).findAllByText('Awaiting connection')).toHaveLength(6);
-    expect(within(summary).getAllByText('--').length).toBeGreaterThanOrEqual(4);
+    expect(within(summary).getAllByText('—')).toHaveLength(6);
+    expect(within(summary).getByLabelText('Account balance: not available')).toBeInTheDocument();
+    expect(within(summary).queryByText(/\$\d/)).not.toBeInTheDocument();
   });
 
   it('labels mock market cards as demo data', async () => {
     renderWithProviders(<DashboardPage />);
     expect(await screen.findByRole('link', { name: 'XAUUSD' })).toBeInTheDocument();
-    expect(screen.getAllByText(/^demo$/i).length).toBeGreaterThanOrEqual(4);
+    expect(screen.getAllByText('Demo feed')).toHaveLength(4);
     expect(screen.getAllByText(/demo data/i).length).toBeGreaterThan(0);
   });
 

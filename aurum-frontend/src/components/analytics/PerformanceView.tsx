@@ -50,7 +50,7 @@ export function PerformanceView({ report, kind, emptyDescription }: Props) {
     <div className="flex flex-col gap-5">
       <section aria-label="Performance metrics" className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
         <MetricCard label="Total trades" value={formatInteger(m?.totalTrades)} tone={tone} hint={label} />
-        <MetricCard label="Winning / losing" value={m ? `${m.winningTrades} / ${m.losingTrades}` : '--'} tone={tone} />
+        <MetricCard label="Winning / losing" value={m ? `${m.winningTrades} / ${m.losingTrades}` : '—'} tone={tone} />
         <MetricCard label="Win rate" value={formatPercent(m?.winRate)} tone={tone} />
         <MetricCard label="Profit factor" value={formatNumber(m?.profitFactor, 2)} tone={tone} />
         <MetricCard label="Expectancy" value={formatCurrency(m?.expectancy)} tone={tone} />

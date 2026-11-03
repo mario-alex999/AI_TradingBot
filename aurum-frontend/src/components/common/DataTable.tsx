@@ -61,7 +61,7 @@ export function DataTable<T>({ columns, rows, rowKey, onRowClick, rowLabel, empt
                   scope="col"
                   aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined}
                   className={cn(
-                    'whitespace-nowrap px-3 py-2.5 text-2xs font-semibold uppercase tracking-wider text-neutral',
+                    'whitespace-nowrap px-3 py-2.5 text-xs font-normal text-neutral',
                     c.align === 'right' && 'text-right',
                     c.align === 'center' && 'text-center',
                   )}
@@ -70,10 +70,11 @@ export function DataTable<T>({ columns, rows, rowKey, onRowClick, rowLabel, empt
                     <button
                       type="button"
                       onClick={() => toggle(c.key)}
-                      className={cn('inline-flex items-center gap-1 hover:text-ink', active && 'text-ink', c.align === 'right' && 'flex-row-reverse')}
+                      className={cn('group inline-flex items-center gap-1 hover:text-ink', active && 'text-ink', c.align === 'right' && 'flex-row-reverse')}
                     >
                       {c.header}
-                      <Icon className="h-3 w-3" aria-hidden />
+                      {/* The sort glyph shows on the active column only. */}
+                      <Icon className={cn('h-3 w-3', !active && 'opacity-0 group-hover:opacity-60')} aria-hidden />
                     </button>
                   ) : (
                     c.header
@@ -107,7 +108,7 @@ export function DataTable<T>({ columns, rows, rowKey, onRowClick, rowLabel, empt
                 aria-label={onRowClick && rowLabel ? rowLabel(row) : undefined}
                 className={cn(
                   'border-b border-line-soft transition-colors last:border-0',
-                  onRowClick && 'cursor-pointer hover:bg-base-elevated focus-visible:bg-base-elevated',
+                  onRowClick && 'cursor-pointer hover:bg-base-raised focus-visible:bg-base-raised',
                 )}
               >
                 {columns.map((c) => (

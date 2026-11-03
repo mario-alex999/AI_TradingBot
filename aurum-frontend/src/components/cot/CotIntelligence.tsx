@@ -52,7 +52,7 @@ export function CotIntelligence({ analysis, family, source }: { analysis: CotAna
         {SECTIONS.map((s) => (
           <section key={s.key} aria-label={s.title}>
             <h3 className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-ink">
-              <span className="text-gold" aria-hidden>{s.icon}</span>
+              <span className="text-neutral" aria-hidden>{s.icon}</span>
               {s.title} <span className="font-normal text-neutral">- {s.note}</span>
             </h3>
             <ul className="flex list-disc flex-col gap-1 pl-5 text-xs text-ink-muted">

@@ -25,7 +25,7 @@ export default function InstrumentDetailPage() {
   const spec = specs.data?.data.find((s) => s.symbol === symbol);
 
   if (instruments.isSuccess && !inst)
-    return <EmptyState title={`Unknown instrument "${symbol}"`} description="This symbol is not configured on the backend." action={<Link className="text-sm text-gold hover:underline" to="/market">Back to Market Overview</Link>} />;
+    return <EmptyState title={`Unknown instrument "${symbol}"`} description="This symbol is not configured on the backend." action={<Link className="text-sm text-ink underline decoration-line-control underline-offset-4 hover:decoration-ink" to="/market">Back to Market Overview</Link>} />;
 
   return (
     <div className="flex flex-col gap-5">

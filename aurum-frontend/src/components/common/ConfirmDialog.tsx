@@ -34,7 +34,7 @@ export function ConfirmDialog({ open, title, description, confirmLabel = 'Confir
         onCancel();
       }}
       aria-labelledby="confirm-title"
-      className="w-[min(92vw,440px)] rounded-card border border-line bg-base-card p-0 text-ink shadow-2xl backdrop:bg-black/60"
+      className="w-[min(92vw,440px)] rounded-card border border-line-control bg-base-elevated p-0 text-ink shadow-float backdrop:bg-black/60"
     >
       {open && (
         <div className="p-5">

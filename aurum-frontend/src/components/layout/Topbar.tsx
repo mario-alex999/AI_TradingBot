@@ -16,13 +16,9 @@ import { UserMenu } from './UserMenu';
 
 function StatusChip({ label, status, detail }: { label: string; status: ConnectionState; detail?: string }) {
   return (
-    <span
-      className="inline-flex h-7 items-center gap-1.5 rounded-md border border-line-soft bg-base-card px-2 text-2xs"
-      title={detail}
-      data-testid={`status-${label.toLowerCase()}`}
-    >
+    <span className="inline-flex items-center gap-1.5 text-xs" title={detail} data-testid={`status-${label.toLowerCase()}`}>
       <StatusDot status={status} />
-      <span className="font-medium text-neutral">{label}</span>
+      <span className="text-neutral">{label}</span>
       <span className="text-ink-muted">{statusLabel(status)}</span>
     </span>
   );
@@ -47,7 +43,7 @@ export function Topbar() {
   const isLive = h?.environment === 'live'; // only when the backend explicitly says so
 
   return (
-    <header className="sticky top-0 z-20 flex min-h-14 flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-base/90 px-4 py-2 backdrop-blur lg:px-6">
+    <header className="sticky top-0 z-20 flex min-h-12 flex-wrap items-center gap-x-5 gap-y-2 border-b border-line bg-base px-4 py-2 lg:px-6">
       <button
         type="button"
         className="-ml-1 flex h-9 w-9 items-center justify-center rounded-md text-ink-muted hover:bg-base-elevated lg:hidden"
@@ -61,10 +57,10 @@ export function Topbar() {
         <p className="truncate text-sm font-semibold text-ink">{titleForPath(pathname)}</p>
       </div>
 
-      <div className="hidden flex-wrap items-center gap-1.5 xl:flex" aria-label="System status">
-        <span className="inline-flex h-7 items-center gap-1.5 rounded-md border border-line-soft bg-base-card px-2 text-2xs" data-testid="status-market">
+      <div className="hidden flex-wrap items-center gap-x-4 gap-y-1 xl:flex" aria-label="System status">
+        <span className="inline-flex items-center gap-1.5 text-xs" data-testid="status-market">
           <StatusDot status={fxOpen ? 'connected' : 'idle'} />
-          <span className="font-medium text-neutral">FX market</span>
+          <span className="text-neutral">FX market</span>
           <span className="text-ink-muted">{fxOpen ? 'Open' : 'Closed'}</span>
         </span>
         <StatusChip label="MT5" status={mt5} detail={backendDown ? 'Backend unreachable' : undefined} />
@@ -75,14 +71,14 @@ export function Topbar() {
       <div className="ml-auto flex items-center gap-2">
         {mockMode && (
           <Link to="/settings?tab=data" className="hidden sm:block" title="Mock mode is on — change in Settings">
-            <Badge tone="gold">Demo data</Badge>
+            <Badge tone="warn">Demo data</Badge>
           </Link>
         )}
         <span
           className={
             isLive
-              ? 'rounded border border-down/50 bg-down-faint px-2 py-1 text-2xs font-bold tracking-wider text-down-text'
-              : 'rounded border border-gold/50 px-2 py-1 text-2xs font-bold tracking-[0.12em] text-gold'
+              ? 'rounded border border-down/60 px-2 py-0.5 text-2xs font-semibold tracking-[0.08em] text-down-text'
+              : 'rounded border border-gold/60 px-2 py-0.5 text-2xs font-semibold tracking-[0.08em] text-gold'
           }
           data-testid="environment-badge"
         >
@@ -98,7 +94,7 @@ export function Topbar() {
         >
           <Bell className="h-4 w-4" />
           {unread > 0 && (
-            <span className="num absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-gold px-1 text-[10px] font-semibold text-base">
+            <span className="num absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-ink px-1 text-[11px] font-semibold text-[#121215]">
               {unread}
             </span>
           )}

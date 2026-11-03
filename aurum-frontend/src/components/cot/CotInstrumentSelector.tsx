@@ -19,11 +19,11 @@ export function CotInstrumentSelector({ instruments, value, onChange }: { instru
             onClick={() => onChange(i.instrument)}
             className={cn(
               'flex flex-col gap-1 rounded-card border px-3 py-2.5 text-left transition-colors',
-              active ? 'border-gold/60 bg-gold-faint' : 'border-line bg-base-card hover:border-line-strong',
+              active ? 'border-gold bg-base-card' : 'border-line bg-base-card hover:border-line-control',
             )}
           >
             <span className="flex items-center justify-between gap-2">
-              <span className={cn('num text-sm font-semibold', active ? 'text-gold' : 'text-ink')}>{i.instrument}</span>
+              <span className={cn('num text-sm font-semibold', 'text-ink')}>{i.instrument}</span>
               {m && <Badge tone={m.mappingStatus === 'verified' ? 'up' : 'warn'}>{m.mappingStatus}</Badge>}
             </span>
             {m && (

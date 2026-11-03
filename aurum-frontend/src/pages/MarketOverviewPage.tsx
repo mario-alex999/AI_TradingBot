@@ -54,7 +54,7 @@ export default function MarketOverviewPage() {
         </div>
       ),
     },
-    { key: 'class', header: 'Asset class', sortValue: (r) => r.instrument?.assetClass ?? '', cell: (r) => <span className="text-ink-muted">{r.instrument ? ASSET_CLASS_LABEL[r.instrument.assetClass] : '--'}</span> },
+    { key: 'class', header: 'Asset class', sortValue: (r) => r.instrument?.assetClass ?? '', cell: (r) => <span className="text-ink-muted">{r.instrument ? ASSET_CLASS_LABEL[r.instrument.assetClass] : '—'}</span> },
     { key: 'bid', header: 'Bid', align: 'right', sortValue: (r) => r.bid, cell: (r) => <span className="num text-ink">{formatPrice(r.bid, r.digits)}</span> },
     { key: 'ask', header: 'Ask', align: 'right', sortValue: (r) => r.ask, cell: (r) => <span className="num text-ink">{formatPrice(r.ask, r.digits)}</span> },
     { key: 'spread', header: 'Spread', align: 'right', sortValue: (r) => r.spread, cell: (r) => <span className="num text-ink-muted">{r.spread}</span> },

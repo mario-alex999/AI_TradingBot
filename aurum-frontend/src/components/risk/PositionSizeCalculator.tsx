@@ -51,12 +51,12 @@ export function PositionSizeCalculator() {
         <div className="flex flex-col justify-center gap-3 rounded-md border border-line-soft bg-base-raised p-4" aria-live="polite">
           <div>
             <p className="eyebrow">Amount at risk</p>
-            <p className="num mt-1 text-lg font-semibold text-ink">{result ? formatCurrency(result.riskAmount) : '--'}</p>
+            <p className="num mt-1 text-lg font-semibold text-ink">{result ? formatCurrency(result.riskAmount) : '—'}</p>
           </div>
           <div>
             <p className="eyebrow">Position size</p>
-            <p className="num mt-1 text-2xl font-semibold text-gold" data-testid="lots">
-              {result ? `${formatNumber(result.lots, 2)} lots` : '--'}
+            <p className="num mt-1 text-2xl text-ink" data-testid="lots">
+              {result ? `${formatNumber(result.lots, 2)} lots` : '—'}
             </p>
           </div>
         </div>

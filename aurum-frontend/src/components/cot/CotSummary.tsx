@@ -22,7 +22,7 @@ export function CotSummary({ family }: { family: CotFamilyAnalysis }) {
     { key: 'p36', header: 'Pct 36M', align: 'right', cell: (r) => fixed(r.historicalPercentile36m) },
     { key: 'idx', header: 'COT idx', align: 'right', cell: (r) => fixed(r.cotIndex) },
     { key: 'z', header: 'Z', align: 'right', cell: (r) => fixed(r.zScore, 2, true) },
-    { key: 'cls', header: 'Classification', cell: (r) => (r.positioningStrength ? <Badge tone={strengthTone(r.positioningStrength)}>{humanize(r.positioningStrength)}</Badge> : '--') },
+    { key: 'cls', header: 'Classification', cell: (r) => (r.positioningStrength ? <Badge tone={strengthTone(r.positioningStrength)}>{humanize(r.positioningStrength)}</Badge> : '—') },
     { key: 'change', header: 'Change', cell: (r) => <span className="text-ink-muted">{humanize(r.changeType)}</span> },
   ];
   return (

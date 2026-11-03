@@ -22,7 +22,7 @@
     font-feature-settings: 'tnum', 'zero';
   }
   :focus-visible {
-    @apply outline-none ring-2 ring-gold/70 ring-offset-2 ring-offset-base;
+    @apply outline-none ring-1 ring-gold ring-offset-2 ring-offset-base;
   }
   ::selection {
     background: rgba(214, 173, 96, 0.3);
@@ -34,12 +34,21 @@
 }
 
 @layer components {
+  /* Small labels above values: sentence case, 12px, grey. No tracked uppercase. */
   .eyebrow {
-    @apply text-2xs font-semibold uppercase tracking-[0.14em] text-neutral;
+    @apply text-xs font-normal text-neutral;
   }
   .field {
-    @apply h-9 w-full rounded-md border border-line bg-base-raised px-3 text-sm text-ink placeholder:text-neutral
-      transition-colors hover:border-[#34445e] focus-visible:border-gold/60 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply h-8 w-full rounded-md border border-line-control bg-base-raised px-3 text-sm text-ink placeholder:text-neutral
+      transition-colors hover:border-[#4a4a4f] focus-visible:border-gold/70 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+  /* The one selection mark: a 1px accent line exactly as wide as its label. */
+  .selected-line {
+    @apply relative text-ink;
+  }
+  .selected-line::after {
+    content: '';
+    @apply absolute inset-x-0 -bottom-px h-px bg-gold;
   }
 }
 

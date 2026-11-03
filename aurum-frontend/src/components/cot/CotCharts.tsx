@@ -58,7 +58,7 @@ export function CategoryBreakdownChart({ series, categories }: Props) {
       <ResponsiveContainer>
         <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
           <CartesianGrid {...gridProps} />
-          <XAxis dataKey="name" {...axisProps} interval={0} tick={{ ...axisProps.tick, fontSize: 10 }} />
+          <XAxis dataKey="name" {...axisProps} interval={0} tick={{ ...axisProps.tick, fontSize: 11 }} />
           <YAxis {...axisProps} tickFormatter={yTick} width={52} />
           <Tooltip {...tooltipProps} formatter={num} />
           <Legend {...legendProps} />

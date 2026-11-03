@@ -39,7 +39,7 @@ export default function TradingSessionsPage() {
         description={
           <>
             Session hours are defined in each market's own timezone, so daylight-saving changes are applied automatically. Configure sessions in{' '}
-            <Link to="/settings?tab=market" className="text-gold hover:underline">
+            <Link to="/settings?tab=market" className="text-ink underline decoration-line-control underline-offset-4 hover:decoration-ink">
               Settings
             </Link>
             .
@@ -64,7 +64,7 @@ export default function TradingSessionsPage() {
               <table className="w-full min-w-[920px] text-sm">
                 <caption className="sr-only">Session ranges</caption>
                 <thead>
-                  <tr className="border-b border-line text-2xs uppercase tracking-wider text-neutral">
+                  <tr className="border-b border-line text-xs text-neutral">
                     {['Session', 'Opened', 'Closes / closed', 'High', 'Low', 'Range', 'Volatility', 'Liquidity', 'vs previous'].map((h, i) => (
                       <th key={h} scope="col" className={i > 2 ? 'px-3 py-2.5 text-right font-semibold' : 'px-3 py-2.5 text-left font-semibold'}>
                         {h}

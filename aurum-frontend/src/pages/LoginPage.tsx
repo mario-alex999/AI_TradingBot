@@ -52,8 +52,8 @@ export default function LoginPage() {
           <p className="mt-2 text-sm text-ink-muted">Institutional market intelligence</p>
         </div>
         <form onSubmit={handleSubmit(onSubmit)} className="rounded-card border border-line bg-base-card p-5 shadow-card" noValidate>
-          <div className="mb-4 flex gap-2 rounded-md border border-gold/30 bg-gold-faint p-3 text-xs text-ink-muted">
-            <Info className="mt-0.5 h-4 w-4 shrink-0 text-gold" aria-hidden />
+          <div className="mb-4 flex gap-2 rounded-md bg-base-raised p-3 text-xs text-ink-muted">
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-neutral" aria-hidden />
             <span>
               Demo workspace. No password is required or stored. Backend authentication will replace this screen.
             </span>

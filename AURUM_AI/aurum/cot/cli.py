@@ -9,11 +9,10 @@ from datetime import date, datetime, timezone
 from typing import Optional
 
 import typer
-from rich.console import Console
-from rich.table import Table
+from aurum.ui import Table, console, error
+from aurum.ui import status as status_word
 
 cot_app = typer.Typer(no_args_is_help=True, help="Module 02 - COT Institutional Intelligence Engine (CFTC data).")
-console = Console()
 
 
 def _ctx():
@@ -43,7 +42,7 @@ def _service(require_schema: bool = True):
 
 
 def _fail(msg: str, code: int = 1):
-    console.print(f"[bold red]ERROR[/] {msg}")
+    error(msg)
     raise typer.Exit(code)
 
 
@@ -68,21 +67,22 @@ def _parse_dt(v: str | None) -> datetime | None:
 
 
 def _print_job(job) -> int:
-    t = Table(title=f"COT {job.job_type} {job.job_id} - {job.status.upper()}")
+    t = Table(title=f"COT {job.job_type} {job.job_id} · {status_word(job.status)}",
+              numeric=("Retrieved", "New", "Revised", "Unchanged", "Rejected", "Issues"))
     for c in ("Report", "Period", "Source", "Retrieved", "New", "Revised", "Unchanged", "Rejected", "Issues", "Status"):
         t.add_column(c)
     for c in job.chunks:
-        st = "skipped (resume)" if c.skipped else ("[green]success[/]" if c.status == "success" else f"[red]{c.status}[/]")
-        t.add_row(c.report_type, f"{c.period_start}..{c.period_end}", c.source or "-", str(c.retrieved),
-                  str(c.inserted), str(c.updated), str(c.unchanged), str(c.rejected), str(c.issues), st)
+        st = "[muted]Skipped (resume)[/]" if c.skipped else status_word(c.status)
+        t.add_row(c.report_type, f"{c.period_start} → {c.period_end}", c.source or "—", f"{c.retrieved:,}",
+                  f"{c.inserted:,}", f"{c.updated:,}", f"{c.unchanged:,}", f"{c.rejected:,}", f"{c.issues:,}", st)
     console.print(t)
     for c in job.chunks:
         if c.error and not c.skipped:
-            console.print(f"[red]{c.report_type} {c.period_start}..{c.period_end}:[/] {c.error}")
+            console.print(f"[negative]{c.report_type} {c.period_start} → {c.period_end}:[/] {c.error}")
     if job.fallback_reason:
-        console.print(f"[yellow]Note:[/] {job.fallback_reason}")
+        console.print(f"[warning]Note:[/] {job.fallback_reason}")
     tot = job.totals()
-    console.print(f"Totals: {tot} | metric rows written: {job.metrics_written}")
+    console.print(f"[muted]Totals: {tot} · metric rows written: {job.metrics_written:,}[/]")
     return 0 if job.status == "success" else 2
 
 
@@ -99,22 +99,22 @@ def check() -> None:
     for r in rows:
         detail = r.get("error") or (f"latest {r.get('latest')}" if r["source"] == "socrata" else f"{r.get('file')} "
                                     f"({r.get('bytes', 0):,} bytes)")
-        t.add_row(r["dataset"], r["source"], "[green]yes[/]" if r["ok"] else "[red]no[/]", str(detail))
+        t.add_row(r["dataset"], r["source"], status_word("yes" if r["ok"] else "no"), f"[muted]{detail}[/]")
     console.print(t)
     usable = {r["dataset"] for r in rows if r["ok"]}
     console.print(f"Configured source: [bold]{cfg.source}[/]. Datasets with at least one working source: "
                   f"{len(usable)}/{len(cfg.datasets)}")
     unverified = [d.key for d in cfg.datasets.values() if d.dataset_id_status != "verified"]
     if unverified:
-        console.print(f"[yellow]Dataset IDs not verified against the live API:[/] {', '.join(unverified)}")
+        console.print(f"[warning]Dataset IDs not verified against the live API:[/] {', '.join(unverified)}")
     from aurum.cot.repository import CotRepository
     try:
         ready = CotRepository(engine).schema_ready()
-        console.print(("[green]COT tables present[/]" if ready else "[yellow]COT tables missing - run init-db[/]")
-                      + f" ({s.safe_database_url})")
+        console.print(("[positive]COT tables present[/]" if ready else "[warning]COT tables missing.[/] Run: python -m aurum.cli init-db")
+                      + f" [muted]({s.safe_database_url})[/]")
     except Exception as exc:  # noqa: BLE001
         ready = False
-        console.print(f"[red]Database:[/] {exc}")
+        console.print(f"[negative]Database:[/] {exc}")
     raise typer.Exit(0 if len(usable) == len(cfg.datasets) and ready else 1)
 
 
@@ -152,9 +152,8 @@ def verify_datasets(write: bool = typer.Option(True, "--write/--no-write",
     t = Table(title=f"Dataset ID verification ({cfg.socrata.base_url})")
     for c in ("Dataset", "ID", "Result", "Portal title / reason"):
         t.add_column(c)
-    colour = {"verified": "green", "mismatch": "red", "unreachable": "yellow"}
     for r in results:
-        t.add_row(r["dataset"], r["dataset_id"], f"[{colour[r['status']]}]{r['status']}[/]",
+        t.add_row(r["dataset"], r["dataset_id"], status_word(r["status"]),
                   r.get("title") if r["status"] == "verified" else str(r.get("reason")))
     console.print(t)
     today = date.today().isoformat()
@@ -171,11 +170,11 @@ def verify_datasets(write: bool = typer.Option(True, "--write/--no-write",
                 CotRepository(engine).sync_config(load_cot_config())
                 console.print("config/cot.yaml and the cot_datasets table updated.")
             except Exception as exc:  # noqa: BLE001
-                console.print(f"[yellow]config/cot.yaml updated; database not synced:[/] {exc}")
+                console.print(f"[warning]config/cot.yaml updated; database not synced:[/] {exc}")
     if any(r["status"] == "mismatch" for r in results):
         raise typer.Exit(2)
     if any(r["status"] == "unreachable" for r in results):
-        console.print("[yellow]The CFTC API could not be reached from this network; IDs keep their current status. "
+        console.print("[warning]The CFTC API could not be reached from this network; IDs keep their current status. "
                       "The engine continues to use the official CFTC history files.[/]")
         raise typer.Exit(1)
 
@@ -185,7 +184,7 @@ def sync_config() -> None:
     """Copy datasets and mappings from config/cot.yaml into the database (also done by backfill/update)."""
     svc = _service()
     svc.sync()
-    console.print(f"[green]Synced[/] {len(svc.cfg.datasets)} datasets and {len(svc.cfg.mappings)} mappings.")
+    console.print(f"[positive]Synced[/] {len(svc.cfg.datasets)} datasets and {len(svc.cfg.mappings)} mappings.")
 
 
 @cot_app.command()
@@ -220,7 +219,7 @@ def calculate(instrument: Optional[list[str]] = typer.Option(None, "--instrument
     svc = _service()
     job = svc.calculate(symbols=[i.upper() for i in instrument] if instrument else None,
                         progress=lambda m: console.print(f"  {m}"))
-    console.print(f"[green]Metric rows written:[/] {job.metrics_written}")
+    console.print(f"[positive]Metric rows written:[/] {job.metrics_written:,}")
 
 
 @cot_app.command()
@@ -239,45 +238,46 @@ def report(instrument: str = typer.Option(..., "--instrument", "-i", help="EURUS
     if as_json:
         console.print_json(json.dumps(rep, default=str))
         return
-    console.rule(f"[bold]{rep['instrument']} - COT institutional positioning")
+    console.rule(f"[bold]{rep['instrument']} · COT institutional positioning[/]", style="muted", align="left")
     for f in rep["families"]:
         if not f.get("available"):
-            console.print(f"[yellow]{f['dataset_name']}:[/] {f.get('reason')}")
+            console.print(f"[warning]{f['dataset_name']}:[/] {f.get('reason')}")
             continue
         fr = f["freshness"]
-        console.print(f"[bold gold3]{f['dataset_name']}[/] - {f['contract']['name']} ({f['contract']['code']}, "
-                      f"{f['contract']['mapping_status']})")
-        console.print(f"Report date {f['report_date']} | released {f['release_date']} | freshness {fr['status']} "
-                      f"(next expected release {fr['next_expected_release']:%Y-%m-%d %H:%M} UTC) | "
-                      f"confidence {f['confidence']['level']}")
-        t = Table()
+        console.print(f"\n[bold accent]{f['dataset_name']}[/] · {f['contract']['name']} "
+                      f"[muted]({f['contract']['code']}, {f['contract']['mapping_status']})[/]")
+        console.print(f"[muted]Report date[/] {f['report_date']} · [muted]released[/] {f['release_date']} · "
+                      f"[muted]freshness[/] {status_word(fr['status'])} "
+                      f"[muted](next release {fr['next_expected_release']:%Y-%m-%d %H:%M} UTC)[/] · "
+                      f"[muted]confidence[/] {f['confidence']['level']}")
+        t = Table(numeric=("Long", "Short", "Spread", "Net", "Wk chg", "%OI", "Pct 12m", "Pct 36m", "COT idx", "z"))
         for c in ("Group", "Long", "Short", "Spread", "Net", "Wk chg", "%OI", "Pct 12m", "Pct 36m", "COT idx",
                   "z", "Classification", "Change"):
             t.add_column(c)
-        fmt = lambda v, p="{:,.0f}": "-" if v is None else p.format(v)  # noqa: E731
+        fmt = lambda v, p="{:,.0f}": "—" if v is None else p.format(v)  # noqa: E731
         for c in f["categories"]:
             t.add_row(c["label"], fmt(c["long"]), fmt(c["short"]), fmt(c["spreading"]), fmt(c["net_position"], "{:+,.0f}"),
                       fmt(c["weekly_net_change"], "{:+,.0f}"), fmt(c["net_position_pct_oi"], "{:+.1f}"),
                       fmt(c["historical_percentile_12m"], "{:.0f}"), fmt(c["historical_percentile_36m"], "{:.0f}"),
                       fmt(c["cot_index"], "{:.0f}"), fmt(c["z_score"], "{:+.2f}"),
-                      (c["positioning_strength"] or "-").replace("_", " "), (c["change_type"] or "-").replace("_", " "))
+                      (c["positioning_strength"] or "—").replace("_", " "), (c["change_type"] or "—").replace("_", " "))
         console.print(t)
         for title, key in (("Facts (CFTC)", "facts"), ("Calculated metrics", "metrics"), ("Interpretation", "interpretation")):
             console.print(f"[bold]{title}[/]")
             for line in f["statements"][key]:
-                console.print(f"  - {line}")
+                console.print(f"  · {line}")
         d = f["divergence"]
         console.print(f"[bold]Divergence[/] ({d.get('category', '-')}, {d.get('price_timeframe', '-')}): "
                       + (f"latest window {d['latest']['window_start_report_date']} -> {d['latest']['report_date']}, "
                          f"signals: {', '.join(d['latest']['signals']) or 'none'}" if d.get("available") and d.get("latest")
                          else d.get("reason") or "n/a"))
         if f["confidence"]["reasons"]:
-            console.print(f"[yellow]Limitations:[/] {'; '.join(f['confidence']['reasons'])}")
+            console.print(f"[warning]Limitations:[/] {'; '.join(f['confidence']['reasons'])}")
         for w in f["data_quality_warnings"][:5]:
-            console.print(f"[yellow]Quality ({w['severity']}):[/] {w['description']}")
+            console.print(f"[warning]Quality ({w['severity']}):[/] {w['description']}")
         console.print()
     console.print(f"[bold]Overall ({rep['overall']['confidence']} confidence):[/] {rep['overall']['interpretation']}")
-    console.print(f"[dim]{rep['disclaimer']}[/]")
+    console.print(f"[muted]{rep['disclaimer']}[/]")
 
 
 @cot_app.command()
@@ -285,18 +285,18 @@ def status() -> None:
     """Stored data, latest report/release dates, last ingestion and open data-quality issues."""
     svc = _service()
     st = svc.repo.status_summary()
-    t = Table(title="COT data status")
+    t = Table(title="COT data status", numeric=("Reports",))
     for c in ("Report", "Reports", "First report", "Latest report", "Latest release", "Last retrieval"):
         t.add_column(c)
     for d in st["datasets"]:
-        t.add_row(d["report_type"], str(d["reports"]), str(d["first_report_date"]), str(d["latest_report_date"]),
+        t.add_row(d["report_type"], f"{d['reports']:,}", str(d["first_report_date"]), str(d["latest_report_date"]),
                   str(d["latest_release_date"]), str(d["last_retrieval"]))
     console.print(t)
-    console.print(f"Positions: {st['positions']:,} | metrics: {st['metrics']:,} | last successful ingestion: "
-                  f"{st['last_successful_ingestion']} | failed ingestions: {st['failed_ingestions']} | "
-                  f"open issues: {st['open_issues'] or 'none'}")
+    console.print(f"[muted]Positions[/] {st['positions']:,} · [muted]metrics[/] {st['metrics']:,} · "
+                  f"[muted]last successful ingestion[/] {st['last_successful_ingestion']} · "
+                  f"[muted]failed ingestions[/] {st['failed_ingestions']} · [muted]open issues[/] {st['open_issues'] or 'none'}")
     if not st["datasets"]:
-        console.print("[yellow]No COT data yet. Run: python -m aurum.cli cot backfill --years 4[/]")
+        console.print("[warning]No COT data yet.[/] Run: python -m aurum.cli cot backfill --years 4")
 
 
 @cot_app.command()
@@ -306,12 +306,12 @@ def quality(severity: Optional[str] = typer.Option(None, "--severity", help="inf
     """List open COT data-quality issues (exit 2 when errors/critical issues are open)."""
     svc = _service()
     rows, total = svc.repo.issues(severity=severity, symbol=instrument.upper() if instrument else None, limit=limit)
-    t = Table(title=f"COT data-quality issues ({total} open)")
+    t = Table(title=f"COT data-quality issues · {total} open", numeric=("Seen",))
     for c in ("Severity", "Type", "Instrument", "Report", "Report date", "Seen", "Description"):
         t.add_column(c)
     for r in rows:
-        t.add_row(r["severity"], r["issue_type"], r["aurum_symbol"] or "-", r["report_type"] or "-",
-                  str(r["report_date"] or "-"), str(r["occurrences"]), r["description"])
+        t.add_row(status_word(r["severity"]), r["issue_type"].replace("_", " "), r["aurum_symbol"] or "—", r["report_type"] or "—",
+                  str(r["report_date"] or "—"), f"{r['occurrences']:,}", r["description"])
     console.print(t)
     bad, _ = svc.repo.issues(severity="error", limit=1)
     crit, _ = svc.repo.issues(severity="critical", limit=1)
@@ -338,4 +338,4 @@ def export(kind: str = typer.Option("all", "--kind", help="all, raw, positions, 
             path, n = exports.export(k, svc.repo, svc.cfg, out_dir, instrument, overwrite, builder)
         except ValueError as exc:
             _fail(str(exc))
-        console.print(f"[green]{k}[/]: {n} rows -> {path}")
+        console.print(f"[positive]{k}[/]: {n:,} rows → [muted]{path}[/]")

@@ -14,8 +14,7 @@ import time
 from typing import Optional
 
 import typer
-from rich.console import Console
-from rich.table import Table
+from aurum.ui import Table, console, error, humanize, kv_table, status
 
 from aurum.config import (TIMEFRAME_SECONDS, InstrumentConfig, Settings, SymbolMappingError, enabled_instruments,
                           get_settings, load_instruments)
@@ -23,7 +22,6 @@ from aurum.logging_config import setup_logging
 
 app = typer.Typer(add_completion=False, no_args_is_help=True,
                   help="AURUM AI - Module 01: READ-ONLY MetaTrader 5 market data collection engine.")
-console = Console()
 log = logging.getLogger("aurum.cli")
 
 
@@ -56,7 +54,7 @@ def _timeframes(s: Settings, timeframe: str | None) -> list[str]:
 
 
 def _fail(msg: str, code: int = 1) -> None:
-    console.print(f"[bold red]ERROR[/] {msg}")
+    error(msg)
     raise typer.Exit(code)
 
 
@@ -78,7 +76,7 @@ def check() -> None:
     from aurum.gateways.mt5_gateway import MT5Error
     s = _settings()
     ok = True
-    console.rule("[bold]AURUM AI - system check (read-only)")
+    console.rule("[bold]AURUM AI · system check[/] [muted](read-only)[/]", style="muted", align="left")
     try:
         instruments = _instruments(s, None)
     except (SymbolMappingError, FileNotFoundError) as exc:
@@ -87,43 +85,41 @@ def check() -> None:
     try:
         with _gateway(s) as gw:
             r = gw.report
-            t = Table(title="MetaTrader 5", show_header=False)
-            for k, v in [("Account", r.login), ("Server", r.server), ("Broker", r.company), ("Account type", r.trade_mode),
-                         ("Currency", r.currency), ("Leverage", f"1:{r.leverage}"), ("Terminal", r.terminal_name),
-                         ("Build", r.terminal_build), ("Connected", r.terminal_connected), ("Broker clock", r.broker_clock)]:
-                t.add_row(k, str(v))
-            console.print(t)
-            st = Table(title="Symbols")
+            console.print(kv_table("MetaTrader 5", [
+                ("Account", r.login), ("Server", r.server), ("Broker", r.company), ("Account type", r.trade_mode),
+                ("Currency", r.currency), ("Leverage", f"1:{r.leverage}"), ("Terminal", r.terminal_name),
+                ("Build", r.terminal_build), ("Connected", r.terminal_connected), ("Broker clock", r.broker_clock)]))
+            st = Table(title="Symbols", numeric=("Bid", "Ask", "Spread (pts)"))
             for c in ("Symbol", "Broker symbol", "Status", "Bid", "Ask", "Spread (pts)", "Trade mode"):
                 st.add_column(c)
             for inst in instruments:
                 spec = gw.symbol_spec(inst.broker_symbol)
                 if spec is None:
                     ok = False
-                    st.add_row(inst.symbol, inst.broker_symbol, "[red]NOT FOUND[/]", "", "", "", "")
+                    st.add_row(inst.symbol, inst.broker_symbol, status("not found"), "", "", "", "")
                 else:
-                    st.add_row(inst.symbol, inst.broker_symbol, "[green]OK[/]", str(spec["bid"]), str(spec["ask"]),
+                    st.add_row(inst.symbol, inst.broker_symbol, status("ok"), str(spec["bid"]), str(spec["ask"]),
                                str(spec["spread_points"]), str(spec["trade_mode"]))
             console.print(st)
             cc = gw.verify_clock(instruments)
-            colour = {"ok": "green", "mismatch": "red", "unknown": "yellow"}[cc.status]
-            console.print(f"[{colour}]Broker clock {cc.status.upper()}[/]: {cc.message}")
+            console.print(f"Broker clock {status(cc.status)}: {cc.message}")
             ok = ok and cc.ok
     except MT5Error as exc:
         ok = False
-        console.print(f"[red]MT5:[/] {exc}")
+        console.print(f"[negative]MT5:[/] {exc}")
     # Database
     try:
         info = check_database(engine_from_settings(s))
-        console.print(f"[green]Database OK[/] {s.safe_database_url} | dialect={info['dialect']} "
-                      f"timescaledb={info['timescaledb']} schema_ready={info['schema_ready']}")
+        console.print(f"Database {status('ok')} [muted]{s.safe_database_url} · {info['dialect']} · "
+                      f"TimescaleDB {'on' if info['timescaledb'] else 'off'} · schema "
+                      f"{'ready' if info['schema_ready'] else 'not initialised'}[/]")
         if not info["schema_ready"]:
             ok = False
-            console.print("[yellow]Schema not initialised - run: python -m aurum.cli init-db[/]")
+            console.print("[warning]Schema not initialised.[/] Run: python -m aurum.cli init-db")
     except Exception as exc:
         ok = False
-        console.print(f"[red]Database:[/] cannot connect to {s.safe_database_url} ({type(exc).__name__}: {exc})")
-    console.rule("[green]ALL CHECKS PASSED" if ok else "[red]SOME CHECKS FAILED")
+        console.print(f"[negative]Database:[/] cannot connect to {s.safe_database_url} ({type(exc).__name__}: {exc})")
+    console.rule("[positive]All checks passed[/]" if ok else "[negative]Some checks failed[/]", style="muted", align="left")
     raise typer.Exit(0 if ok else 1)
 
 
@@ -138,10 +134,10 @@ def init_db() -> None:
         info = check_database(engine)
     except Exception as exc:
         _fail(f"Database initialisation failed for {s.safe_database_url}: {type(exc).__name__}: {exc}")
-    console.print(f"[green]Schema ready[/] ({', '.join(steps)}) on {s.safe_database_url}")
+    console.print(f"[positive]Schema ready[/] [muted]({', '.join(steps)}) on {s.safe_database_url}[/]")
     if info["dialect"] == "postgresql":
-        console.print("TimescaleDB hypertables: " + ("[green]enabled[/]" if info["timescaledb"]
-                      else "[yellow]not available - using plain PostgreSQL tables[/]"))
+        console.print("TimescaleDB hypertables: " + ("[positive]enabled[/]" if info["timescaledb"]
+                      else "[warning]not available[/], using plain PostgreSQL tables"))
 
 
 @app.command()
@@ -157,16 +153,17 @@ def specs(save: bool = typer.Option(True, help="Store a specification snapshot i
             res = collect_specs(gw, instruments)
     except (MT5Error, SymbolMappingError, FileNotFoundError) as exc:
         _fail(str(exc))
-    t = Table(title="Instrument specifications")
     cols = ["symbol", "broker_symbol", "asset_class", "digits", "point", "contract_size", "tick_size", "tick_value",
             "volume_min", "volume_max", "volume_step", "spread_points", "bid", "ask", "trade_mode"]
+    text_cols = {"symbol", "broker_symbol", "asset_class", "trade_mode"}
+    t = Table(title="Instrument specifications", numeric=[humanize(c) for c in cols if c not in text_cols])
     for c in cols:
-        t.add_column(c)
+        t.add_column(humanize(c))
     for spec in res.available.values():
         t.add_row(*[str(spec.get(c)) for c in cols])
     console.print(t)
     for sym, reason in res.unavailable.items():
-        console.print(f"[yellow]{sym}[/]: {reason}")
+        console.print(f"[warning]{sym}[/]: {reason}")
     if save and res.available:
         try:
             repo = _repo(s)
@@ -175,9 +172,9 @@ def specs(save: bool = typer.Option(True, help="Store a specification snapshot i
                 if inst.symbol in res.available:
                     iid = repo.upsert_instrument(inst.symbol, inst.broker_symbol, inst.asset_class, inst.description)
                     repo.insert_spec(iid, res.available[inst.symbol], now, "specs-cli")
-            console.print("[green]Specification snapshot stored.[/]")
+            console.print("[positive]Specification snapshot stored.[/]")
         except Exception as exc:
-            console.print(f"[yellow]Not stored in database ({type(exc).__name__}: {exc}).[/]")
+            console.print(f"[warning]Not stored in the database[/] ({type(exc).__name__}: {exc}).")
 
 
 @app.command()
@@ -216,7 +213,7 @@ def collect(symbol: Optional[str] = typer.Option(None, "--symbol", "-s", help="C
                 _print_summary(summary)
                 if not loop:
                     break
-                console.print(f"Next collection in {s.collection_interval_seconds}s (Ctrl+C to stop)")
+                console.print(f"[muted]Next collection in {s.collection_interval_seconds}s · Ctrl+C to stop[/]")
                 time.sleep(s.collection_interval_seconds)
     except KeyboardInterrupt:
         console.print("Stopped by user.")
@@ -225,17 +222,17 @@ def collect(symbol: Optional[str] = typer.Option(None, "--symbol", "-s", help="C
 
 
 def _print_summary(summary) -> None:
-    t = Table(title=f"Collection run {summary.run_id} - {summary.status.upper()}")
+    t = Table(title=f"Collection run {summary.run_id} · {status(summary.status)}",
+              numeric=("Received", "Stored", "Forming excluded"))
     for c in ("Symbol", "TF", "Status", "Received", "Stored", "Forming excluded", "Issues", "Message"):
         t.add_column(c)
     for r in summary.series:
-        colour = "green" if r.status == "success" else "red"
-        issues = ", ".join(f"{k}={v}" for k, v in r.issues.items()) or "-"
-        t.add_row(r.symbol, r.timeframe, f"[{colour}]{r.status}[/]", str(r.received), str(r.stored),
-                  str(r.excluded_forming), issues, r.message)
+        issues = ", ".join(f"{k}={v}" for k, v in r.issues.items()) or "—"
+        t.add_row(r.symbol, r.timeframe, status(r.status), f"{r.received:,}", f"{r.stored:,}",
+                  f"{r.excluded_forming:,}", issues, r.message)
     console.print(t)
     for sym, reason in summary.unavailable.items():
-        console.print(f"[yellow]Skipped {sym}[/]: {reason}")
+        console.print(f"[warning]Skipped {sym}[/]: {reason}")
 
 
 @app.command()
@@ -258,13 +255,13 @@ def export(symbol: Optional[str] = typer.Option(None, "--symbol", "-s"),
     except Exception as exc:
         _fail(f"Export failed: {type(exc).__name__}: {exc}")
     if not results:
-        console.print("[yellow]No stored candles match. Run 'python -m aurum.cli collect' first.[/]")
+        console.print("[warning]No stored candles match.[/] Run: python -m aurum.cli collect")
         return
-    t = Table(title="Export")
+    t = Table(title="Export", numeric=("Rows",))
     for c in ("Symbol", "TF", "Format", "Rows", "Action", "Path"):
         t.add_column(c)
     for r in results:
-        t.add_row(r.symbol, r.timeframe, r.fmt, str(r.rows), r.action, str(r.path))
+        t.add_row(r.symbol, r.timeframe, r.fmt, f"{r.rows:,}", r.action, f"[muted]{r.path}[/]")
     console.print(t)
 
 

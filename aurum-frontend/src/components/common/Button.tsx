@@ -14,17 +14,19 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   disabledReason?: string;
 }
 
+// One filled primary per screen, inverted white on the dark ground; the gold
+// accent is kept for data and selection, never spent on button fills.
 const variants: Record<Variant, string> = {
-  primary: 'bg-gold text-base font-semibold hover:bg-[#e0bb73] disabled:bg-gold/40',
-  secondary: 'border border-line bg-base-elevated text-ink hover:border-[#36486a] hover:bg-[#1e2d45]',
-  ghost: 'text-ink-muted hover:bg-base-elevated hover:text-ink',
-  danger: 'border border-down/40 bg-down-faint text-down-text hover:bg-down/20',
+  primary: 'bg-ink text-[#121215] font-semibold hover:bg-white active:bg-[#d9d9db]',
+  secondary: 'border border-line-control text-ink hover:border-[#55555b] hover:bg-base-elevated active:bg-base-raised',
+  ghost: 'text-ink-muted hover:bg-base-elevated hover:text-ink active:bg-base-raised',
+  danger: 'border border-down/50 text-down-text hover:bg-[#2c1a20]',
 };
 
 const sizes: Record<Size, string> = {
-  sm: 'h-8 px-3 text-xs gap-1.5',
-  md: 'h-9 px-4 text-sm gap-2',
-  icon: 'h-9 w-9 justify-center',
+  sm: 'h-7 px-2.5 text-xs gap-1.5',
+  md: 'h-8 px-3.5 text-sm gap-2',
+  icon: 'h-8 w-8 justify-center',
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(

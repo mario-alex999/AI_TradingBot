@@ -34,7 +34,7 @@ export function DataQualityPanel() {
                 <div className="rounded-md border border-line-soft bg-base-raised p-3">
                   <p className="eyebrow">Last validation</p>
                   <div className="mt-2">
-                    {result ? <Badge tone={result === 'passed' ? 'up' : result === 'warning' ? 'warn' : 'down'}>{result}</Badge> : <span className="text-neutral">--</span>}
+                    {result ? <Badge tone={result === 'passed' ? 'up' : result === 'warning' ? 'warn' : 'down'}>{result}</Badge> : <span className="text-neutral">—</span>}
                   </div>
                 </div>
               </div>

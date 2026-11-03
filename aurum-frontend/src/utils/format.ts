@@ -1,6 +1,7 @@
 import { formatDistanceToNowStrict } from 'date-fns';
 
-export const PLACEHOLDER = '--';
+/** A missing or not-applicable value: one quiet em dash (a real zero is always printed). */
+export const PLACEHOLDER = '—';
 
 type NumberStyle = 'en-US' | 'en-GB' | 'de-DE' | 'fr-FR';
 

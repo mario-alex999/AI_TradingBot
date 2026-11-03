@@ -191,7 +191,7 @@ def test_cli_full_flow(cli):
     assert runner.invoke(app, ["init-db"]).exit_code == 0                                # Module 01 command still works
     r = runner.invoke(app, ["cot", "backfill", "--start", "2025-01-01", "-r", "legacy", "-r", "tff"])
     assert r.exit_code == 0, r.output
-    assert "SUCCESS" in r.output
+    assert "Success" in r.output
     r = runner.invoke(app, ["cot", "update"])
     assert r.exit_code == 0 and "'inserted': 0" in r.output                               # idempotent
     for cmd in (["cot", "status"], ["cot", "datasets"], ["cot", "calculate"], ["cot", "sync-config"],

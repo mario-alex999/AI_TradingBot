@@ -33,7 +33,7 @@ export function MarketCards() {
         </Button>
       </div>
       {quotes.isPending ? (
-        <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {SYMBOLS.map((s) => (
             <Skeleton key={s} className="h-[212px] rounded-card" />
           ))}
@@ -43,7 +43,7 @@ export function MarketCards() {
           <ErrorState error={quotes.error} onRetry={() => void quotes.refetch()} compact />
         </Card>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {quotes.data.data.map((q) => (
             <QuoteCard key={q.symbol} quote={q} instrument={bySymbol.get(q.symbol)} source={quotes.data.source} />
           ))}

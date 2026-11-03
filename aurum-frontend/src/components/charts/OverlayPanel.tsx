@@ -15,7 +15,7 @@ export function OverlayPanel({ available }: { available: ChartOverlay[] }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
-        <Layers className="h-4 w-4 text-gold" aria-hidden />
+        <Layers className="h-4 w-4 text-neutral" aria-hidden />
         <h3 className="text-sm font-semibold text-ink">Structure overlays</h3>
       </div>
       <p className="text-2xs leading-relaxed text-neutral">Supplied by the market analysis backend. AURUM never generates SMC/ICT levels in the browser.</p>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bot, ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card } from '@/components/common/Card';
 import { StatusIndicator } from '@/components/common/StatusIndicator';
@@ -17,9 +17,6 @@ function AgentCard({ a, canConfigure }: { a: AgentInfo; canConfigure: boolean })
   return (
     <Card className="flex flex-col">
       <div className="flex items-start gap-3 p-4">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-line bg-base-elevated text-gold">
-          <Bot className="h-4 w-4" aria-hidden />
-        </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-sm font-semibold text-ink">{a.name}</h2>

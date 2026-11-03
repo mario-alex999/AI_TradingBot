@@ -79,7 +79,7 @@ export default function TradeManagementPage() {
         actions={<DataSourceBadge source={q.data?.source} fetchedAt={q.data?.fetchedAt} />}
       />
       <div className="flex items-center gap-2 rounded-card border border-line bg-base-card px-4 py-3 text-xs text-ink-muted">
-        <Lock className="h-4 w-4 shrink-0 text-gold" aria-hidden />
+        <Lock className="h-4 w-4 shrink-0 text-neutral" aria-hidden />
         Read-only. Order placement and position modification are not available in this release; future trading actions will require backend authorisation and human
         approval.
       </div>

@@ -40,7 +40,7 @@ export function CotDivergencePanel({ data, demo }: { data: CotDivergence | null 
     <div className="flex flex-col gap-4">
       <ChartCard
         title={`Price vs ${data.categoryLabel} net position`}
-        subtitle={`${data.priceTimeframe} close on each Tuesday report date (Module 01) vs COT net position. Price data ${data.priceCoverage.from ?? '--'} to ${data.priceCoverage.to ?? '--'}.`}
+        subtitle={`${data.priceTimeframe} close on each Tuesday report date (Module 01) vs COT net position. Price data ${data.priceCoverage.from ?? '—'} to ${data.priceCoverage.to ?? '—'}.`}
         empty={!data.available || rows.length === 0}
         emptyTitle="Not enough overlapping data"
         emptyDescription={data.reason ?? undefined}

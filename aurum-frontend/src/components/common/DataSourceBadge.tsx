@@ -7,13 +7,13 @@ import { relativeTime } from '@/utils/format';
 export function DataSourceBadge({ source, fetchedAt }: { source?: DataSource; fetchedAt?: string }) {
   if (!source) return null;
   return source === 'demo' ? (
-    <Badge tone="gold">
+    <Badge tone="warn">
       <FlaskConical className="h-3 w-3" aria-hidden /> Demo data
     </Badge>
   ) : (
     <span className="inline-flex items-center gap-1.5">
-      <Badge tone="up">
-        <Radio className="h-3 w-3" aria-hidden /> Backend
+      <Badge tone="neutral">
+        <Radio className="h-3 w-3 text-up" aria-hidden /> Backend
       </Badge>
       {fetchedAt && <span className="text-2xs text-neutral">{relativeTime(fetchedAt)}</span>}
     </span>

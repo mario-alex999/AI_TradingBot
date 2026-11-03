@@ -19,8 +19,8 @@ export function CotQualityPanel({ status, instrument }: { status: CotStatus | un
   const issueCols: Column<CotQualityIssue>[] = [
     { key: 'sev', header: 'Severity', cell: (r) => <Badge tone={severityTone(r.severity)}>{r.severity}</Badge> },
     { key: 'type', header: 'Issue', cell: (r) => humanize(r.issueType) },
-    { key: 'rt', header: 'Report', cell: (r) => (r.reportType ? REPORT_TYPE_LABEL[r.reportType] : '--') },
-    { key: 'date', header: 'Report date', cell: (r) => <span className="num">{r.reportDate ?? '--'}</span> },
+    { key: 'rt', header: 'Report', cell: (r) => (r.reportType ? REPORT_TYPE_LABEL[r.reportType] : '—') },
+    { key: 'date', header: 'Report date', cell: (r) => <span className="num">{r.reportDate ?? '—'}</span> },
     { key: 'desc', header: 'Explanation', cell: (r) => <span className="text-ink-muted">{r.description}</span> },
     { key: 'seen', header: 'Seen', align: 'right', cell: (r) => formatInteger(r.occurrences) },
   ];
@@ -28,8 +28,8 @@ export function CotQualityPanel({ status, instrument }: { status: CotStatus | un
     { key: 'start', header: 'Started (UTC)', cell: (r) => <span className="num">{formatDateTime(r.startedAt)}</span> },
     { key: 'job', header: 'Job', cell: (r) => r.jobType },
     { key: 'rt', header: 'Report', cell: (r) => (r.reportType ? REPORT_TYPE_LABEL[r.reportType] : 'all') },
-    { key: 'period', header: 'Period', cell: (r) => <span className="num">{r.periodStart ? `${r.periodStart} â†’ ${r.periodEnd}` : '--'}</span> },
-    { key: 'src', header: 'Source', cell: (r) => r.source ?? '--' },
+    { key: 'period', header: 'Period', cell: (r) => <span className="num">{r.periodStart ? `${r.periodStart} â†’ ${r.periodEnd}` : '—'}</span> },
+    { key: 'src', header: 'Source', cell: (r) => r.source ?? '—' },
     { key: 'counts', header: 'Retrieved / new / revised / rejected', align: 'right', cell: (r) => <span className="num">{`${r.recordsRetrieved} / ${r.recordsInserted} / ${r.recordsUpdated} / ${r.recordsRejected}`}</span> },
     { key: 'status', header: 'Status', cell: (r) => <Badge tone={r.status === 'success' ? 'up' : r.status === 'running' ? 'info' : 'down'}>{r.status}</Badge> },
     { key: 'err', header: 'Error', cell: (r) => <span className="text-down-text">{r.errorMessage ?? ''}</span> },
@@ -37,16 +37,16 @@ export function CotQualityPanel({ status, instrument }: { status: CotStatus | un
   return (
     <div className="flex flex-col gap-4">
       <Card>
-        <CardHeader title="Data freshness" subtitle={`Last successful update ${status?.lastSuccessfulIngestion ? formatDateTime(status.lastSuccessfulIngestion) + ' UTC' : '--'} Â· failed ingestions: ${status?.failedIngestions ?? 0}`} />
+        <CardHeader title="Data freshness" subtitle={`Last successful update ${status?.lastSuccessfulIngestion ? formatDateTime(status.lastSuccessfulIngestion) + ' UTC' : '—'} · failed ingestions: ${status?.failedIngestions ?? 0}`} />
         <ul className="grid gap-2 p-4 sm:grid-cols-2 xl:grid-cols-4">
           {series.map((s) => (
             <li key={`${s.instrument}-${s.reportType}`} className="rounded border border-line-soft px-3 py-2 text-xs">
               <p className="flex items-center justify-between gap-2">
-                <span className="num text-ink">{s.instrument} Â· {REPORT_TYPE_LABEL[s.reportType]}</span>
+                <span className="num text-ink">{s.instrument} · {REPORT_TYPE_LABEL[s.reportType]}</span>
                 <Badge tone={freshnessTone(s.freshness.status)}>{humanize(s.freshness.status)}</Badge>
               </p>
               <p className="num mt-1 text-neutral">
-                {s.reports} reports Â· latest {s.latestReportDate ?? '--'} (released {s.latestReleaseDate ?? '--'})
+                {s.reports} reports · latest {s.latestReportDate ?? '—'} (released {s.latestReleaseDate ?? '—'})
               </p>
             </li>
           ))}
