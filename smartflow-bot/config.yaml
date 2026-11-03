@@ -1,0 +1,57 @@
+# ---------------- SMARTFLOW CONFLUENCE BOT ----------------
+symbol: "EURUSD=X"          # price feed symbol (yfinance) or CSV path
+cot_market: "EURO FX"       # substring of CFTC 'market_and_exchange_names'
+timezone: "America/New_York"
+
+timeframes:
+  bias: "1d"                # HTF: COT + daily structure
+  setup: "1h"               # MTF: order blocks / FVG / OTE
+  # entry timeframe (5m/15m) is used live; backtests run on setup TF
+
+sessions:                   # New York time
+  asian:   ["19:00", "00:00"]
+  london:  ["02:00", "05:00"]   # London killzone
+  newyork: ["07:00", "10:00"]   # NY killzone
+  trade_only_in: ["london", "newyork"]
+
+cot:
+  lookbacks_weeks: [52, 156, 208]   # 12 months, 3 years, 4 years
+  extreme_high: 80                  # COT index >= 80 = heavily net long (vs history)
+  extreme_low: 20                   # COT index <= 20 = heavily net short
+
+smc:
+  swing_length: 5
+  fvg_min_atr: 0.25          # ignore gaps smaller than 0.25*ATR
+  ob_lookback: 60
+  ote_low: 0.62
+  ote_high: 0.79
+
+levels:
+  pivot_window: 10
+  cluster_atr: 0.5
+
+scoring:                     # confluence weights (max 100)
+  cot_bias: 25
+  htf_structure: 15
+  liquidity_sweep: 15
+  order_block: 15
+  fvg: 10
+  ote_zone: 10
+  sr_level: 5
+  session: 5
+  min_score: 65              # only A/A+ setups pass
+
+risk:
+  account_size: 10000
+  risk_per_trade_pct: 0.5
+  max_daily_loss_pct: 2.0
+  max_open_trades: 2
+  min_rr: 2.0
+  sl_buffer_atr: 0.2
+
+ai_agent:
+  enabled: true
+  model: "claude-opus-5-5"
+  effort: "high"
+
+database: "data/smartflow.db"

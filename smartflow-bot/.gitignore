@@ -1,0 +1,7 @@
+data/*.db
+data/*.csv
+logs/
+.venv/
+__pycache__/
+!data/.gitkeep
+!logs/.gitkeep
