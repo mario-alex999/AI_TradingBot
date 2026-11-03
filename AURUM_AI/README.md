@@ -219,18 +219,37 @@ Documentation: [docs/MODULE_02_COT.md](docs/MODULE_02_COT.md) (overview, databas
 [docs/COT_METHODOLOGY.md](docs/COT_METHODOLOGY.md) (definitions, formulas, timing, limitations),
 [docs/COT_OPERATIONS.md](docs/COT_OPERATIONS.md) (exact commands, scheduling, troubleshooting).
 
+## Module 03 - Technical Analysis and SMC Engine
+Deterministic, explainable price-action analysis on Module 01's stored candles: swings, internal/external
+structure (HH/HL/LH/LL), BOS and CHoCH (close-confirmed), displacement, order blocks with mitigation states,
+fair value gaps, balanced price ranges, liquidity pools with sweeps and breaks, inducement candidates,
+premium/discount with Fibonacci levels, OTE, support/resistance zones, multi-timeframe confluence and an
+explainable score, with optional COT context from Module 02. Non-repainting; analysis only - no MT5 connection,
+no trading.
+```powershell
+python -m aurum.cli init-db
+python -m aurum.cli analyze run --symbol EURUSD --timeframe H1
+python -m aurum.cli analyze confluence --symbol EURUSD
+```
+API: `/api/v1/analysis/technical/{symbol}`, `/analysis/confluence/{symbol}`, `/analysis/market-structure`.
+Documentation: [docs/MODULE_03_TECHNICAL_ANALYSIS.md](docs/MODULE_03_TECHNICAL_ANALYSIS.md) (definitions,
+configuration, API, database, limitations). Settings: `config/analysis.yaml`.
+
 ## Project layout
 ```
 aurum/  config.py · logging_config.py · cli.py
+        analysis/                        Module 03: market_structure · smart_money · support_resistance ·
+                                         multi_timeframe · scoring · models · services · cli
         cot/                             Module 02: client · parsers · release timing · validation ·
                                          calculations · positioning · divergence · intelligence · exports · cli
-        api/                             FastAPI backend (python -m aurum.api) · routes/cot.py · jobs
+        api/                             FastAPI backend (python -m aurum.api) · routes/cot.py ·
+                                         routes/technical_analysis.py · jobs
         gateways/mt5_gateway.py          read-only MT5 access, demo enforcement, broker clock
         collectors/                      candles · ticks · instrument specs
         services/                        market_data_service (orchestration) · validation_service
         database/                        connection · models (SQLAlchemy) · repository (upserts)
         exporters/market_data_exporter.py
-sql/schema.sql  sql/migrations/   config/instruments.yaml   scripts/setup_database.py
+sql/schema.sql  sql/migrations/   config/instruments.yaml · cot.yaml · analysis.yaml   scripts/setup_database.py
 data/raw · data/processed · data/exports   logs/aurum.log (JSON lines)   tests/
 ```
 Security: secrets live only in `.env` (git-ignored), are `SecretStr` in code, and a log filter masks them.
