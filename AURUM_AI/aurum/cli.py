@@ -266,7 +266,6 @@ def stream_ticks(interval: float = typer.Option(1.0, "--interval", min=0.25, hel
     """Record live bid/ask from MT5 every --interval seconds so the dashboard updates in real time (read-only).
     Also mirrors the DEMO account (balance/equity snapshots and positions rebuilt from the deal history)."""
     import uuid
-    from datetime import datetime, timedelta, timezone
 
     from aurum.account.recorder import AccountRecorder
     from aurum.collectors.tick_collector import collect_tick
@@ -288,7 +287,7 @@ def stream_ticks(interval: float = typer.Option(1.0, "--interval", min=0.25, hel
             console.print(f"Streaming quotes for {', '.join(ids)} every {interval:g}s [muted]· Ctrl+C to stop[/]")
             last: dict[str, int] = {}
             recorder = AccountRecorder(repo.engine)
-            next_snap = next_deals = 0.0
+            next_snap = next_deals = next_compact = 0.0
             while True:
                 for inst in instruments:
                     tick = collect_tick(gw, inst)
@@ -299,16 +298,17 @@ def stream_ticks(interval: float = typer.Option(1.0, "--interval", min=0.25, hel
                 mono = time.monotonic()
                 try:
                     if account_every and mono >= next_snap:
-                        recorder.record_snapshot(gw.account_snapshot())
                         next_snap = mono + account_every
+                        recorder.record_snapshot(gw.account_snapshot())
                     if deals_every and mono >= next_deals:
-                        now = datetime.now(timezone.utc)
-                        recorder.store_deals(gw.deals(now - timedelta(days=lookback_days), now + timedelta(days=1)),
-                                             gw.clock.to_utc)
                         next_deals = mono + deals_every
-                except MT5Error as exc:  # account mirroring must never stop the quote stream
-                    console.print(f"[warning]Account sync skipped:[/] {exc}")
-                    next_snap = next_deals = mono + max(account_every, 10.0)
+                        recorder.sync_deals(gw, lookback_days)
+                    if mono >= next_compact:
+                        next_compact = mono + 3600
+                        recorder.compact()
+                except Exception as exc:  # noqa: BLE001 - account mirroring (MT5 or database errors) never stops the quote stream
+                    log.warning("Account sync skipped", exc_info=True)
+                    console.print(f"[warning]Account sync skipped:[/] {type(exc).__name__}: {exc}")
                 time.sleep(interval)
     except KeyboardInterrupt:
         console.print(f"Stopped. [muted]{stored:,} quotes recorded.[/]")

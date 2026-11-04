@@ -2,66 +2,24 @@
 from __future__ import annotations
 
 import csv
-from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
 from .models import Trade
 
-# MT5 deal constants (MetaTrader5 package): DEAL_TYPE_BUY=0, DEAL_TYPE_SELL=1,
-# DEAL_ENTRY_IN=0, DEAL_ENTRY_OUT=1, DEAL_ENTRY_INOUT=2, DEAL_ENTRY_OUT_BY=3.
-_BUY, _SELL = 0, 1
-_IN, _OUT, _INOUT, _OUT_BY = 0, 1, 2, 3
-
 
 def deals_to_trades(deals: list[dict[str, Any]], to_utc: Callable[[float], datetime]) -> list[Trade]:
-    """Rebuild closed trades from raw MT5 deals, grouped by ``position_id``.
+    """Closed trades rebuilt from raw MT5 deals (see :func:`aurum.account.deals.build_positions`).
 
-    A position counts as closed when its exit volume covers its entry volume. Net P/L adds the
-    profit, swap, commission and fee of every deal in the position. Balance/credit deals are ignored.
+    Each closed position leg is one trade; net P/L adds the profit, swap, commission and fee of its deals.
+    Open legs and balance/credit deals are ignored.
     """
-    by_pos: dict[int, list[dict[str, Any]]] = defaultdict(list)
-    for d in deals:
-        if d.get("type") not in (_BUY, _SELL) or not d.get("position_id"):
-            continue
-        by_pos[int(d["position_id"])].append(d)
-
-    trades: list[Trade] = []
-    for pos, ds in by_pos.items():
-        ds.sort(key=lambda d: (d.get("time_msc") or d.get("time", 0) * 1000))
-        entries = [d for d in ds if d.get("entry") == _IN]
-        exits = [d for d in ds if d.get("entry") in (_OUT, _OUT_BY, _INOUT)]
-        if not entries or not exits:
-            continue  # still open, or history window cut the position
-        vol_in = sum(float(d.get("volume", 0)) for d in entries)
-        vol_out = sum(float(d.get("volume", 0)) for d in exits)
-        if vol_out + 1e-9 < vol_in:
-            continue  # partially closed: not finished yet
-        first, last = entries[0], exits[-1]
-        net = sum(float(d.get(k, 0) or 0) for d in ds for k in ("profit", "swap", "commission", "fee"))
-
-        def ts(d: dict[str, Any]) -> datetime:
-            sec = (d.get("time_msc") or 0) / 1000.0 or float(d.get("time", 0))
-            return to_utc(sec)
-
-        avg_in = sum(float(d["price"]) * float(d["volume"]) for d in entries) / vol_in if vol_in else float(first["price"])
-        avg_out = sum(float(d["price"]) * float(d["volume"]) for d in exits) / vol_out if vol_out else float(last["price"])
-        comment = (first.get("comment") or "").strip()
-        magic = first.get("magic") or 0
-        trades.append(Trade(
-            ticket=str(pos),
-            symbol=str(first.get("symbol", "")),
-            side="buy" if first.get("type") == _BUY else "sell",
-            volume=round(vol_in, 4),
-            open_time=ts(first),
-            close_time=ts(last),
-            open_price=avg_in,
-            close_price=avg_out,
-            pnl=round(net, 2),
-            strategy=comment or (f"magic {magic}" if magic else None),
-        ))
-    return sorted(trades, key=lambda t: t.close_time)
+    from aurum.account.deals import build_positions
+    return sorted((Trade(ticket=p["id"], symbol=p["broker_symbol"], side=p["side"], volume=p["volume"],
+                         open_time=p["open_time"], close_time=p["close_time"], open_price=p["open_price"],
+                         close_price=p["close_price"], pnl=p["pnl"], strategy=p["strategy"])
+                   for p in build_positions(deals, to_utc) if p["status"] == "closed"), key=lambda t: t.close_time)
 
 
 REQUIRED = ("ticket", "symbol", "side", "open_time", "close_time", "pnl")

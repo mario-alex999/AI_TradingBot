@@ -9,7 +9,9 @@ import pytest
 from cot_helpers import cot_cfg
 from fastapi.testclient import TestClient
 
-from aurum.account.recorder import AccountRecorder, positions_from_deals
+from aurum.account.db_models import AccountSnapshot, TradeRecord
+from aurum.account.deals import build_positions, cash_flows
+from aurum.account.recorder import AccountRecorder
 from aurum.api.app import create_app
 from aurum.config import Settings
 from aurum.database.connection import engine_from_settings, init_database, session_scope
@@ -77,28 +79,65 @@ def client(env):
 
 def test_positions_are_rebuilt_from_deals():
     now = T0 + timedelta(days=1)
-    positions, orphans, cash = positions_from_deals(history(now), to_utc, {"EURUSDm": "EURUSD"})
-    by = {p["position_id"]: p for p in positions}
-    assert by[101]["status"] == "closed" and by[101]["pnl"] == 197.0 and by[101]["strategy"] == "breakout"
-    assert by[102]["side"] == "sell" and by[102]["pnl"] == -50.0
-    assert by[103]["status"] == "open" and by[103]["symbol"] == "EURUSD" and by[103]["stop_loss"] == 1.0950
-    assert cash == [{"deal_ticket": 1, "ts_utc": T0 - timedelta(days=1), "amount": 10_000.0, "kind": "balance", "comment": None}]
-    assert orphans == []
+    by = {p["id"]: p for p in build_positions(history(now), to_utc, {"EURUSDm": "EURUSD"})}
+    assert by["101"]["status"] == "closed" and by["101"]["pnl"] == 197.0 and by["101"]["strategy"] == "breakout"
+    assert by["102"]["side"] == "sell" and by["102"]["pnl"] == -50.0
+    assert by["103"]["status"] == "open" and by["103"]["symbol"] == "EURUSD" and by["103"]["stop_loss"] == 1.0950
+    assert cash_flows(history(now), to_utc) == [{"ticket": 1, "ts_utc": T0 - timedelta(days=1), "amount": 10_000.0, "kind": "balance"}]
 
 
-def test_partial_close_stays_open_and_late_exit_closes_it(env):
+def test_every_balance_deal_type_is_a_cash_flow():
+    ds = [deal(1, 0, 12, 0, 0, 0, T0, profit=1.5), deal(2, 0, 8, 0, 0, 0, T0, commission=-2.0),
+          deal(3, 0, 17, 0, 0, 0, T0, profit=-0.4), deal(4, 0, 13, 0, 0, 0, T0)]  # 13 = cancelled buy: not cash
+    assert [(c["kind"], c["amount"]) for c in cash_flows(ds, to_utc)] == [("interest", 1.5), ("commission_daily", -2.0), ("tax", -0.4)]
+
+
+def test_netting_reversal_opens_the_opposite_leg():
+    ds = [deal(1, 300, 0, 0, 1.0, 1.1000, T0),
+          deal(2, 300, 1, 2, 3.0, 1.1010, T0 + timedelta(hours=1), profit=100.0),   # INOUT: close 1.0, open 2.0 short
+          deal(3, 300, 0, 1, 2.0, 1.1000, T0 + timedelta(hours=2), profit=200.0)]
+    legs = build_positions(ds, to_utc)
+    assert [(p["id"], p["side"], p["status"], p["volume"], p["pnl"]) for p in legs] == [
+        ("300", "buy", "closed", 1.0, 100.0), ("300-2", "sell", "closed", 2.0, 200.0)]
+    open_short = build_positions(ds[:2], to_utc)[1]
+    assert (open_short["status"], open_short["volume"], open_short["open_price"]) == ("open", 2.0, 1.1010)
+
+
+def test_overlapping_syncs_never_double_count_partial_closes(env):
     eng, _, _ = env
     rec = AccountRecorder(eng)
-    rec.store_deals([deal(10, 200, 0, 0, 2.0, 1.1, T0), deal(11, 200, 1, 1, 0.5, 1.101, T0 + timedelta(hours=1), profit=50.0)], to_utc)
-    from aurum.account.db_models import TradeRecord
+    entry, partial = deal(10, 200, 0, 0, 2.0, 1.1, T0), deal(11, 200, 1, 1, 0.5, 1.101, T0 + timedelta(days=20), profit=50.0)
+    rec.store_deals([entry, partial], to_utc)
     with session_scope(eng) as s:
-        r = s.get(TradeRecord, 200)
+        r = s.get(TradeRecord, "200")
         assert (r.status, r.volume, r.pnl) == ("open", 1.5, 50.0)
-    # later sync window no longer holds the entry deal: the exit alone closes the known open position
-    rec.store_deals([deal(12, 200, 1, 1, 1.5, 1.102, T0 + timedelta(days=40), profit=300.0)], to_utc)
+    # A later window holds the partial exit again and the final exit, but not the entry deal.
+    rec.store_deals([partial, deal(12, 200, 1, 1, 1.5, 1.102, T0 + timedelta(days=40), profit=300.0)], to_utc)
     with session_scope(eng) as s:
-        r = s.get(TradeRecord, 200)
-        assert (r.status, r.pnl, r.close_price) == ("closed", 350.0, 1.102)
+        r = s.get(TradeRecord, "200")
+        assert (r.status, r.pnl, r.volume) == ("closed", 350.0, 2.0)
+        assert r.close_price == pytest.approx(1.10175)
+
+
+def test_sync_reads_back_to_the_last_stored_deal_after_a_long_pause(env):
+    eng, _, now = env
+    rec = AccountRecorder(eng)
+    assert rec.sync_window_start(now, 30) == now - timedelta(days=30)
+    rec.store_deals([deal(10, 200, 0, 0, 1.0, 1.1, now - timedelta(days=50))], to_utc)
+    assert rec.sync_window_start(now, 30) == now - timedelta(days=51)
+
+
+def test_old_snapshots_are_thinned_to_one_per_hour(env):
+    eng, _, now = env
+    rec = AccountRecorder(eng)
+    old = (now - timedelta(days=10)).replace(minute=0, second=0)
+    for i in range(12):  # every 10 s for two minutes, ten days ago
+        rec.record_snapshot(ACCOUNT, old + timedelta(seconds=10 * i))
+    for i in range(3):
+        rec.record_snapshot(ACCOUNT, now - timedelta(seconds=10 * i))
+    assert rec.compact(now) == 11
+    with session_scope(eng) as s:
+        assert s.query(AccountSnapshot).count() == 4
 
 
 def test_non_demo_accounts_are_never_recorded(env):
@@ -143,7 +182,7 @@ def test_performance_summary(client):
     assert m["profitFactor"] == 3.94 and m["expectancy"] == 73.5 and m["sharpe"] is None  # < 20 days of history
     assert p["equityCurve"][0]["equity"] == 10_000.0 and p["equityCurve"][-1]["equity"] == 10_147.0
     assert p["monthly"] == [{"month": "2026-03", "returnPct": 1.47}]
-    assert {x["name"] for x in p["bySession"]} == {"London", "New York"}
+    assert {x["name"] for x in p["bySession"]} == {"London", "London-New York overlap"}  # 14:00 UTC: both open
     only = client.get("/api/v1/performance/summary", params={"session": "newyork"}).json()
     assert only["metrics"]["totalTrades"] == 1 and only["metrics"]["profitFactor"] == 0.0
     assert client.get("/api/v1/performance/summary", params={"strategy": "breakout", "from": "2026-03-01"}).json()["metrics"]["totalTrades"] == 1

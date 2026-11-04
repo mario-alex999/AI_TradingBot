@@ -28,11 +28,36 @@ class AccountSnapshot(Base):
     __table_args__ = (Index("ix_account_snapshots_time", "captured_at"),)
 
 
+class AccountDeal(Base):
+    """One raw MT5 deal (trade or balance operation). Positions are always rebuilt from every stored deal of the
+    position, so syncing overlapping or late windows never double-counts anything."""
+    __tablename__ = "account_deals"
+    ticket: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
+    position_id: Mapped[int | None] = mapped_column(BigInteger)
+    ts_utc: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
+    type: Mapped[int] = mapped_column(Integer, nullable=False)
+    entry: Mapped[int | None] = mapped_column(Integer)
+    symbol: Mapped[str | None] = mapped_column(String(64))
+    volume: Mapped[float | None] = mapped_column(Float)
+    price: Mapped[float | None] = mapped_column(Float)
+    profit: Mapped[float | None] = mapped_column(Float)
+    swap: Mapped[float | None] = mapped_column(Float)
+    commission: Mapped[float | None] = mapped_column(Float)
+    fee: Mapped[float | None] = mapped_column(Float)
+    sl: Mapped[float | None] = mapped_column(Float)
+    tp: Mapped[float | None] = mapped_column(Float)
+    magic: Mapped[int | None] = mapped_column(BigInteger)
+    comment: Mapped[str | None] = mapped_column(Text)
+    __table_args__ = (Index("ix_account_deals_position", "position_id"), Index("ix_account_deals_time", "ts_utc"))
+
+
 class TradeRecord(Base):
-    """One MT5 position rebuilt from its deals (open or closed). Keyed by MT5 ``position_id``."""
+    """One position leg rebuilt from its deals (open or closed). ``id`` is the MT5 position id, or
+    ``<position_id>-<n>`` for the legs a netting reversal opens."""
     __tablename__ = "trade_records"
-    position_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
-    symbol: Mapped[str] = mapped_column(String(32), nullable=False)            # canonical when mapped, else broker symbol
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    position_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    symbol: Mapped[str] = mapped_column(String(64), nullable=False)            # canonical when mapped, else broker symbol
     broker_symbol: Mapped[str] = mapped_column(String(64), nullable=False)
     side: Mapped[str] = mapped_column(String(4), nullable=False)               # buy | sell
     status: Mapped[str] = mapped_column(String(8), nullable=False)             # open | closed
@@ -47,14 +72,5 @@ class TradeRecord(Base):
     strategy: Mapped[str | None] = mapped_column(String(128))
     magic: Mapped[int | None] = mapped_column(BigInteger)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False, default=utcnow, onupdate=utcnow)
-    __table_args__ = (Index("ix_trade_records_status_close", "status", "close_time"),)
-
-
-class AccountCashFlow(Base):
-    """Non-trading balance deals (deposits, withdrawals, credits, bonuses). Lets past balances be reconstructed."""
-    __tablename__ = "account_cash_flows"
-    deal_ticket: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
-    ts_utc: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
-    amount: Mapped[float] = mapped_column(Float, nullable=False)
-    kind: Mapped[str] = mapped_column(String(16), nullable=False)
-    comment: Mapped[str | None] = mapped_column(Text)
+    __table_args__ = (Index("ix_trade_records_status_close", "status", "close_time"),
+                      Index("ix_trade_records_position", "position_id"))

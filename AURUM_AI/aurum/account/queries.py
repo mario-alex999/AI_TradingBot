@@ -12,26 +12,23 @@ from datetime import date, datetime, timedelta, timezone
 from itertools import accumulate
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.engine import Engine
 
-from aurum.account.db_models import AccountCashFlow, AccountSnapshot, TradeRecord
+from aurum.account.db_models import AccountDeal, AccountSnapshot, TradeRecord
+from aurum.account.deals import CANCELED_TYPES, TRADE_TYPES
 from aurum.api.market_queries import MarketQueries, _iso, _utc, asset_class
 from aurum.config import Settings
 from aurum.database.connection import session_scope
+from aurum.learning.features import session_of
 
-# UTC-hour buckets used for the "by session" breakdown and the session filter (by trade open time).
-SESSIONS = (("asia", "Asian"), ("london", "London"), ("newyork", "New York"))
+# Sessions come from the learning agent's DST-aware classifier (each market's local clock). The performance filter
+# keys asia / london / newyork; the London-New York overlap counts for both London and New York.
+SESSION_LABELS = {"asia": "Asian", "london": "London", "newyork": "New York",
+                  "london-newyork overlap": "London-New York overlap", "off-hours": "Off-hours"}
+SESSION_FILTER = {"asia": {"asia"}, "london": {"london", "london-newyork overlap"},
+                  "newyork": {"newyork", "london-newyork overlap"}}
 MIN_SHARPE_DAYS = 20
-
-
-def session_of(dt: datetime) -> str:
-    h = _utc(dt).hour
-    if 7 <= h < 13:
-        return "london"
-    if 13 <= h < 22:
-        return "newyork"
-    return "asia"
 
 
 def _r(v: float | None, n: int = 2) -> float | None:
@@ -61,14 +58,24 @@ class AccountQueries:
                 s.expunge(snap)
             return snap
 
-    def _snapshots(self, since: datetime | None = None) -> list[AccountSnapshot]:
+    def _equity_at(self, start: datetime) -> float | None:
+        """Equity of the last snapshot before ``start``, else the first one after it."""
         with session_scope(self.engine) as s:
-            q = select(AccountSnapshot).order_by(AccountSnapshot.captured_at)
-            if since is not None:
-                q = q.where(AccountSnapshot.captured_at >= since)
-            rows = list(s.execute(q).scalars().all())
-            s.expunge_all()
-            return rows
+            before = s.execute(select(AccountSnapshot.equity).where(AccountSnapshot.captured_at < start)
+                               .order_by(AccountSnapshot.captured_at.desc()).limit(1)).scalar()
+            if before is not None:
+                return before
+            return s.execute(select(AccountSnapshot.equity).where(AccountSnapshot.captured_at >= start)
+                             .order_by(AccountSnapshot.captured_at).limit(1)).scalar()
+
+    def _equity_history(self) -> list[float]:
+        # Only one column is read; the recorder thins snapshots older than 7 days to one per hour.
+        with session_scope(self.engine) as s:
+            return list(s.execute(select(AccountSnapshot.equity).order_by(AccountSnapshot.captured_at)).scalars().all())
+
+    def _open_count(self) -> int:
+        with session_scope(self.engine) as s:
+            return s.execute(select(func.count()).select_from(TradeRecord).where(TradeRecord.status == "open")).scalar_one()
 
     def _trades(self, status: str) -> list[TradeRecord]:
         with session_scope(self.engine) as s:
@@ -87,7 +94,7 @@ class AccountQueries:
             return None
         return {"environment": "demo" if snap.trade_mode == "DEMO" else "live", "currency": snap.currency,
                 "balance": _r(snap.balance), "equity": _r(snap.equity), "freeMargin": _r(snap.margin_free),
-                "marginLevel": _r(snap.margin_level), "openPositions": len(self._trades("open")),
+                "marginLevel": _r(snap.margin_level), "openPositions": self._open_count(),
                 # AURUM generates no trade proposals yet, so nothing can be waiting for approval.
                 "pendingApprovals": 0, "updatedAt": _iso(snap.captured_at)}
 
@@ -110,14 +117,17 @@ class AccountQueries:
             if price is not None and per_unit is not None:
                 direction = 1 if rec.side == "buy" else -1
                 floating = round((price - rec.open_price) * direction * per_unit + (rec.pnl or 0), 2)
-            out.append({"ticket": str(rec.position_id), "instrument": rec.symbol, "side": rec.side, "volume": rec.volume,
+            out.append({"ticket": rec.id, "instrument": rec.symbol, "side": rec.side, "volume": rec.volume,
                         "entryPrice": rec.open_price, "stopLoss": rec.stop_loss, "takeProfit": rec.take_profit,
                         "currentPrice": price, "floatingPnl": floating, "openedAt": _iso(rec.open_time), "kind": "position"})
         return out
 
     def history(self, limit: int = 500) -> list[dict[str, Any]]:
-        rows = self._trades("closed")[-limit:][::-1]  # newest first
-        return [{"ticket": str(r.position_id), "instrument": r.symbol, "side": r.side, "volume": r.volume,
+        with session_scope(self.engine) as s:
+            rows = list(s.execute(select(TradeRecord).where(TradeRecord.status == "closed")
+                                  .order_by(TradeRecord.close_time.desc()).limit(limit)).scalars().all())
+            s.expunge_all()
+        return [{"ticket": r.id, "instrument": r.symbol, "side": r.side, "volume": r.volume,
                  "entryPrice": r.open_price, "stopLoss": r.stop_loss, "takeProfit": r.take_profit, "currentPrice": None,
                  "floatingPnl": None, "openedAt": _iso(r.open_time), "closedAt": _iso(r.close_time),
                  "closePrice": r.close_price, "realisedPnl": _r(r.pnl), "kind": "closed"} for r in rows]
@@ -128,7 +138,9 @@ class AccountQueries:
         Without a snapshot it is the running sum of the stored history (exact only if that history is complete)."""
         events: list[tuple[datetime, float]] = [(r.close_time, r.pnl or 0.0) for r in self._trades("closed")]
         with session_scope(self.engine) as s:
-            events += [(_utc(t), a) for t, a in s.execute(select(AccountCashFlow.ts_utc, AccountCashFlow.amount)).all()]
+            cash = select(AccountDeal.ts_utc, AccountDeal.profit, AccountDeal.swap, AccountDeal.commission, AccountDeal.fee).where(
+                AccountDeal.type.not_in(TRADE_TYPES + CANCELED_TYPES))
+            events += [(_utc(t), sum(v or 0.0 for v in vals)) for t, *vals in s.execute(cash).all()]
         events.sort(key=lambda e: e[0])
         times = [_utc(t) for t, _ in events]
         cum = list(accumulate(a for _, a in events))
@@ -156,7 +168,7 @@ class AccountQueries:
         if instrument:
             trades = [t for t in trades if t.symbol.upper() == instrument.upper()]
         if session:
-            trades = [t for t in trades if session_of(t.open_time) == session]
+            trades = [t for t in trades if session_of(_utc(t.open_time)) in SESSION_FILTER.get(session, {session})]
         if not trades:
             return None
 
@@ -194,7 +206,6 @@ class AccountQueries:
                 acc[key(t)] += t.pnl or 0.0
             return sorted(({"name": k, "pnl": round(v, 2)} for k, v in acc.items()), key=lambda x: -x["pnl"])
 
-        labels = dict(SESSIONS)
         return {
             "kind": "live",
             "metrics": {
@@ -211,7 +222,7 @@ class AccountQueries:
             "equityCurve": curve,
             "monthly": monthly,
             "byInstrument": grouped(lambda t: t.symbol),
-            "bySession": grouped(lambda t: labels[session_of(t.open_time)]),
+            "bySession": grouped(lambda t: SESSION_LABELS.get(session_of(_utc(t.open_time)), "Off-hours")),
             "byStrategy": grouped(lambda t: t.strategy or "Unlabelled"),
         }
 
@@ -244,28 +255,30 @@ class AccountQueries:
                 "maxCorrelatedExposurePct": s.risk_max_correlated_exposure_pct, "enforcedBy": "backend"}
 
     def risk(self, now: datetime | None = None) -> dict[str, Any]:
+        return self._risk_state(now)[0]
+
+    def _risk_state(self, now: datetime | None = None) -> tuple[dict[str, Any], int]:
+        """The risk overview plus the open-position count, computed once (breaches() reuses both)."""
         now = now or datetime.now(timezone.utc)
         snap = self.latest_snapshot()
         out: dict[str, Any] = {"accountRiskPct": None, "riskPerTradePct": None, "dailyDrawdownPct": None,
                                "weeklyDrawdownPct": None, "maxDrawdownPct": None, "openRisk": None,
                                "exposureByInstrument": [], "exposureByAssetClass": [], "limits": self.limits()}
         if snap is None:
-            return out
+            return out, self._open_count()
         equity = snap.equity
-        history = self._snapshots()
         day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         week_start = day_start - timedelta(days=day_start.weekday())
 
         def drawdown_since(start: datetime) -> float | None:
-            before = [h for h in history if _utc(h.captured_at) < start]
-            ref = before[-1] if before else next((h for h in history if _utc(h.captured_at) >= start), None)
-            if ref is None or ref.equity <= 0:
+            ref = self._equity_at(start)
+            if ref is None or ref <= 0:
                 return None
-            return round(max(0.0, (ref.equity - equity) / ref.equity * 100), 2)
+            return round(max(0.0, (ref - equity) / ref * 100), 2)
 
         out["dailyDrawdownPct"] = drawdown_since(day_start)
         out["weeklyDrawdownPct"] = drawdown_since(week_start)
-        out["maxDrawdownPct"] = round(_max_drawdown_pct([h.equity for h in history]), 2)
+        out["maxDrawdownPct"] = round(_max_drawdown_pct(self._equity_history()), 2)
 
         specs = self._specs()
         opens = self._trades("open")
@@ -299,16 +312,15 @@ class AccountQueries:
                        riskPerTradePct=round(max(risks) / equity * 100, 2))  # type: ignore[type-var]
         out["exposureByInstrument"] = [{"name": k, "value": round(v, 2)} for k, v in sorted(by_inst.items(), key=lambda x: -x[1])]
         out["exposureByAssetClass"] = [{"name": k, "value": round(v, 2)} for k, v in sorted(by_class.items(), key=lambda x: -x[1])]
-        return out
+        return out, len(opens)
 
     def breaches(self, now: datetime | None = None) -> list[tuple[str, str, str]]:
         """(key, severity, message) for each configured limit the stored account currently exceeds."""
-        r = self.risk(now)
+        r, n_open = self._risk_state(now)
         lim = r["limits"]
         found = []
         if lim["maxDailyLossPct"] and r["dailyDrawdownPct"] is not None and r["dailyDrawdownPct"] >= lim["maxDailyLossPct"]:
             found.append(("daily-loss", "critical", f"Daily drawdown {r['dailyDrawdownPct']}% reached the {lim['maxDailyLossPct']}% limit."))
-        n_open = len(self._trades("open"))
         if lim["maxOpenPositions"] and n_open > lim["maxOpenPositions"]:
             found.append(("open-positions", "warning", f"{n_open} open positions exceed the limit of {lim['maxOpenPositions']}."))
         total_exp = sum(x["value"] for x in r["exposureByInstrument"])

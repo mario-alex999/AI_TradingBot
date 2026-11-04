@@ -22,13 +22,22 @@ python -m aurum.cli stream-ticks             # live quotes, plus an account snap
 Pass `0` to `--account-every` or `--deals-every` to turn that sync off.
 
 Only two MT5 functions are used: `account_info` and `history_deals_get`.
+- **Raw deals** are stored once each, keyed by deal ticket. Every position a sync touches is rebuilt from
+  *all* of its stored deals, so overlapping windows and partial closes are never counted twice.
 - **Open positions** are rebuilt from the deal history: entry deals whose volume is not yet covered by
   exit deals. This means no position or order query is needed, and `ReadOnlyMT5` still blocks those.
-- **Balance operations** (deposits, withdrawals, credits) are stored as cash flows, so past balances can
-  be reconstructed.
+- **Netting reversals** (an in/out deal) close the current position and open the opposite side. The new
+  side gets the ticket `<position id>-2`, `-3` and so on.
+- **The sync window** reaches back to the newest stored deal (minus a day) whenever that is older than
+  `--lookback-days`, so a long pause never leaves a close unseen.
+- **Balance operations** are every non-trade deal type: deposits, withdrawals, credits, commissions,
+  interest, dividends and tax. They are what lets past balances be reconstructed.
+- **Snapshots** are kept in full for 7 days. Older ones are thinned to one per UTC hour, hourly while
+  `stream-ticks` runs and on each `sync-account`.
 - A snapshot from a non-DEMO account is refused.
+- Account-sync errors (MT5 or database) are logged and skipped; they never stop the quote stream.
 
-Tables: `account_snapshots`, `trade_records`, `account_cash_flows`. PostgreSQL gets them from
+Tables: `account_snapshots`, `account_deals`, `trade_records`. PostgreSQL gets them from
 `sql/migrations/0005_account_trading.sql`; SQLite gets them from `init-db`.
 
 ## Endpoints
@@ -63,12 +72,15 @@ Tables: `account_snapshots`, `trade_records`, `account_cash_flows`. PostgreSQL g
   - `profitFactor` is `null` when there are no losing trades.
   - `sharpe` (daily, annualised, risk-free 0) is `null` with fewer than 20 days of history.
   - Win rate is a percentage.
-  - Sessions are assigned by the trade's open time in UTC:
-    | Session | UTC hours |
+  - Sessions are assigned by the trade's open time on each market's local clock, so daylight saving is
+    handled. This is the same classifier the Trade Learning Agent uses:
+    | Session | Local hours |
     | --- | --- |
-    | `asia` | 22:00–07:00 |
-    | `london` | 07:00–13:00 |
-    | `newyork` | 13:00–22:00 |
+    | Asian | Tokyo 09:00–18:00 |
+    | London | 08:00–17:00 |
+    | New York | 08:00–17:00 |
+  - When both London and New York are open, the trade counts as "London-New York overlap". The `london`
+    and `newyork` filters both include the overlap.
   - `timeframe` is accepted but does not filter, because trades carry no timeframe.
 
 ### Agents
