@@ -394,5 +394,9 @@ from aurum.market_intelligence.cli import intelligence_app  # noqa: E402 - Modul
 
 app.add_typer(intelligence_app, name="intelligence")
 
+from aurum.ai_review.cli import ai_review_app  # noqa: E402 - optional AI review: python -m aurum.cli ai-review ...
+
+app.add_typer(ai_review_app, name="ai-review")
+
 if __name__ == "__main__":
     app()

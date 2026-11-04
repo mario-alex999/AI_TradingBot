@@ -67,7 +67,7 @@ def _camel(s: str) -> str:
 
 def create_app(settings: Settings | None = None, cfg: CotConfig | None = None, engine: Engine | None = None,
                client: CftcClient | None = None, analysis_service: Any = None,
-               intelligence_service: Any = None) -> FastAPI:
+               intelligence_service: Any = None, ai_review_service: Any = None) -> FastAPI:
     from aurum.database.connection import engine_from_settings
     settings = settings or get_settings()
     cfg = cfg or load_cot_config()
@@ -131,6 +131,9 @@ def create_app(settings: Settings | None = None, cfg: CotConfig | None = None, e
     app.include_router(build_learning_router(state), prefix=f"{API_PREFIX}/agents", tags=["agents"])
     from aurum.api.routes.trading import build_router as build_trading_router
     app.include_router(build_trading_router(state), prefix=API_PREFIX, tags=["account"])
+    from aurum.api.routes.ai_review import build_router as build_ai_review_router
+    app.include_router(build_ai_review_router(state, ai_review_service, intelligence_service, analysis_service),
+                       prefix=f"{API_PREFIX}/ai-review", tags=["ai-review"])
     from aurum.api.routes.system import build_router as build_system_router
     app.include_router(build_system_router(state), prefix=API_PREFIX, tags=["system"])
     return app
