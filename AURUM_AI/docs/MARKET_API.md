@@ -16,12 +16,14 @@ talks to MT5 or writes to the database.
 | `GET /market/stream/quotes?symbols=` | Server-Sent Events: `event: quote` with a quote whenever one changes, keep-alive every 15 s |
 | `GET /agents/learning` | Trade Learning Agent lineage |
 
+Account, trades, risk, performance, agent status and notifications: see `ACCOUNT_API.md`.
+
 ## Running the live stack (on the MT5 Windows machine)
 
 ```bash
 python -m aurum.cli init-db          # once
 python -m aurum.cli collect --loop   # candles, specs and validation every COLLECTION_INTERVAL_SECONDS
-python -m aurum.cli stream-ticks     # live bid/ask every second (separate terminal)
+python -m aurum.cli stream-ticks     # live bid/ask every second + DEMO account mirror (separate terminal)
 python -m aurum.api                  # the API on API_HOST:API_PORT (separate terminal)
 ```
 

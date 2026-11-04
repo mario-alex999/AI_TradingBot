@@ -89,7 +89,8 @@ def diagnose_mt5(settings: Settings, instruments: list[InstrumentConfig], mt5_mo
     r = _Report("mt5", _secrets(settings))
     bits = struct.calcsize("P") * 8
     py = f"Python {platform.python_version()} {bits}-bit on {platform.system()} ({sys.executable})"
-    if platform.system() != "Windows":
+    if platform.system() != "Windows" and mt5_module is None:
+        # Only the real MetaTrader5 package needs Windows; a supplied module (tests, simulators) runs anywhere.
         r.add("Python interpreter", FAIL, py, "The MetaTrader5 package only runs on Windows.")
         return r.steps
     r.add("Python interpreter", OK if bits == 64 else FAIL, py,

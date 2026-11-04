@@ -454,11 +454,24 @@ class MT5Gateway:
         """
         from aurum.learning.sources import deals_to_trades
         clock = self._require()
+        return deals_to_trades(self.deals(from_utc, to_utc), clock.to_utc)
+
+    def deals(self, from_utc: "datetime", to_utc: "datetime") -> list[dict[str, Any]]:
+        """Raw deal history (trades and balance operations) as dicts. Read-only: ``history_deals_get``."""
+        self._require()
         deals = self.mt5.history_deals_get(from_utc, to_utc)
         if deals is None:
             log.warning("history_deals_get returned no data", extra={"mt5_error": self._last_error()})
             return []
-        return deals_to_trades([_asdict(d) for d in deals], clock.to_utc)
+        return [_asdict(d) for d in deals]
+
+    def account_snapshot(self) -> dict[str, Any]:
+        """Current ``account_info()`` as a dict (balance, equity, margin...). Read-only."""
+        self._require()
+        acc = self.mt5.account_info()
+        if acc is None:
+            raise MT5ConnectionError(f"Could not read account information ({self._last_error()}).")
+        return _asdict(acc)
 
     # ---- candles
     def copy_rates(self, broker_symbol: str, timeframe: str, start_pos: int, count: int) -> np.ndarray | None:

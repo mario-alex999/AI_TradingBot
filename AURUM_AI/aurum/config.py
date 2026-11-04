@@ -88,6 +88,14 @@ class Settings(BaseSettings):
     official_data_enabled: bool = True                     # keyless official central-bank / statistics sources
     news_enabled: bool = True                              # official central-bank RSS feeds (+ Finnhub news if keyed)
 
+    # Risk monitoring thresholds (percent of equity / counts). Unset = not configured. AURUM places no orders, so these
+    # are monitored, not enforced on the broker: a breach raises a risk_limit notification.
+    risk_max_per_trade_pct: float | None = Field(None, gt=0)
+    risk_max_daily_loss_pct: float | None = Field(None, gt=0)
+    risk_max_open_positions: int | None = Field(None, ge=1)
+    risk_max_total_exposure_pct: float | None = Field(None, gt=0)
+    risk_max_correlated_exposure_pct: float | None = Field(None, gt=0)
+
     @field_validator("api_cors_origins", mode="before")
     @classmethod
     def _split_origins(cls, v: Any) -> Any:
@@ -95,7 +103,8 @@ class Settings(BaseSettings):
 
     @field_validator("mt5_login", "mt5_terminal_path", "mt5_server", "mt5_password", "database_url",
                      "aurum_admin_api_key", "economic_calendar_provider", "economic_calendar_api_key",
-                     "economic_calendar_base_url", "fred_api_key", mode="before")
+                     "economic_calendar_base_url", "fred_api_key", "risk_max_per_trade_pct", "risk_max_daily_loss_pct",
+                     "risk_max_open_positions", "risk_max_total_exposure_pct", "risk_max_correlated_exposure_pct", mode="before")
     @classmethod
     def _blank_is_none(cls, v: Any) -> Any:
         return None if isinstance(v, str) and v.strip() == "" else v

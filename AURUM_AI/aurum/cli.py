@@ -257,9 +257,18 @@ def collect(symbol: Optional[str] = typer.Option(None, "--symbol", "-s", help="C
 
 @app.command("stream-ticks")
 def stream_ticks(interval: float = typer.Option(1.0, "--interval", min=0.25, help="Seconds between quote reads"),
-                 symbol: Optional[str] = typer.Option(None, "--symbol", "-s", help="Canonical symbol, e.g. EURUSD")) -> None:
-    """Record live bid/ask from MT5 every --interval seconds so the dashboard updates in real time (read-only)."""
+                 symbol: Optional[str] = typer.Option(None, "--symbol", "-s", help="Canonical symbol, e.g. EURUSD"),
+                 account_every: float = typer.Option(10.0, "--account-every", min=0,
+                                                     help="Seconds between account snapshots (0 = off)"),
+                 deals_every: float = typer.Option(60.0, "--deals-every", min=0,
+                                                   help="Seconds between deal-history syncs (0 = off)"),
+                 lookback_days: int = typer.Option(30, "--lookback-days", min=1, help="Deal history window per sync")) -> None:
+    """Record live bid/ask from MT5 every --interval seconds so the dashboard updates in real time (read-only).
+    Also mirrors the DEMO account (balance/equity snapshots and positions rebuilt from the deal history)."""
     import uuid
+    from datetime import datetime, timedelta, timezone
+
+    from aurum.account.recorder import AccountRecorder
     from aurum.collectors.tick_collector import collect_tick
     from aurum.gateways.mt5_gateway import MT5Error
     s = _settings()
@@ -278,6 +287,8 @@ def stream_ticks(interval: float = typer.Option(1.0, "--interval", min=0.25, hel
                     inst.symbol, inst.broker_symbol, inst.asset_class, inst.description)
             console.print(f"Streaming quotes for {', '.join(ids)} every {interval:g}s [muted]· Ctrl+C to stop[/]")
             last: dict[str, int] = {}
+            recorder = AccountRecorder(repo.engine)
+            next_snap = next_deals = 0.0
             while True:
                 for inst in instruments:
                     tick = collect_tick(gw, inst)
@@ -285,11 +296,42 @@ def stream_ticks(interval: float = typer.Option(1.0, "--interval", min=0.25, hel
                         last[inst.symbol] = tick["mt5_time_msc"]
                         repo.upsert_tick(ids[inst.symbol], tick, run_id)
                         stored += 1
+                mono = time.monotonic()
+                try:
+                    if account_every and mono >= next_snap:
+                        recorder.record_snapshot(gw.account_snapshot())
+                        next_snap = mono + account_every
+                    if deals_every and mono >= next_deals:
+                        now = datetime.now(timezone.utc)
+                        recorder.store_deals(gw.deals(now - timedelta(days=lookback_days), now + timedelta(days=1)),
+                                             gw.clock.to_utc)
+                        next_deals = mono + deals_every
+                except MT5Error as exc:  # account mirroring must never stop the quote stream
+                    console.print(f"[warning]Account sync skipped:[/] {exc}")
+                    next_snap = next_deals = mono + max(account_every, 10.0)
                 time.sleep(interval)
     except KeyboardInterrupt:
         console.print(f"Stopped. [muted]{stored:,} quotes recorded.[/]")
     except MT5Error as exc:
         _fail(str(exc))
+
+
+@app.command("sync-account")
+def sync_account(days: int = typer.Option(90, "--days", min=1, help="Deal history to read, in days")) -> None:
+    """Mirror the DEMO account once: a balance/equity snapshot plus positions rebuilt from the deal history.
+    Read-only (account_info + history_deals_get). Feeds /account, /trades, /risk and /performance."""
+    from aurum.account.recorder import AccountRecorder
+    from aurum.gateways.mt5_gateway import MT5Error
+    s = _settings()
+    repo = _repo(s)
+    try:
+        with _gateway(s) as gw:
+            res = AccountRecorder(repo.engine).sync(gw, lookback_days=days)
+    except MT5Error as exc:
+        _fail(str(exc))
+    console.print(kv_table("Account synced", [("Equity", f"{res['equity']:,.2f} {res['currency']}"),
+                                              ("Positions synced", res["positions"]), ("Still open", res["open"]),
+                                              ("Cash flows", res["cash_flows"])]))
 
 
 def _print_summary(summary) -> None:

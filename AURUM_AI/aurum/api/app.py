@@ -116,7 +116,8 @@ def create_app(settings: Settings | None = None, cfg: CotConfig | None = None, e
                          # Module 01 service on the MT5 machine, so it is not triggered from the API.
                          "capabilities": ["market.export.csv", "market.export.parquet"] if db_ok else [],
                          "modules": {"cot": service.repo.schema_ready() if db_ok else False,
-                                     "intelligence": _mi_ready(engine) if db_ok else False}})
+                                     "intelligence": _mi_ready(engine) if db_ok else False,
+                                     "account": _account_ready(engine) if db_ok else False}})
 
     from aurum.api.routes.cot import build_router
     app.include_router(build_router(state), prefix=f"{API_PREFIX}/cot", tags=["cot"])
@@ -130,7 +131,24 @@ def create_app(settings: Settings | None = None, cfg: CotConfig | None = None, e
                        tags=["market-intelligence"])
     from aurum.api.routes.learning import build_router as build_learning_router
     app.include_router(build_learning_router(state), prefix=f"{API_PREFIX}/agents", tags=["agents"])
+    from aurum.api.routes.trading import build_router as build_trading_router
+    app.include_router(build_trading_router(state), prefix=API_PREFIX, tags=["account"])
+    from aurum.api.routes.system import build_router as build_system_router
+    app.include_router(build_system_router(state), prefix=API_PREFIX, tags=["system"])
     return app
+
+
+def _account_ready(engine: Engine) -> bool:
+    """True once at least one account snapshot is stored (sync-account / stream-ticks has run)."""
+    try:
+        from sqlalchemy import select
+
+        from aurum.account.db_models import AccountSnapshot
+        from aurum.database.connection import session_scope
+        with session_scope(engine) as s:
+            return s.execute(select(AccountSnapshot.id).limit(1)).first() is not None
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def _mi_ready(engine: Engine) -> bool:

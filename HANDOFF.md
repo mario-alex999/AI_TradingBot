@@ -47,8 +47,13 @@ names in `AURUM_AI/config/instruments.yaml`, and `trading_hours` for gap classif
 5. The same branch now also has Module 02 (COT), Module 03 (technical analysis, `python -m aurum.cli analyze`),
    and the Trade Learning Agent (`python -m aurum.cli learn run --loop`, see
    `AURUM_AI/docs/TRADE_LEARNING_AGENT.md`).
-6. Next: account and trade data for the dashboard (balance, open positions, history), then chart drawing tools
-   and alerts.
+6. **Done (2026-11-04):** account and trade data for the dashboard. `python -m aurum.cli sync-account` (and
+   `stream-ticks`, every 10 s / 60 s) mirrors the DEMO account from `account_info` + `history_deals_get`, which
+   serves `/account/summary`, `/trades/open`, `/trades/history`, `/risk/overview`, `/performance/summary`,
+   `/agents/status` and `/notifications`. Optional `RISK_MAX_*` limits in `.env` are monitored, not enforced.
+   Details: `AURUM_AI/docs/ACCOUNT_API.md`. Run `python -m aurum.cli init-db` once to add the new tables.
+7. Next: a signal engine (`/analysis/signals`) and backtests on stored data (`/backtests/latest`), then chart
+   drawing tools.
 
 ## Rules that must not change
 
