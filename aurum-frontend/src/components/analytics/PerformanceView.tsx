@@ -1,7 +1,7 @@
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { MetricCard } from '@/components/common/MetricCard';
 import { Badge } from '@/components/common/Badge';
-import { formatCurrency, formatInteger, formatNumber, formatPercent } from '@/utils/format';
+import { formatCurrency, formatDateTime, formatInZone, formatInteger, formatNumber, formatPercent } from '@/utils/format';
 import type { PerformanceReport } from '@/types/trading';
 import { ChartCard } from './ChartCard';
 import { GLOSSARY } from '@/config/glossary';
@@ -12,6 +12,11 @@ interface Props {
   kind: 'live' | 'backtest';
   emptyDescription: string;
 }
+
+/** Short axis label for an ISO timestamp, e.g. "27 Sep". */
+const dayTick = (iso: string) => formatInZone(iso, 'UTC', { day: '2-digit', month: 'short' });
+/** Enough decimals that small drawdowns don't all read "-0%". */
+const pctTick = (v: number) => (v === 0 ? '0%' : `${v.toFixed(Math.abs(v) < 1 ? 2 : Math.abs(v) < 10 ? 1 : 0)}%`);
 
 function drawdownSeries(curve: PerformanceReport['equityCurve']) {
   let peak = -Infinity;
@@ -66,9 +71,9 @@ export function PerformanceView({ report, kind, emptyDescription }: Props) {
           <ResponsiveContainer>
             <AreaChart data={report?.equityCurve ?? []}>
               <CartesianGrid {...gridProps} />
-              <XAxis dataKey="time" {...axisProps} minTickGap={32} />
+              <XAxis dataKey="time" {...axisProps} minTickGap={32} tickFormatter={dayTick} />
               <YAxis {...axisProps} width={64} domain={['auto', 'auto']} />
-              <Tooltip {...tooltipProps} formatter={(v: number) => formatCurrency(v)} />
+              <Tooltip {...tooltipProps} labelFormatter={(l: string) => formatDateTime(l)} formatter={(v: number) => formatCurrency(v)} />
               <Area dataKey="equity" stroke={SERIES.nonCommercial} fill={SERIES.nonCommercial} fillOpacity={0.08} dot={false} />
             </AreaChart>
           </ResponsiveContainer>
@@ -77,9 +82,9 @@ export function PerformanceView({ report, kind, emptyDescription }: Props) {
           <ResponsiveContainer>
             <AreaChart data={drawdownSeries(report?.equityCurve ?? [])}>
               <CartesianGrid {...gridProps} />
-              <XAxis dataKey="time" {...axisProps} minTickGap={32} />
-              <YAxis {...axisProps} width={48} tickFormatter={(v: number) => `${v.toFixed(0)}%`} />
-              <Tooltip {...tooltipProps} formatter={(v: number) => `${v.toFixed(2)}%`} />
+              <XAxis dataKey="time" {...axisProps} minTickGap={32} tickFormatter={dayTick} />
+              <YAxis {...axisProps} width={56} tickFormatter={pctTick} />
+              <Tooltip {...tooltipProps} labelFormatter={(l: string) => formatDateTime(l)} formatter={(v: number) => `${v.toFixed(2)}%`} />
               <Area dataKey="drawdown" stroke={SERIES.down} fill={SERIES.down} fillOpacity={0.1} dot={false} />
             </AreaChart>
           </ResponsiveContainer>

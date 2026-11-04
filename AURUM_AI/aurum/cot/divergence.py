@@ -61,7 +61,10 @@ def align_prices(report_dates: list[date], candles: pd.DataFrame, as_of: datetim
 def analyse(metrics: pd.DataFrame, candles: pd.DataFrame, cfg: DivergenceConfig,
             as_of: datetime | None = None) -> DivergenceResult:
     """``metrics``: one category's metric rows (report_date, net_position, release_timestamp)."""
-    m = metrics.sort_values("report_date").copy()
+    if metrics.empty or "report_date" not in metrics.columns:  # no COT data stored yet: an empty frame has no columns
+        m = pd.DataFrame(columns=["report_date", "net_position", "release_timestamp"])
+    else:
+        m = metrics.sort_values("report_date").copy()
     if as_of is not None and not m.empty:
         m = m[pd.to_datetime(m["release_timestamp"], utc=True) <= pd.Timestamp(as_of)]
     coverage = (None, None)

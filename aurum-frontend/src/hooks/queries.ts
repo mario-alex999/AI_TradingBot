@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { fetchHealth } from '@/services/healthService';
 import { getCandles, getInstruments, getQuotes } from '@/services/marketService';
@@ -83,6 +83,18 @@ export function useCandles(symbol: string, timeframe: Timeframe, limit = 500) {
     queryKey: ['candles', mock, symbol, timeframe, limit],
     queryFn: ({ signal }) => getCandles({ mock, signal }, symbol, timeframe, limit),
     staleTime: 60_000,
+  });
+}
+
+/** Candles for several symbols at once (one cached query per symbol, same keys as useCandles). */
+export function useCandlesMany(symbols: string[], timeframe: Timeframe, limit = 500) {
+  const mock = useMock();
+  return useQueries({
+    queries: symbols.map((symbol) => ({
+      queryKey: ['candles', mock, symbol, timeframe, limit],
+      queryFn: ({ signal }: { signal: AbortSignal }) => getCandles({ mock, signal }, symbol, timeframe, limit),
+      staleTime: 60_000,
+    })),
   });
 }
 

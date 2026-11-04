@@ -6,7 +6,7 @@ import { DataSourceBadge } from '@/components/common/DataSourceBadge';
 import { Skeleton } from '@/components/common/Skeleton';
 import { ErrorState } from '@/components/common/ErrorState';
 import { axisProps, gridProps, tooltipProps } from '@/components/analytics/chartStyles';
-import { useCandles } from '@/hooks/queries';
+import { useCandlesMany, useInstruments } from '@/hooks/queries';
 import { DEFAULT_INSTRUMENTS } from '@/config/instruments';
 import { formatInZone } from '@/utils/format';
 import { cn } from '@/utils/cn';
@@ -18,8 +18,9 @@ const RANGE: Record<Range, { tf: Timeframe; bars: number; label: Intl.DateTimeFo
   '1W': { tf: 'H1', bars: 120, label: { weekday: 'short', day: '2-digit' } },
   '1M': { tf: 'H4', bars: 180, label: { day: '2-digit', month: 'short' } },
 };
-const SYMBOLS = DEFAULT_INSTRUMENTS.map((i) => i.symbol);
-const COLOURS: Record<string, string> = { EURUSD: '#0F4A3A', GBPUSD: '#4F9A75', XAUUSD: '#B8892E', US30: '#6B7280' };
+const MAX_LINES = 4;
+const DEFAULT_SYMBOLS = DEFAULT_INSTRUMENTS.map((i) => i.symbol).slice(0, MAX_LINES);
+const PALETTE = ['#0F4A3A', '#4F9A75', '#B8892E', '#6B7280'];
 
 /**
  * "How have my instruments moved?" — % change from the start of the window, so
@@ -31,13 +32,13 @@ export function PerformanceChart() {
   const [hidden, setHidden] = useState<string[]>([]);
   const [hover, setHover] = useState<string | null>(null);
   const { tf, bars, label } = RANGE[range];
-  // Fixed-length list of hooks (one per configured instrument).
-  const queries = [
-    useCandles(SYMBOLS[0]!, tf, bars),
-    useCandles(SYMBOLS[1]!, tf, bars),
-    useCandles(SYMBOLS[2]!, tf, bars),
-    useCandles(SYMBOLS[3]!, tf, bars),
-  ];
+  // Chart the instruments the backend actually serves, so no request is made for a symbol it does not have.
+  const instruments = useInstruments();
+  const served = (instruments.data?.data ?? []).filter((i) => i.enabled).map((i) => i.symbol);
+  // Wait for the list; fall back to the configured defaults only if it cannot be loaded or is empty.
+  const SYMBOLS = served.length ? served.slice(0, MAX_LINES) : instruments.isPending ? [] : DEFAULT_SYMBOLS;
+  const COLOURS: Record<string, string> = Object.fromEntries(SYMBOLS.map((s, i) => [s, PALETTE[i % PALETTE.length]!]));
+  const queries = useCandlesMany(SYMBOLS, tf, bars);
   const pending = queries.every((q) => q.isPending);
   // One missing instrument (e.g. not configured on the backend) only drops its own line;
   // the chart fails only when no instrument has data.
@@ -61,7 +62,7 @@ export function PerformanceChart() {
     });
     return { rows: [...byTime.values()].sort((a, b) => a.time! - b.time!), last: lastPct };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queries.map((q) => q.dataUpdatedAt).join(',')]);
+  }, [SYMBOLS.join(','), queries.map((q) => q.dataUpdatedAt).join(',')]);
 
   const toggle = (s: string) => setHidden((h) => (h.includes(s) ? h.filter((x) => x !== s) : [...h, s]));
 

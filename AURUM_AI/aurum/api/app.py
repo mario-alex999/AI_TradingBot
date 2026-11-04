@@ -80,13 +80,11 @@ def create_app(settings: Settings | None = None, cfg: CotConfig | None = None, e
                               "Engine; Module 04: Trading Sessions and Market Intelligence (read-only research; no trading "
                               "endpoints). Admin operations need the X-AURUM-Admin-Key header.")
     app.state.aurum = state
+    # Added first so it sits INSIDE the CORS middleware: a 500 then still carries CORS headers and the browser
+    # reports a server error instead of a misleading "blocked by CORS policy".
+    app.add_middleware(_CatchUnhandled)
     app.add_middleware(CORSMiddleware, allow_origins=settings.api_cors_origins, allow_credentials=True,
                        allow_methods=["GET", "POST"], allow_headers=["*"])
-
-    @app.exception_handler(Exception)
-    async def _unhandled(request: Request, exc: Exception):  # never leak internals / credentials
-        log.exception("Unhandled API error", extra={"path": request.url.path})
-        return JSONResponse(status_code=500, content={"detail": "Internal server error (see server log)."})
 
     @app.on_event("shutdown")
     def _stop() -> None:
@@ -136,6 +134,34 @@ def create_app(settings: Settings | None = None, cfg: CotConfig | None = None, e
     from aurum.api.routes.system import build_router as build_system_router
     app.include_router(build_system_router(state), prefix=API_PREFIX, tags=["system"])
     return app
+
+
+class _CatchUnhandled:
+    """Pure ASGI middleware (keeps SSE streaming intact): unhandled errors become a generic 500 JSON body;
+    internals and credentials never leak, the traceback goes to the server log."""
+
+    def __init__(self, app: Any):
+        self.app = app
+
+    async def __call__(self, scope: dict, receive: Any, send: Any) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        started = False
+
+        async def _send(message: dict) -> None:
+            nonlocal started
+            if message["type"] == "http.response.start":
+                started = True
+            await send(message)
+
+        try:
+            await self.app(scope, receive, _send)
+        except Exception:
+            log.exception("Unhandled API error", extra={"path": scope.get("path")})
+            if started:  # headers already sent (e.g. mid-stream): nothing sensible to replace them with
+                raise
+            await JSONResponse(status_code=500, content={"detail": "Internal server error (see server log)."})(scope, receive, send)
 
 
 def _account_ready(engine: Engine) -> bool:
