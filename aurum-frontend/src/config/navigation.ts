@@ -3,6 +3,7 @@ import {
   BarChart3,
   Bell,
   Bot,
+  BrainCircuit,
   Building2,
   CandlestickChart,
   Clock3,
@@ -54,6 +55,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Trading',
     items: [
+      { path: '/ai-engine', label: 'AI Engine', icon: BrainCircuit, permission: 'view:trading' },
       { path: '/signals', label: 'AI Signals', icon: Sparkles, permission: 'view:trading' },
       { path: '/trades', label: 'Trade Management', icon: ArrowLeftRight, permission: 'view:trading' },
       { path: '/risk', label: 'Risk Management', icon: ShieldCheck, permission: 'view:risk' },

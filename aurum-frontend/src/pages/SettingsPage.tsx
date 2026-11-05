@@ -4,6 +4,7 @@ import { Check, Minus } from 'lucide-react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card, CardBody } from '@/components/common/Card';
 import { Tabs } from '@/components/common/Tabs';
+import { useAdminKeyStore } from '@/stores/adminKeyStore';
 import { SettingRow } from '@/components/common/SettingRow';
 import { Select } from '@/components/common/Select';
 import { Switch } from '@/components/common/Switch';
@@ -196,6 +197,7 @@ function Security() {
   const signOut = useAuthStore((s) => s.signOut);
   const navigate = useNavigate();
   const roles = Object.keys(ROLE_LABEL) as Role[];
+  const { key: adminKey, setKey: setAdminKey, clear: clearAdminKey } = useAdminKeyStore();
   return (
     <>
       <SettingRow title="User profile">
@@ -209,6 +211,14 @@ function Security() {
         <Button size="sm" disabled disabledReason="Backend authentication is not configured yet">
           Change password
         </Button>
+      </SettingRow>
+      <SettingRow title="Admin key" description="Needed to record signal decisions and start analysis runs. Held in memory only, so it is gone when you reload this page. It is never saved in the browser.">
+        <div className="flex items-center gap-2">
+          <input type="password" autoComplete="off" aria-label="Admin key" className="field" value={adminKey} onChange={(e) => setAdminKey(e.target.value)} />
+          <Button size="sm" variant="ghost" disabled={!adminKey} disabledReason="No key entered" onClick={clearAdminKey}>
+            Clear
+          </Button>
+        </div>
       </SettingRow>
       <SettingRow title="Session management" description="This demo session lives in sessionStorage and ends when the tab closes.">
         <Button

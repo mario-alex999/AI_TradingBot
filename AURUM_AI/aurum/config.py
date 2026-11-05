@@ -97,6 +97,16 @@ class Settings(BaseSettings):
     ai_review_effort: Literal["low", "medium", "high", "xhigh", "max"] = "high"
     ai_review_max_tokens: int = Field(8000, ge=1024, le=16_000)
     ai_review_timeout_seconds: float = Field(300, gt=0, le=600)
+    ai_review_max_calls_per_hour: int = Field(20, ge=1)    # Module 05 candidate reviews
+
+    # Module 05 - AI provider. Claude is the default and the only provider the monthly budget can cap.
+    ai_provider: Literal["anthropic", "openai", "local"] = "anthropic"
+    ai_provider_model: str | None = None         # openai and local only
+    ai_provider_base_url: str | None = None      # openai-compatible local server, for example Ollama
+    openai_api_key: SecretStr | None = None
+
+    # Module 05 - decision engine
+    decision_loop_interval_seconds: int = Field(300, ge=30)
 
     # Risk monitoring thresholds (percent of equity / counts). Unset = not configured. AURUM places no orders, so these
     # are monitored, not enforced on the broker: a breach raises a risk_limit notification.
@@ -114,7 +124,7 @@ class Settings(BaseSettings):
     @field_validator("mt5_login", "mt5_terminal_path", "mt5_server", "mt5_password", "database_url",
                      "aurum_admin_api_key", "economic_calendar_provider", "economic_calendar_api_key",
                      "economic_calendar_base_url", "fred_api_key", "risk_max_per_trade_pct", "risk_max_daily_loss_pct",
-                     "risk_max_open_positions", "risk_max_total_exposure_pct", "risk_max_correlated_exposure_pct", "anthropic_api_key",
+                     "risk_max_open_positions", "risk_max_total_exposure_pct", "risk_max_correlated_exposure_pct", "anthropic_api_key", "openai_api_key", "ai_provider_model", "ai_provider_base_url",
                      "ai_review_monthly_budget_usd", mode="before")
     @classmethod
     def _blank_is_none(cls, v: Any) -> Any:

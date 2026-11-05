@@ -8,11 +8,13 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { QueryState } from '@/components/common/QueryState';
 import { Badge } from '@/components/common/Badge';
 import { SignalCard } from '@/components/signals/SignalCard';
+import { SignalDrawer } from '@/components/signals/SignalDrawer';
 import { SIGNAL_STATUS } from '@/config/signals';
 import { useSignals } from '@/hooks/queries';
 import { DEFAULT_INSTRUMENTS, TIMEFRAMES } from '@/config/instruments';
 import { demoProfile } from '@/mocks/market';
-import type { SignalStatus } from '@/types/trading';
+import type { ReviewAction } from '@/types/decision';
+import type { SignalStatus, TradeSignal } from '@/types/trading';
 
 export default function AISignalsPage() {
   const q = useSignals();
@@ -20,6 +22,7 @@ export default function AISignalsPage() {
   const [direction, setDirection] = useState('');
   const [timeframe, setTimeframe] = useState('');
   const [status, setStatus] = useState('');
+  const [open, setOpen] = useState<{ signal: TradeSignal; action: ReviewAction | null } | null>(null);
 
   const filtered = useMemo(
     () =>
@@ -45,7 +48,7 @@ export default function AISignalsPage() {
         <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-warn" aria-hidden />
         <p>
           A confidence score reflects the model's internal agreement across evidence. It is <strong className="text-ink">not</strong> a guaranteed probability of
-          success. Every candidate requires human approval and backend risk checks.
+          success. Every candidate requires human approval and backend risk checks. Approving records your decision. AURUM AI does not place trades.
         </p>
       </div>
       <Card className="grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -91,11 +94,12 @@ export default function AISignalsPage() {
         {() => (
           <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
             {filtered.map((s) => (
-              <SignalCard key={s.id} s={s} digits={demoProfile(s.instrument).digits} />
+              <SignalCard key={s.id} s={s} digits={demoProfile(s.instrument).digits} onOpen={(action) => setOpen({ signal: s, action })} />
             ))}
           </div>
         )}
       </QueryState>
+      <SignalDrawer id={open?.signal.id ?? null} digits={open ? demoProfile(open.signal.instrument).digits : undefined} action={open?.action} onClose={() => setOpen(null)} />
     </div>
   );
 }
