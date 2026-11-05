@@ -1,7 +1,7 @@
 # Module 05 implementation report
 
-**Status: built and tested for Module 05. The regression run of the older test suites did not finish, so it is still
-open.** See "Test results".
+**Status: built and tested.** The older backend suites ran after this work, with one out-of-date expectation corrected.
+See "Test results".
 
 ## What was built
 
@@ -30,11 +30,12 @@ Reference tables for endpoints, CLI, config, strategies and schema are in [API_R
 |---|---|
 | `tests/decision` | 265 passed, 2 skipped. Mocked model clients and SQLite |
 | Skipped | Postgres migration test and live AI test, both opt-in |
-| Existing backend tests, after this work | **Not finished.** Stopped by the system for low memory, with no results |
+| Existing backend tests, after this work | 446 passed, 1 failed, 1 skipped. See below |
+| `tests/test_account_api.py`, after correcting that test | Passed on its own. The whole suite was not rerun |
 | Baseline before Module 05 | 447 passed, 1 skipped |
 | Frontend `vitest` | 90 passed, 1 failed in the full run. The failure, a timing wait in `layout.test.tsx`, passed 7 of 7 when rerun alone |
 | Frontend typecheck and lint | Passed |
-| Frontend `npm run build` | **Not run.** It was in the stopped command |
+| Frontend `npm run build` | Passed |
 
 ### Failures found and fixed
 
@@ -44,6 +45,7 @@ Reference tables for endpoints, CLI, config, strategies and schema are in [API_R
 | COT stance ignored when `lean` is empty, so extreme positioning scored as "not directional" | Product bug, caught on real data | `cot_lean()` is used everywhere |
 | Regime read POTENTIAL_REVERSAL on all four instruments | Product bug, caught on real data | Needs a recent confirmed CHoCH |
 | Data quality gate failing on two old D1 gaps | Product bug, caught on real data | `quality_lookback_candles` |
+| `test_agents_status_and_notifications` expected the decision agent to be `disabled` | Out-of-date test: the agent was a placeholder until this module | Expects `idle` |
 | About 20 test expectations | Fixture now matches more templates, or wrong arithmetic | Corrected |
 
 ## Security scan
@@ -54,7 +56,7 @@ returned 401 without a key. `ReadOnlyMT5` is unchanged. Staged files were scanne
 ## Look-ahead
 
 Passing: the module's test that appending later data leaves an earlier decision unchanged. Modules 02-04 cover the rest
-in their own tests, listed in [TESTING.md](TESTING.md), but those are in the regression run that did not finish.
+in their own tests, listed in [TESTING.md](TESTING.md), and all of those passed in the regression run.
 
 ## Integration with Modules 01-04 on real data
 
@@ -84,11 +86,10 @@ The master prompt expected US30 to have no COT mapping. Module 02 maps it to "DJ
 
 See [LIMITATIONS.md](LIMITATIONS.md). Outstanding:
 
-1. Run the full backend suite and `npm run build`, with memory free.
-2. Measure backtest speed. A two-day EURUSD replay had not finished after about 10 minutes, and the system then stopped
+1. Measure backtest speed. A two-day EURUSD replay had not finished after about 10 minutes, and the system then stopped
    it for low memory, so no clean rate exists. An earlier four-day run took 3,272 s while competing with tests.
-3. Run the opt-in Postgres migration test. The real schema was exercised by the real run above.
-4. Make one real AI call once a key and budget are set.
+2. Run the opt-in Postgres migration test. The real schema was exercised by the real run above.
+3. Make one real AI call once a key and budget are set.
 
 ## Commands (PowerShell, from `AURUM_AI`, venv active)
 
