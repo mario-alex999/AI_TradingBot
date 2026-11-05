@@ -30,6 +30,8 @@ Reference tables for endpoints, CLI, config, strategies and schema are in [API_R
 |---|---|
 | `tests/decision` | 265 passed, 2 skipped. Mocked model clients and SQLite |
 | Skipped | Postgres migration test and live AI test, both opt-in |
+| Postgres migration test, run separately | Passed on PostgreSQL 16.15: applied twice in a throwaway database, since dropped |
+| Backtest speed | 25 EURUSD H1 steps in 101 s, or 4.0 s per step, on 2026-10-27. Slower runs (a two-day replay unfinished at about 10 minutes, a four-day run at 3,272 s) were competing with other work or short of memory |
 | Existing backend tests, after this work | 446 passed, 1 failed, 1 skipped. See below |
 | `tests/test_account_api.py`, after correcting that test | Passed on its own. The whole suite was not rerun |
 | Baseline before Module 05 | 447 passed, 1 skipped |
@@ -86,10 +88,8 @@ The master prompt expected US30 to have no COT mapping. Module 02 maps it to "DJ
 
 See [LIMITATIONS.md](LIMITATIONS.md). Outstanding:
 
-1. Measure backtest speed. A two-day EURUSD replay had not finished after about 10 minutes, and the system then stopped
-   it for low memory, so no clean rate exists. An earlier four-day run took 3,272 s while competing with tests.
-2. Run the opt-in Postgres migration test. The real schema was exercised by the real run above.
-3. Make one real AI call once a key and budget are set.
+1. Make one real AI call once a key and budget are set.
+2. Time a longer replay. Backtest speed below comes from one day of EURUSD.
 
 ## Commands (PowerShell, from `AURUM_AI`, venv active)
 

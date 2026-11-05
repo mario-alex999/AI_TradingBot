@@ -9,4 +9,5 @@
 - Candles are bar data, so a same-candle stop and target is resolved pessimistically.
 - Stored spreads are bar-level, so backtest costs are approximate.
 - `PUT /ai/config` works from the API and not from the browser, because CORS allows GET and POST only.
-- Backtests are slow. See [IMPLEMENTATION_REPORT.md](IMPLEMENTATION_REPORT.md) for the measured rate.
+- Backtests are slow: about 4 seconds per H1 step for one instrument, measured on one day, so about 7 hours per year of
+  H1 steps if that rate holds. It was much slower when the PC was short of memory or busy.
