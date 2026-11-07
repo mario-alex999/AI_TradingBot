@@ -204,7 +204,7 @@ def test_agents_status_and_notifications(client, env):
                                 finished_at=now - timedelta(minutes=2), message="terminal timeout"))
     agents = {a["id"]: a for a in client.get("/api/v1/agents/status").json()}
     assert agents["market-data"]["status"] == "failed" and agents["market-data"]["errorCount"] == 1
-    assert agents["cot"]["status"] == "idle" and agents["decision"]["status"] == "disabled"
+    assert agents["cot"]["status"] == "idle" and agents["decision"]["status"] == "idle"
     assert agents["risk"]["status"] == "warning" and "Daily drawdown" in agents["risk"]["lastResult"]
     assert agents["learning"]["status"] == "idle"
     notes = client.get("/api/v1/notifications").json()

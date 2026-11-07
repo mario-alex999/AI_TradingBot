@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -8,21 +10,19 @@ import { Button } from '@/components/common/Button';
 import { Badge } from '@/components/common/Badge';
 import { DataSourceBadge } from '@/components/common/DataSourceBadge';
 import { PerformanceView } from '@/components/analytics/PerformanceView';
+import { EvaluationDetails } from '@/components/ai/EvaluationDetails';
 import { usePerformance } from '@/hooks/queries';
-import { DEFAULT_INSTRUMENTS, TIMEFRAMES } from '@/config/instruments';
+import { JOB_DONE, useAdminGate, useJob, useRunBacktest, useStrategies } from '@/hooks/useDecision';
+import { DEFAULT_INSTRUMENTS } from '@/config/instruments';
+import { humanize } from '@/utils/labels';
+import type { BacktestReport } from '@/types/decision';
 
 const schema = z
   .object({
-    strategy: z.string().min(1, 'Select a strategy'),
-    instrument: z.string().min(1),
-    timeframe: z.enum(['D1', 'H4', 'H1', 'M15', 'M5']),
+    strategy: z.string(),
+    instrument: z.string(),
     from: z.string().min(1, 'Required'),
     to: z.string().min(1, 'Required'),
-    capital: z.coerce.number().positive(),
-    riskPct: z.coerce.number().gt(0).max(10),
-    commission: z.coerce.number().min(0),
-    spread: z.coerce.number().min(0),
-    slippage: z.coerce.number().min(0),
   })
   .refine((v) => v.from < v.to, { message: 'Start must be before end', path: ['to'] });
 type Values = z.infer<typeof schema>;
@@ -39,15 +39,35 @@ function Field({ id, label, error, children }: { id: string; label: string; erro
   );
 }
 
+const isoDay = (daysAgo: number) => new Date(Date.now() - daysAgo * 86_400_000).toISOString().slice(0, 10);
+
 export default function BacktestingPage() {
+  const qc = useQueryClient();
   const results = usePerformance('backtest');
+  const strategies = useStrategies();
+  const gate = useAdminGate();
+  const start = useRunBacktest();
+  const [jobId, setJobId] = useState<string | null>(null);
+  const job = useJob(jobId);
+  const jobStatus = job.data?.status;
+  const details = (results.data?.data as BacktestReport | null | undefined)?.details;
   const {
     register,
+    handleSubmit,
     formState: { errors },
   } = useForm<Values>({
     resolver: zodResolver(schema),
-    defaultValues: { strategy: '', instrument: 'EURUSD', timeframe: 'H1', from: '2023-01-01', to: '2025-12-31', capital: 10000, riskPct: 1, commission: 7, spread: 1, slippage: 0.5 },
+    defaultValues: { strategy: '', instrument: 'EURUSD', from: isoDay(14), to: isoDay(0) },
   });
+
+  useEffect(() => {
+    if (jobStatus && JOB_DONE.includes(jobStatus)) void qc.invalidateQueries({ queryKey: ['performance', 'backtest'] });
+  }, [jobStatus, qc]);
+
+  const submit = handleSubmit((v) =>
+    start.mutate({ from: v.from, to: v.to, ...(v.instrument ? { symbols: [v.instrument] } : {}), ...(v.strategy ? { template: v.strategy } : {}) }, { onSuccess: (r) => setJobId(r.jobId) }),
+  );
+  const running = !!jobId && !(jobStatus && JOB_DONE.includes(jobStatus));
 
   return (
     <div className="flex flex-col gap-5">
@@ -64,23 +84,22 @@ export default function BacktestingPage() {
           actions={<Badge tone="info">Simulation</Badge>}
         />
         <CardBody>
-          <form className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5" onSubmit={(e) => e.preventDefault()} noValidate>
+          <form className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" onSubmit={(e) => void submit(e)} noValidate>
             <Field id="bt-strategy" label="Strategy" error={errors.strategy?.message}>
               <select id="bt-strategy" className="field" {...register('strategy')}>
-                <option value="">No strategies registered</option>
+                <option value="">{strategies.data?.data.length ? 'All enabled strategies' : 'No strategies registered'}</option>
+                {strategies.data?.data.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {humanize(s.id)}
+                  </option>
+                ))}
               </select>
             </Field>
             <Field id="bt-inst" label="Instrument">
               <select id="bt-inst" className="field" {...register('instrument')}>
+                <option value="">All instruments</option>
                 {DEFAULT_INSTRUMENTS.map((i) => (
                   <option key={i.symbol}>{i.symbol}</option>
-                ))}
-              </select>
-            </Field>
-            <Field id="bt-tf" label="Timeframe">
-              <select id="bt-tf" className="field" {...register('timeframe')}>
-                {TIMEFRAMES.map((t) => (
-                  <option key={t}>{t}</option>
                 ))}
               </select>
             </Field>
@@ -90,31 +109,19 @@ export default function BacktestingPage() {
             <Field id="bt-to" label="To" error={errors.to?.message}>
               <input id="bt-to" type="date" className="field num" {...register('to')} />
             </Field>
-            <Field id="bt-capital" label="Initial capital (USD)" error={errors.capital?.message}>
-              <input id="bt-capital" type="number" className="field num" {...register('capital')} />
-            </Field>
-            <Field id="bt-risk" label="Risk per trade (%)" error={errors.riskPct?.message}>
-              <input id="bt-risk" type="number" step="0.1" className="field num" {...register('riskPct')} />
-            </Field>
-            <Field id="bt-comm" label="Commission per lot (USD)" error={errors.commission?.message}>
-              <input id="bt-comm" type="number" step="0.1" className="field num" {...register('commission')} />
-            </Field>
-            <Field id="bt-spread" label="Spread assumption (pips)" error={errors.spread?.message}>
-              <input id="bt-spread" type="number" step="0.1" className="field num" {...register('spread')} />
-            </Field>
-            <Field id="bt-slip" label="Slippage assumption (pips)" error={errors.slippage?.message}>
-              <input id="bt-slip" type="number" step="0.1" className="field num" {...register('slippage')} />
-            </Field>
-            <div className="flex items-end sm:col-span-2 xl:col-span-5">
-              <Button variant="primary" icon={<Play className="h-4 w-4" aria-hidden />} disabled disabledReason="Backtesting engine endpoint not available yet">
+            <div className="flex items-end sm:col-span-2 xl:col-span-4">
+              <Button type="submit" variant="primary" icon={<Play className="h-4 w-4" aria-hidden />} loading={start.isPending || running} disabled={!gate.allowed} disabledReason={gate.reason}>
                 Run backtest
               </Button>
-              <span className="ml-3 text-2xs text-neutral">Enabled once the Strategy Evaluation Agent exposes a backtest endpoint.</span>
+              <span className="ml-3 text-2xs text-neutral">
+                {jobId ? `Job ${jobId}: ${jobStatus ?? 'queued'}${job.data?.error ? ` (${job.data.error})` : ''}` : 'A replay rebuilds the full analysis at every step and can take a long time. Costs and risk come from config/ai_engine.yaml.'}
+              </span>
             </div>
           </form>
         </CardBody>
       </Card>
       <PerformanceView report={results.data?.data ?? null} kind="backtest" emptyDescription="No backtest has been run. Results will never be estimated or simulated in the browser." />
+      {details && <EvaluationDetails d={details} />}
     </div>
   );
 }

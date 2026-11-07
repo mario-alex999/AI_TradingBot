@@ -1,0 +1,43 @@
+# Module 05 decision engine. Anything left out uses the defaults in aurum/decision/config.py.
+# Unknown keys are rejected, so a typo fails loudly instead of being ignored.
+
+entry_timeframes: [H1, M15]
+
+# Direction is read across these timeframes; higher ones weigh more.
+bias:
+  timeframes: [D1, H4, H1, M15, M5]
+  weights: {D1: 5.0, H4: 4.0, H1: 3.0, M15: 2.0, M5: 1.0}
+  min_agreement: 0.6
+
+# What a final decision needs. A high score alone is never enough.
+decision:
+  min_grades: [A, B]
+  strong_grade: A
+
+ai_review:
+  # Attempts after a failure. Zero, because a timed-out attempt may already have been billed.
+  max_retries: 0
+
+gates:
+  min_rr: 2.0
+  # Pairs that move together count as one exposure in the account-risk and duplication checks.
+  correlation_groups:
+    - [EURUSD, GBPUSD]
+  # Example of a session filter: no Asian-session continuation on GBPUSD.
+  session_filters:
+    order_block_continuation:
+      GBPUSD: [asian]
+    fair_value_gap_retracement:
+      GBPUSD: [asian]
+    premium_discount_ote:
+      GBPUSD: [asian]
+
+sizing:
+  default_risk_pct: 0.5
+
+backtest:
+  step_timeframe: H1
+  slippage_r: 0.05
+  commission_r: 0.0
+  # Trades on or after this date are reported as out-of-sample. Leave blank for no split.
+  split_date:
