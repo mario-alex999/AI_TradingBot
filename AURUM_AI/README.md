@@ -235,6 +235,21 @@ API: `/api/v1/analysis/technical/{symbol}`, `/analysis/confluence/{symbol}`, `/a
 Documentation: [docs/MODULE_03_TECHNICAL_ANALYSIS.md](docs/MODULE_03_TECHNICAL_ANALYSIS.md) (definitions,
 configuration, API, database, limitations). Settings: `config/analysis.yaml`.
 
+## Module 05 - AI Analysis and Decision Engine
+
+Turns the stored outputs of Modules 01-04 into explained trade candidates for a person to approve or reject. **It cannot
+place a trade.** Approval writes a record and nothing else.
+
+```
+python -m aurum.cli init-db
+python -m aurum.cli decide check
+python -m aurum.cli decide run --symbol EURUSD --no-ai
+python -m aurum.cli decide list
+python -m aurum.cli ai bias --symbol EURUSD
+```
+
+Start with [docs/MODULE_05_AI_ENGINE.md](docs/MODULE_05_AI_ENGINE.md).
+
 ## Project layout
 ```
 aurum/  config.py · logging_config.py · cli.py

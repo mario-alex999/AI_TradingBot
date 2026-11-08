@@ -52,8 +52,19 @@ names in `AURUM_AI/config/instruments.yaml`, and `trading_hours` for gap classif
    serves `/account/summary`, `/trades/open`, `/trades/history`, `/risk/overview`, `/performance/summary`,
    `/agents/status` and `/notifications`. Optional `RISK_MAX_*` limits in `.env` are monitored, not enforced.
    Details: `AURUM_AI/docs/ACCOUNT_API.md`. Run `python -m aurum.cli init-db` once to add the new tables.
-7. Next: a signal engine (`/analysis/signals`) and backtests on stored data (`/backtests/latest`), then chart
+7. **Done (2026-11-04):** optional AI review, off by default. It needs `AI_REVIEW_ENABLED=true`, `ANTHROPIC_API_KEY` and
+   `AI_REVIEW_MONTHLY_BUDGET_USD` in `.env`, then `python -m aurum.cli init-db` once. `python -m aurum.cli ai-review run
+   EURUSD` writes an advisory review of stored analysis; the budget is a hard stop checked before each API call.
+   Details: `AURUM_AI/docs/AI_REVIEW.md`.
+8. Next: a signal engine (`/analysis/signals`) and backtests on stored data (`/backtests/latest`), then chart
    drawing tools.
+
+## Module 05
+
+AI Analysis and Decision Engine, on branch `claude/module-05-decision-engine`. Start with
+`AURUM_AI/docs/MODULE_05_AI_ENGINE.md`; results and open items are in `AURUM_AI/docs/IMPLEMENTATION_REPORT.md`.
+Still to do on the PC: add `AI_REVIEW_ENABLED`, `ANTHROPIC_API_KEY` and `AI_REVIEW_MONTHLY_BUDGET_USD` to `AURUM_AI/.env`
+to use AI review. No real AI provider has been called yet.
 
 ## Rules that must not change
 

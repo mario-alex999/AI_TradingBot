@@ -96,9 +96,21 @@ class AccountQueries:
                 "balance": _r(snap.balance), "equity": _r(snap.equity), "freeMargin": _r(snap.margin_free),
                 "marginLevel": _r(snap.margin_level), "openPositions": self._open_count(),
                 # AURUM generates no trade proposals yet, so nothing can be waiting for approval.
-                "pendingApprovals": 0, "updatedAt": _iso(snap.captured_at)}
+                "pendingApprovals": self._pending_approvals(), "updatedAt": _iso(snap.captured_at)}
 
     # ------------------------------------------------------------------ /trades/*
+    def _pending_approvals(self) -> int:
+        """Module 05 candidates waiting for a person. Zero when its tables do not exist yet."""
+        from sqlalchemy.exc import SQLAlchemyError
+
+        from aurum.decision.db_models import TradeCandidate
+        from aurum.decision.lifecycle import ACTIVE
+        try:
+            with session_scope(self.engine) as s:
+                return s.execute(select(func.count()).select_from(TradeCandidate).where(TradeCandidate.status.in_(ACTIVE))).scalar_one()
+        except SQLAlchemyError:
+            return 0
+
     def _money_per_price_unit(self, rec: TradeRecord, spec: dict[str, Any]) -> float | None:
         ts, tv = spec.get("tick_size"), spec.get("tick_value")
         return tv / ts * rec.volume if ts and tv else None

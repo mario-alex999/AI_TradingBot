@@ -57,8 +57,8 @@ class SystemQueries:
             ("sessions", "Trading Session Agent", "Tracks session ranges, overlaps and liquidity conditions.", self._sessions),
             ("risk", "Risk Management Agent", "Monitors exposure and drawdown against the configured risk limits. Places no orders.", self._risk),
             ("learning", "Trade Learning Agent", "Learns from closed trades, trials what worked and replicates or terminates itself.", self._learning),
-            ("strategy", "Strategy Evaluation Agent", "Backtests and scores strategies on historical data.", None),
-            ("decision", "AI Decision Agent", "Combines evidence into trade candidates for human review. Never executes trades.", None),
+            ("strategy", "Strategy Evaluation Agent", "Backtests the setup templates and gates on stored history.", self._strategy),
+            ("decision", "AI Decision Agent", "Combines evidence into trade candidates for human review. Never executes trades.", self._decision),
         ]
         out = []
         for id_, name, desc, fn in defs:
@@ -178,6 +178,29 @@ class SystemQueries:
                           "message": e.message} for e in events[:8]]}
 
     # ------------------------------------------------------------------ notifications
+    def _strategy(self, now: datetime) -> dict[str, Any]:
+        from aurum.decision.repository import DecisionRepository
+        latest = DecisionRepository(self.engine).latest_backtest()
+        if latest is None:
+            return {"status": "idle", "lastResult": "No backtest has been run yet.", "configuration": {"enabled": True}}
+        m = latest["metrics"]
+        return {"status": "completed", "lastExecution": _iso(latest["run"]["created_at"]), "errorCount": 0, "configuration": {"enabled": True},
+                "lastResult": f"{m['totalTrades']} simulated trades, {m['winRate']}% win rate."}
+
+    def _decision(self, now: datetime) -> dict[str, Any]:
+        from aurum.decision.repository import DecisionRepository
+        repo = DecisionRepository(self.engine)
+        runs = repo.recent_runs(1)
+        ai = self.settings.ai_review_enabled
+        if not runs:
+            return {"status": "idle", "lastResult": "No decision run yet: run python -m aurum.cli decide run.",
+                    "configuration": {"enabled": True, "aiReview": ai}}
+        last = runs[0]
+        counts = repo.counts()
+        pending = counts.get("new", 0) + counts.get("under_review", 0)
+        return {"status": "completed", "lastExecution": _iso(last["created_at"]), "errorCount": 0, "configuration": {"enabled": True, "aiReview": ai},
+                "lastResult": f"{last['symbol']}: {last['status']}. {pending} candidate(s) waiting for review."}
+
     def notifications(self, now: datetime | None = None, limit: int = 50) -> list[dict[str, Any]]:
         now = now or datetime.now(timezone.utc)
         out: list[dict[str, Any]] = []
@@ -187,13 +210,32 @@ class SystemQueries:
             out.append({"id": nid, "category": category, "severity": severity, "title": title, "message": message,
                         "timestamp": _iso(at or now), "read": False})
 
-        for fn in (self._n_feed, self._n_collection, self._n_quality, self._n_cot, self._n_risk):
+        for fn in (self._n_feed, self._n_collection, self._n_quality, self._n_cot, self._n_risk, self._n_decision):
             try:
                 fn(add, now)
             except Exception as exc:  # noqa: BLE001 - missing module tables simply contribute nothing
                 log.debug("Notification source unavailable", extra={"source": fn.__name__, "error": type(exc).__name__})
         out.sort(key=lambda n: n["timestamp"], reverse=True)
         return out[:limit]
+
+    def _n_decision(self, add, now: datetime) -> None:
+        from aurum.decision.db_models import CandidateAiReview as R, CandidateStatusHistory as H, TradeCandidate as C
+        since = now - timedelta(days=2)
+        with session_scope(self.engine) as s:
+            fresh = s.execute(select(C).where(C.status.in_(("new", "under_review")), C.grade.in_(("A", "B")), C.created_at >= since)
+                              .order_by(C.created_at.desc()).limit(10)).scalars().all()
+            for c in fresh:
+                add(f"candidate-{c.candidate_uid}", "approval_required", "info", f"New grade {c.grade} candidate on {c.symbol}",
+                    f"{c.direction} via {c.template} on {c.timeframe}, waiting for your review. AURUM AI does not place trades.", c.created_at)
+            gone = s.execute(select(H.candidate_uid, H.at, C.symbol).join(C, C.candidate_uid == H.candidate_uid)
+                             .where(H.to_status == "expired", H.at >= since).order_by(H.at.desc()).limit(10)).all()
+            for uid, at, symbol in gone:
+                add(f"expired-{uid}", "signal_generated", "info", f"Candidate expired on {symbol}", "It reached its time limit or its stop before a decision.", at)
+            bad = s.execute(select(R).where(R.status == "unavailable", R.reason.in_(("over_budget", "hourly_limit", "auth_error", "timeout")),
+                                            R.created_at >= since).order_by(R.id.desc()).limit(1)).scalars().first()
+            if bad is not None:
+                add(f"ai-{bad.reason}-{bad.created_at:%Y%m%d}", "signal_generated", "warning", "AI reviewer unavailable",
+                    f"Reason: {bad.reason}. Candidates are still published, without its review and with confidence capped.", bad.created_at)
 
     def _n_feed(self, add, now: datetime) -> None:
         mq = MarketQueries(self.engine)
