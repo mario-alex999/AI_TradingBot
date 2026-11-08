@@ -7,7 +7,7 @@ import { DataSourceBadge } from '@/components/common/DataSourceBadge';
 import { Badge } from '@/components/common/Badge';
 import { describeError } from '@/utils/errors';
 import { ChartCard } from '@/components/analytics/ChartCard';
-import { axisProps, gridProps, tooltipProps } from '@/components/analytics/chartStyles';
+import { axisProps, gridProps, SERIES, tooltipProps } from '@/components/analytics/chartStyles';
 import { PositionSizeCalculator } from '@/components/risk/PositionSizeCalculator';
 import { useRiskOverview } from '@/hooks/queries';
 import { formatCurrency, formatInteger, formatPercent } from '@/utils/format';
@@ -21,7 +21,7 @@ function ExposureChart({ title, data }: { title: string; data: { name: string; v
           <XAxis type="number" {...axisProps} tickFormatter={(v: number) => `${v}%`} />
           <YAxis type="category" dataKey="name" {...axisProps} width={72} />
           <Tooltip {...tooltipProps} formatter={(v: number) => `${v.toFixed(2)}%`} />
-          <Bar dataKey="value" fill="#0F4A3A" radius={[0, 4, 4, 0]} />
+          <Bar dataKey="value" fill={SERIES.accent} radius={[0, 4, 4, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </ChartCard>

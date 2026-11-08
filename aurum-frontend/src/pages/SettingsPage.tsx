@@ -9,6 +9,7 @@ import { Select } from '@/components/common/Select';
 import { Switch } from '@/components/common/Switch';
 import { Button } from '@/components/common/Button';
 import { Badge } from '@/components/common/Badge';
+import { SegmentedControl } from '@/components/common/SegmentedControl';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { SessionConfigForm } from '@/components/settings/SessionConfigForm';
 import { useSettingsStore, type DateFormat, type NumberLocale } from '@/stores/settingsStore';
@@ -41,8 +42,13 @@ function General() {
   const s = useSettingsStore();
   return (
     <>
-      <SettingRow title="Application theme" description="AURUM AI ships with a dark terminal theme optimised for long sessions.">
-        <Badge tone="gold">Dark</Badge>
+      <SettingRow title="Application theme" description="Light, dark, or follow your operating system's setting. Also switchable from the moon/sun button in the top bar.">
+        <SegmentedControl
+          label="Application theme"
+          value={s.theme}
+          options={[{ value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }, { value: 'system', label: 'System' }]}
+          onChange={(theme) => s.update({ theme })}
+        />
       </SettingRow>
       <SettingRow title="Display timezone" description="Used for session times and timestamps shown in your local context. Market data timestamps are stored in UTC.">
         <Select label="Display timezone" hideLabel value={s.displayTimezone} onChange={s.setDisplayTimezone} options={DISPLAY_TIMEZONES.map((z) => ({ value: z, label: z }))} />

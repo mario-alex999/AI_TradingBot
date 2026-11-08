@@ -4,6 +4,7 @@ import { env } from '@/config/env';
 import type { NotificationCategory } from '@/types/system';
 import type { Timeframe } from '@/types/market';
 import { DEFAULT_SESSIONS, type SessionDefinition } from '@/config/sessions';
+import type { ThemePreference } from '@/theme/theme';
 
 export type DateFormat = 'dd MMM yyyy' | 'yyyy-MM-dd' | 'MM/dd/yyyy';
 export type NumberLocale = 'en-US' | 'en-GB' | 'de-DE' | 'fr-FR';
@@ -11,6 +12,8 @@ export type NumberLocale = 'en-US' | 'en-GB' | 'de-DE' | 'fr-FR';
 /** Non-sensitive UI preferences only. Never store credentials here. */
 export interface SettingsState {
   mockMode: boolean;
+  /** light | dark | system (follow the operating system). */
+  theme: ThemePreference;
   displayTimezone: string;
   dateFormat: DateFormat;
   numberLocale: NumberLocale;
@@ -30,6 +33,7 @@ export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
       mockMode: env.mockDataDefault,
+      theme: 'system',
       displayTimezone: 'UTC',
       dateFormat: 'dd MMM yyyy',
       numberLocale: 'en-US',

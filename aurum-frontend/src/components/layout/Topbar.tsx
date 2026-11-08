@@ -1,4 +1,5 @@
-import { Bell, Database, Menu, Search } from 'lucide-react';
+import { Bell, Database, Menu, Moon, Search, Sun } from 'lucide-react';
+import { useResolvedTheme } from '@/theme/theme';
 import { Link } from 'react-router-dom';
 import { useClock } from '@/hooks/useClock';
 import { useHealth, useNotifications } from '@/hooks/queries';
@@ -13,6 +14,19 @@ import { formatInZone } from '@/utils/format';
 import { forexMarketOpen } from '@/utils/sessions';
 import type { ConnectionState } from '@/types/system';
 import { UserMenu } from './UserMenu';
+
+/** Flips between light and dark (an explicit choice; "follow system" is in Settings). */
+function ThemeToggle({ className }: { className: string }) {
+  const resolved = useResolvedTheme();
+  const update = useSettingsStore((s) => s.update);
+  const next = resolved === 'dark' ? 'light' : 'dark';
+  return (
+    <button type="button" className={className} aria-label={`Switch to ${next} mode`} title={`Switch to ${next} mode`}
+      onClick={() => update({ theme: next })}>
+      {resolved === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+    </button>
+  );
+}
 
 function StatusChip({ label, status, detail }: { label: string; status: ConnectionState; detail?: string }) {
   return (
@@ -98,6 +112,7 @@ export function Topbar() {
           <button type="button" className={circle} aria-label="Search pages and instruments (Ctrl+K)" title="Search  ·  Ctrl+K" onClick={() => setPaletteOpen(true)}>
             <Search className="h-4 w-4" />
           </button>
+          <ThemeToggle className={circle} />
           <Link to="/data" className={`${circle} hidden sm:flex`} aria-label="Data Centre" title="Data Centre">
             <Database className="h-4 w-4" />
           </Link>

@@ -1,33 +1,77 @@
-/** Shared Recharts styling so analytical charts match the AURUM design system. */
-export const axisProps = {
-  stroke: '#E5E7E6',
-  tick: { fill: '#6B7280', fontSize: 11, fontFamily: 'Inter, sans-serif' },
-  tickLine: false,
-} as const;
+/**
+ * Shared Recharts styling so analytical charts match the AURUM design system.
+ * Colours are getters over the active theme's palette (read when a chart renders), so spreading
+ * `{...axisProps}` always yields the current theme's colours.
+ */
+import { chartPalette } from '@/theme/theme';
 
-export const gridProps = { stroke: '#F0F1F0', vertical: false } as const;
+const FONT = 'Inter, sans-serif';
+
+export const axisProps = {
+  get stroke() {
+    return chartPalette().border;
+  },
+  get tick() {
+    return { fill: chartPalette().text, fontSize: 11, fontFamily: FONT };
+  },
+  tickLine: false as const,
+};
+
+export const gridProps = {
+  get stroke() {
+    return chartPalette().grid;
+  },
+  vertical: false as const,
+};
 
 export const tooltipProps = {
-  contentStyle: {
-    background: '#0F4A3A',
-    border: 'none',
-    borderRadius: 8,
-    fontSize: 12,
-    fontFamily: 'Inter, sans-serif',
-    color: '#FFFFFF',
+  get contentStyle() {
+    const p = chartPalette();
+    return { background: p.tooltipBg, border: 'none', borderRadius: 8, fontSize: 12, fontFamily: FONT, color: p.tooltipText };
   },
-  labelStyle: { color: 'rgba(255,255,255,0.75)' },
-  cursor: { stroke: '#9CA3AF', strokeWidth: 1, fill: 'rgba(15,74,58,0.04)' },
-} as const;
+  get labelStyle() {
+    return { color: chartPalette().tooltipLabel };
+  },
+  get itemStyle() {
+    return { color: chartPalette().tooltipText };
+  },
+  get cursor() {
+    const p = chartPalette();
+    return { stroke: p.crosshair, strokeWidth: 1, fill: p.cursorFill };
+  },
+};
 
 export const SERIES = {
   // Large speculators are the series the COT screens are about: they take the hue.
-  commercial: '#5E9C7E',
-  nonCommercial: '#0F4A3A',
-  nonReportable: '#A9D4BC',
-  oi: '#5E9C7E',
-  up: '#1A7F52',
-  down: '#D64545',
-} as const;
+  get commercial() {
+    return chartPalette().green2;
+  },
+  get nonCommercial() {
+    return chartPalette().green1;
+  },
+  get nonReportable() {
+    return chartPalette().green3;
+  },
+  get oi() {
+    return chartPalette().green2;
+  },
+  get up() {
+    return chartPalette().up;
+  },
+  get down() {
+    return chartPalette().down;
+  },
+  get accent() {
+    return chartPalette().accent;
+  },
+  get reference() {
+    return chartPalette().reference;
+  },
+};
 
-export const legendProps = { wrapperStyle: { fontSize: 12, color: '#4B5563' }, iconType: 'plainline' as const };
+export const legendProps = {
+  get wrapperStyle() {
+    return { fontSize: 12, color: chartPalette().legend };
+  },
+  iconType: 'plainline' as const,
+};

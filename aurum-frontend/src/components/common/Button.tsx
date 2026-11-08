@@ -16,7 +16,7 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 // Pill buttons: a near-black filled primary and an outlined secondary, as in the template.
 const variants: Record<Variant, string> = {
-  primary: 'rounded-full bg-ink text-white font-medium hover:bg-[#1f2937] active:bg-black',
+  primary: 'rounded-full bg-ink text-inverse font-medium hover:bg-ink/90 active:bg-ink/80',
   secondary: 'rounded-full border border-line-control bg-base-card text-ink hover:border-ink/40 active:bg-base-raised',
   ghost: 'rounded-full text-ink-muted hover:bg-base-raised hover:text-ink active:bg-line-soft',
   danger: 'rounded-full border border-down/50 bg-base-card text-down-text hover:bg-down-faint',

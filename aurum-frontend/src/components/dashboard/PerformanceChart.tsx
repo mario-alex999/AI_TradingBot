@@ -7,6 +7,7 @@ import { Skeleton } from '@/components/common/Skeleton';
 import { ErrorState } from '@/components/common/ErrorState';
 import { axisProps, gridProps, tooltipProps } from '@/components/analytics/chartStyles';
 import { useCandlesMany, useInstruments } from '@/hooks/queries';
+import { chartPalette } from '@/theme/theme';
 import { DEFAULT_INSTRUMENTS } from '@/config/instruments';
 import { formatInZone } from '@/utils/format';
 import { cn } from '@/utils/cn';
@@ -20,7 +21,6 @@ const RANGE: Record<Range, { tf: Timeframe; bars: number; label: Intl.DateTimeFo
 };
 const MAX_LINES = 4;
 const DEFAULT_SYMBOLS = DEFAULT_INSTRUMENTS.map((i) => i.symbol).slice(0, MAX_LINES);
-const PALETTE = ['#0F4A3A', '#4F9A75', '#B8892E', '#6B7280'];
 
 /**
  * "How have my instruments moved?" — % change from the start of the window, so
@@ -37,7 +37,9 @@ export function PerformanceChart() {
   const served = (instruments.data?.data ?? []).filter((i) => i.enabled).map((i) => i.symbol);
   // Wait for the list; fall back to the configured defaults only if it cannot be loaded or is empty.
   const SYMBOLS = served.length ? served.slice(0, MAX_LINES) : instruments.isPending ? [] : DEFAULT_SYMBOLS;
-  const COLOURS: Record<string, string> = Object.fromEntries(SYMBOLS.map((s, i) => [s, PALETTE[i % PALETTE.length]!]));
+  const pal = chartPalette();
+  const lineColours = [pal.green1, pal.green2, pal.dark ? '#D9A94A' : '#B8892E', pal.grey1];
+  const COLOURS: Record<string, string> = Object.fromEntries(SYMBOLS.map((s, i) => [s, lineColours[i % lineColours.length]!]));
   const queries = useCandlesMany(SYMBOLS, tf, bars);
   const pending = queries.every((q) => q.isPending);
   // One missing instrument (e.g. not configured on the backend) only drops its own line;
@@ -105,7 +107,7 @@ export function PerformanceChart() {
                   off ? 'border-line text-neutral line-through' : 'border-line-control text-ink hover:border-ink/40',
                 )}
               >
-                <span className="h-2 w-2 rounded-full" style={{ background: off ? '#D4D7D5' : COLOURS[s] }} aria-hidden />
+                <span className="h-2 w-2 rounded-full" style={{ background: off ? pal.reference : COLOURS[s] }} aria-hidden />
                 <span className="font-medium">{s}</span>
                 {pct !== undefined && (
                   <span className={cn('num', pct > 0 ? 'text-up' : pct < 0 ? 'text-down-text' : 'text-neutral')}>
@@ -133,7 +135,7 @@ export function PerformanceChart() {
                   tickFormatter={(t: number) => formatInZone(t * 1000, 'UTC', label)}
                 />
                 <YAxis {...axisProps} width={48} tickFormatter={(v: number) => `${v > 0 ? '+' : ''}${v.toFixed(1)}%`} domain={['auto', 'auto']} />
-                <ReferenceLine y={0} stroke="#D4D7D5" />
+                <ReferenceLine y={0} stroke={pal.reference} />
                 <Tooltip
                   {...tooltipProps}
                   labelFormatter={(t: number) => `${formatInZone(t * 1000, 'UTC', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })} UTC`}

@@ -1,4 +1,5 @@
 import { lazy } from 'react';
+import { useApplyTheme } from '@/theme/theme';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { RequireAuth, RequirePermission } from '@/components/layout/ProtectedRoute';
@@ -27,6 +28,7 @@ const SettingsPage = lazy(() => import('@/pages/SettingsPage'));
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'));
 
 export default function App() {
+  useApplyTheme();
   return (
     <>
       <Routes>

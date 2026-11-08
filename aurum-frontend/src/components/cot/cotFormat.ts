@@ -1,22 +1,24 @@
 import type { Tone } from '@/components/common/Badge';
 import type { CotFreshnessStatus, CotSeverity, CotStrength } from '@/types/cot';
 import { formatInteger, PLACEHOLDER } from '@/utils/format';
+import { chartPalette } from '@/theme/theme';
 
 // One hue per screen: the speculative category (the one COT screens ask about) takes the gold;
 // hedgers are near-white and everything else a neutral grey. No blue, teal or violet.
-export const CATEGORY_COLORS: Record<string, string> = {
-  commercial: '#5E9C7E',
-  non_commercial: '#0F4A3A',
-  non_reportable: '#A9D4BC',
-  total_reportable: '#9CA3AF',
-  dealer: '#5E9C7E',
-  asset_manager: '#6B7280',
-  leveraged_funds: '#0F4A3A',
-  other_reportable: '#A9D4BC',
-  producer_merchant: '#5E9C7E',
-  swap_dealer: '#6B7280',
-  managed_money: '#0F4A3A',
-};
+// Colours follow the active theme (read when a chart renders).
+export const CATEGORY_COLORS: Record<string, string> = Object.defineProperties({} as Record<string, string>, {
+  commercial: { enumerable: true, get: () => chartPalette().green2 },
+  non_commercial: { enumerable: true, get: () => chartPalette().green1 },
+  non_reportable: { enumerable: true, get: () => chartPalette().green3 },
+  total_reportable: { enumerable: true, get: () => chartPalette().grey2 },
+  dealer: { enumerable: true, get: () => chartPalette().green2 },
+  asset_manager: { enumerable: true, get: () => chartPalette().grey1 },
+  leveraged_funds: { enumerable: true, get: () => chartPalette().green1 },
+  other_reportable: { enumerable: true, get: () => chartPalette().green3 },
+  producer_merchant: { enumerable: true, get: () => chartPalette().green2 },
+  swap_dealer: { enumerable: true, get: () => chartPalette().grey1 },
+  managed_money: { enumerable: true, get: () => chartPalette().green1 },
+});
 
 export const signed = (v: number | null | undefined): string => (v == null ? PLACEHOLDER : `${v > 0 ? '+' : ''}${formatInteger(v)}`);
 

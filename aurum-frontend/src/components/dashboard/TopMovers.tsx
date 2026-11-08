@@ -28,7 +28,7 @@ function Row({ q }: { q: Quote }) {
           <span
             className={cn(
               'num inline-block rounded-full px-2 py-0.5 text-2xs font-semibold',
-              up ? 'bg-feature-tag text-gold' : 'bg-[#FFD9D6] text-down-text',
+              up ? 'bg-feature-tag text-feature' : 'bg-[#FFD9D6] text-[#C4242A]', // on the feature card: same in both themes
             )}
           >
             {formatPercent(q.dailyChangePct, 2, true)}

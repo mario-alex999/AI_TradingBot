@@ -63,7 +63,7 @@ export function PositionSizeCalculator() {
               step={0.05}
               value={Number(values.riskPct ?? 1)}
               onChange={(e) => setValue('riskPct', Number(e.target.value), { shouldValidate: true })}
-              className="w-full accent-[#0F4A3A]"
+              className="w-full accent-gold"
             />
             <div className="flex flex-wrap gap-1.5" role="group" aria-label="Risk presets">
               {[0.25, 0.5, 1, 2].map((r) => (
