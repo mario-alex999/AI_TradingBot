@@ -11,7 +11,8 @@ import {
 } from 'lightweight-charts';
 import type { Candle, ChartOverlay } from '@/types/market';
 import { formatNumber } from '@/utils/format';
-import { baseChartOptions, CHART_COLORS } from './chartTheme';
+import { useSettingsStore } from '@/stores/settingsStore';
+import { baseChartOptions, chartOptions, chartPalette } from './chartTheme';
 import type { LineSpec } from './indicatorSeries';
 
 export interface CandlestickChartHandle {
@@ -48,19 +49,15 @@ export const CandlestickChart = forwardRef<CandlestickChartHandle, Props>(functi
   const lineRefs = useRef<ISeriesApi<'Line'>[]>([]);
   const priceLineRefs = useRef<IPriceLine[]>([]);
   const [legend, setLegend] = useState<Legend | null>(null);
+  const theme = useSettingsStore((s) => s.theme);
+  const colors = chartPalette(theme);
 
   // Create the chart once.
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const chart = createChart(el, baseChartOptions);
-    const candleSeries = chart.addCandlestickSeries({
-      upColor: CHART_COLORS.up,
-      downColor: CHART_COLORS.down,
-      borderVisible: false,
-      wickUpColor: CHART_COLORS.up,
-      wickDownColor: CHART_COLORS.down,
-    });
+    const candleSeries = chart.addCandlestickSeries({ borderVisible: false });
     const volume = chart.addHistogramSeries({ priceFormat: { type: 'volume' }, priceScaleId: 'volume', lastValueVisible: false, priceLineVisible: false });
     volume.priceScale().applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
     chart.subscribeCrosshairMove((p) => {
@@ -80,6 +77,12 @@ export const CandlestickChart = forwardRef<CandlestickChartHandle, Props>(functi
     };
   }, []);
 
+  // Theme: canvas colours are set here at creation and again whenever the theme changes.
+  useEffect(() => {
+    chartRef.current?.applyOptions(chartOptions(theme));
+    candleRef.current?.applyOptions({ upColor: colors.up, downColor: colors.down, wickUpColor: colors.up, wickDownColor: colors.down });
+  }, [theme, colors]);
+
   // Price data.
   useEffect(() => {
     const cs = candleRef.current;
@@ -93,11 +96,11 @@ export const CandlestickChart = forwardRef<CandlestickChartHandle, Props>(functi
         ? candles.map((c) => ({
             time: c.time as UTCTimestamp,
             value: c.volume,
-            color: c.close >= c.open ? 'rgba(26,127,82,0.22)' : 'rgba(214,69,69,0.22)',
+            color: c.close >= c.open ? colors.upVolume : colors.downVolume,
           }))
         : [],
     );
-  }, [candles, digits, showVolume]);
+  }, [candles, digits, showVolume, colors]);
 
   // Indicator lines on the price pane.
   useEffect(() => {
@@ -125,12 +128,12 @@ export const CandlestickChart = forwardRef<CandlestickChartHandle, Props>(functi
     if (!cs) return;
     priceLineRefs.current.forEach((l) => cs.removePriceLine(l));
     priceLineRefs.current = overlays.flatMap((o) => {
-      const color = o.direction === 'bearish' ? CHART_COLORS.down : o.direction === 'bullish' ? CHART_COLORS.up : CHART_COLORS.gold;
+      const color = o.direction === 'bearish' ? colors.down : o.direction === 'bullish' ? colors.up : colors.gold;
       const mk = (price: number, title: string) =>
         cs.createPriceLine({ price, color, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title });
       return o.priceTo != null ? [mk(o.price, o.label), mk(o.priceTo, '')] : [mk(o.price, o.label)];
     });
-  }, [overlays]);
+  }, [overlays, colors]);
 
   useImperativeHandle(
     ref,
@@ -179,7 +182,7 @@ export const CandlestickChart = forwardRef<CandlestickChartHandle, Props>(functi
       )}
       {watermark && (
         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
-          <span className="select-none text-3xl font-bold uppercase tracking-[0.3em] text-black/[0.04] sm:text-5xl">{watermark}</span>
+          <span className="select-none text-3xl font-bold uppercase tracking-[0.3em] text-ink/[0.04] sm:text-5xl">{watermark}</span>
         </div>
       )}
     </div>

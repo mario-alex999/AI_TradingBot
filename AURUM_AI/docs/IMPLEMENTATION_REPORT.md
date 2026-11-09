@@ -32,6 +32,7 @@ Reference tables for endpoints, CLI, config, strategies and schema are in [API_R
 | Skipped | Postgres migration test and live AI test, both opt-in |
 | Postgres migration test, run separately | Passed on PostgreSQL 16.15: applied twice in a throwaway database, since dropped |
 | Backtest speed | 25 EURUSD H1 steps in 101 s, or 4.0 s per step, on 2026-10-27. Slower runs (a two-day replay unfinished at about 10 minutes, a four-day run at 3,272 s) were competing with other work or short of memory |
+| One-week replay | EURUSD H1, 2026-10-26 to 10-31: 121 steps in 1,101 s, or 9.1 s per step, with 1.6 GB of 15.9 GB RAM free. 21 trades, win rate 28.57%, profit factor 0.86, max drawdown 4.39%. Gate blocks: risk_reward 31, spread_volatility 60, structure_conflict 4, duplication 50, market_open 6. One week is far too small a sample to judge the strategies |
 | Existing backend tests, after this work | 446 passed, 1 failed, 1 skipped. See below |
 | `tests/test_account_api.py`, after correcting that test | Passed on its own. The whole suite was not rerun |
 | Baseline before Module 05 | 447 passed, 1 skipped |
@@ -88,8 +89,9 @@ The master prompt expected US30 to have no COT mapping. Module 02 maps it to "DJ
 
 See [LIMITATIONS.md](LIMITATIONS.md). Outstanding:
 
-1. Make one real AI call once a key and budget are set.
-2. Time a longer replay. Backtest speed below comes from one day of EURUSD.
+1. Make one real AI call. The first attempt (2026-11-08) was refused because the Anthropic account has no API credit
+   (request `req_011CgqSJxthEFa6J3xw2Qb8s`); nothing was charged. Add credit at console.anthropic.com, then retry.
+2. Done: a one-week replay was timed (see "One-week replay" under Test results).
 
 ## Commands (PowerShell, from `AURUM_AI`, venv active)
 

@@ -1,0 +1,11 @@
+# Consecutive losses: the third loss reaches the moderate limit (3) and locks new approvals.
+name: losing_streak
+profile: moderate
+balance: 10000
+steps:
+  - repeat: 4
+    advance_minutes: 30
+    propose: {symbol: EURUSD, direction: BUY, entry: 1.10010, stop_loss: 1.09810, take_profit: 1.10510}
+    outcome_r: -1.0
+  - advance_minutes: 30
+    propose: {symbol: GBPUSD, direction: SELL, entry: 1.30000, stop_loss: 1.30300, take_profit: 1.29400}

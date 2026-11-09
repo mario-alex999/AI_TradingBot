@@ -17,7 +17,7 @@ import {
 } from '@/services/cotService';
 import type { CotReportType } from '@/types/cot';
 import { getMarketStructure, getOverlays, getSignals } from '@/services/analysisService';
-import { getAccountSummary, getOpenTrades, getPerformance, getRiskOverview, getTradeHistory, type PerformanceFilters } from '@/services/tradingService';
+import { getAccountSummary, getOpenTrades, getPerformance, getTradeHistory, type PerformanceFilters } from '@/services/tradingService';
 import { getAgentStatus, getLearningLineage, getNotifications } from '@/services/systemService';
 import type { Capability } from '@/types/system';
 import {
@@ -216,11 +216,6 @@ export function useOpenTrades() {
 export function useTradeHistory() {
   const mock = useMock();
   return useQuery({ queryKey: ['trades-history', mock], queryFn: ({ signal }) => getTradeHistory({ mock, signal }) });
-}
-
-export function useRiskOverview() {
-  const mock = useMock();
-  return useQuery({ queryKey: ['risk', mock], queryFn: ({ signal }) => getRiskOverview({ mock, signal }) });
 }
 
 export function usePerformance(kind: 'live' | 'backtest', filters: PerformanceFilters = {}) {

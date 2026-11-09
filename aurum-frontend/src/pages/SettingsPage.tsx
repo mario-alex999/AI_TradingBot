@@ -12,8 +12,9 @@ import { Button } from '@/components/common/Button';
 import { Badge } from '@/components/common/Badge';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { SessionConfigForm } from '@/components/settings/SessionConfigForm';
-import { useSettingsStore, type DateFormat, type NumberLocale } from '@/stores/settingsStore';
+import { useSettingsStore, type DateFormat, type NumberLocale, type Theme } from '@/stores/settingsStore';
 import { useAuthStore } from '@/stores/authStore';
+import { useSignOut } from '@/hooks/useSession';
 import { toast } from '@/stores/toastStore';
 import { DISPLAY_TIMEZONES } from '@/config/sessions';
 import { DEFAULT_INSTRUMENTS, TIMEFRAMES } from '@/config/instruments';
@@ -42,8 +43,17 @@ function General() {
   const s = useSettingsStore();
   return (
     <>
-      <SettingRow title="Application theme" description="AURUM AI ships with a dark terminal theme optimised for long sessions.">
-        <Badge tone="gold">Dark</Badge>
+      <SettingRow title="Application theme" description="Light or dark. Also switchable from the sun/moon button at the top right.">
+        <Select
+          label="Application theme"
+          hideLabel
+          value={s.theme}
+          onChange={(v) => s.update({ theme: v as Theme })}
+          options={[
+            { value: 'light', label: 'Light' },
+            { value: 'dark', label: 'Dark' },
+          ]}
+        />
       </SettingRow>
       <SettingRow title="Display timezone" description="Used for session times and timestamps shown in your local context. Market data timestamps are stored in UTC.">
         <Select label="Display timezone" hideLabel value={s.displayTimezone} onChange={s.setDisplayTimezone} options={DISPLAY_TIMEZONES.map((z) => ({ value: z, label: z }))} />
@@ -189,12 +199,14 @@ const PERMISSION_LABEL: Record<Permission, string> = {
   'config:instruments': 'Edit instrument configuration',
   'config:agents': 'Configure agents',
   'signals:review': 'Review AI signals',
+  'risk:manage': 'Change risk settings and locks',
   'settings:security': 'Manage security settings',
 };
 
 function Security() {
   const user = useAuthStore((s) => s.user);
-  const signOut = useAuthStore((s) => s.signOut);
+  const signOut = useSignOut();
+  const server = user?.mode === 'server';
   const navigate = useNavigate();
   const roles = Object.keys(ROLE_LABEL) as Role[];
   const { key: adminKey, setKey: setAdminKey, clear: clearAdminKey } = useAdminKeyStore();
@@ -203,12 +215,20 @@ function Security() {
       <SettingRow title="User profile">
         <dl className="grid gap-1 text-sm">
           <div className="flex gap-2"><dt className="w-16 text-neutral">Name</dt><dd className="text-ink">{user?.name}</dd></div>
-          <div className="flex gap-2"><dt className="w-16 text-neutral">Email</dt><dd className="text-ink">{user?.email}</dd></div>
+          {server ? (
+            <div className="flex gap-2"><dt className="w-16 text-neutral">User</dt><dd className="num text-ink">{user?.username}</dd></div>
+          ) : (
+            <div className="flex gap-2"><dt className="w-16 text-neutral">Email</dt><dd className="text-ink">{user?.email}</dd></div>
+          )}
           <div className="flex gap-2"><dt className="w-16 text-neutral">Role</dt><dd>{user && <Badge tone="gold">{ROLE_LABEL[user.role]}</Badge>}</dd></div>
         </dl>
       </SettingRow>
       <SettingRow title="Password management" description="Passwords are handled exclusively by the backend authentication service and never touch browser storage.">
-        <Button size="sm" disabled disabledReason="Backend authentication is not configured yet">
+        <Button
+          size="sm"
+          disabled
+          disabledReason={server ? 'An administrator resets passwords: python -m aurum.cli users reset-password <name>' : 'Demo workspace: sign in with a backend account first'}
+        >
           Change password
         </Button>
       </SettingRow>
@@ -220,13 +240,19 @@ function Security() {
           </Button>
         </div>
       </SettingRow>
-      <SettingRow title="Session management" description="This demo session lives in sessionStorage and ends when the tab closes.">
+      <SettingRow
+        title="Session management"
+        description={
+          server
+            ? 'Signed in with an httpOnly session cookie. It ends after inactivity or a fixed maximum time; signing out ends it on the server.'
+            : 'This demo session lives in sessionStorage and ends when the tab closes.'
+        }
+      >
         <Button
           size="sm"
           variant="danger"
           onClick={() => {
-            signOut();
-            navigate('/login');
+            void signOut().then(() => navigate('/login'));
           }}
         >
           Sign out

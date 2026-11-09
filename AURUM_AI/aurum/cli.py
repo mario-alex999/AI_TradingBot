@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import datetime
 from typing import Optional
 
 import typer
@@ -317,21 +318,46 @@ def stream_ticks(interval: float = typer.Option(1.0, "--interval", min=0.25, hel
 
 
 @app.command("sync-account")
-def sync_account(days: int = typer.Option(90, "--days", min=1, help="Deal history to read, in days")) -> None:
-    """Mirror the DEMO account once: a balance/equity snapshot plus positions rebuilt from the deal history.
+def sync_account(days: int = typer.Option(90, "--days", min=1, help="Deal history to read, in days"),
+                 loop: bool = typer.Option(False, "--loop", help="Keep the mirror fresh: sync every --interval seconds "
+                                                                 "until Ctrl+C. MT5 errors are logged and retried."),
+                 interval: int = typer.Option(60, "--interval", min=10, help="Seconds between syncs with --loop")) -> None:
+    """Mirror the DEMO account: a balance/equity snapshot plus positions rebuilt from the deal history.
     Read-only (account_info + history_deals_get). Feeds /account, /trades, /risk and /performance."""
     from aurum.account.recorder import AccountRecorder
     from aurum.gateways.mt5_gateway import MT5Error
     s = _settings()
     repo = _repo(s)
+    recorder = AccountRecorder(repo.engine)
+
+    def show(res: dict) -> None:
+        console.print(kv_table(f"Account synced · {datetime.now():%H:%M:%S}",
+                               [("Equity", f"{res['equity']:,.2f} {res['currency']}"), ("Positions synced", res["positions"]),
+                                ("Still open", res["open"]), ("Cash flows", res["cash_flows"])]))
+
+    if not loop:
+        try:
+            with _gateway(s) as gw:
+                res = recorder.sync(gw, lookback_days=days)
+        except MT5Error as exc:
+            _fail(str(exc))
+        show(res)
+        return
+    console.print(f"[muted]Syncing the DEMO account every {interval}s · Ctrl+C to stop[/]")
     try:
-        with _gateway(s) as gw:
-            res = AccountRecorder(repo.engine).sync(gw, lookback_days=days)
-    except MT5Error as exc:
-        _fail(str(exc))
-    console.print(kv_table("Account synced", [("Equity", f"{res['equity']:,.2f} {res['currency']}"),
-                                              ("Positions synced", res["positions"]), ("Still open", res["open"]),
-                                              ("Cash flows", res["cash_flows"])]))
+        while True:
+            try:
+                with _gateway(s) as gw:
+                    while True:          # one MT5 connection for as long as it works
+                        show(recorder.sync(gw, lookback_days=days))
+                        time.sleep(interval)
+            except (MT5Error, OSError, RuntimeError) as exc:
+                # MT5 closed, logged out, or the terminal restarted: keep trying instead of leaving the mirror stale.
+                log.warning("Account sync failed; retrying", extra={"error": f"{type(exc).__name__}: {exc}"[:300]})
+                console.print(f"[warning]Sync failed ({type(exc).__name__}: {exc}). Retrying in {interval}s.[/]")
+                time.sleep(interval)
+    except KeyboardInterrupt:
+        console.print("Stopped by user.")
 
 
 def _print_summary(summary) -> None:
@@ -402,6 +428,15 @@ from aurum.decision.cli import ai_app, decide_app  # noqa: E402 - Module 05 comm
 
 app.add_typer(decide_app, name="decide")
 app.add_typer(ai_app, name="ai")
+
+from aurum.risk.cli import risk_app  # noqa: E402 - Module 06 commands: python -m aurum.cli risk ...
+
+app.add_typer(risk_app, name="risk")
+
+from aurum.approvals.cli import approvals_app, users_app  # noqa: E402 - Module 07: python -m aurum.cli users|approvals ...
+
+app.add_typer(users_app, name="users")
+app.add_typer(approvals_app, name="approvals")
 
 if __name__ == "__main__":
     app()

@@ -16,6 +16,8 @@ import { CandlestickChart, type CandlestickChartHandle } from './CandlestickChar
 import { ChartToolbar } from './ChartToolbar';
 import { IndicatorPane } from './IndicatorPane';
 import { priceOverlays, separatePanes } from './indicatorSeries';
+import { chartPalette } from './chartTheme';
+import { useSettingsStore } from '@/stores/settingsStore';
 
 interface Props {
   instrument: string;
@@ -49,8 +51,9 @@ export function ChartWorkspace({ instrument, timeframe, onInstrument, onTimefram
   const { indicators, overlays: overlayToggles, showVolume } = useChartStore();
 
   const data = useMemo(() => candles.data?.data ?? [], [candles.data]);
-  const lines = useMemo(() => priceOverlays(data, indicators), [data, indicators]);
-  const panes = useMemo(() => separatePanes(data, indicators), [data, indicators]);
+  const theme = useSettingsStore((s) => s.theme);
+  const lines = useMemo(() => priceOverlays(data, indicators, chartPalette(theme)), [data, indicators, theme]);
+  const panes = useMemo(() => separatePanes(data, indicators, chartPalette(theme)), [data, indicators, theme]);
   const visibleOverlays = useMemo(
     () => (overlaysQ.data?.data ?? []).filter((o) => overlayToggles[o.kind]),
     [overlaysQ.data, overlayToggles],

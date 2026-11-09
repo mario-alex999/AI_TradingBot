@@ -32,6 +32,7 @@ export function createChart() {
     addHistogramSeries: series,
     addLineSeries: series,
     removeSeries: vi.fn(),
+    applyOptions: vi.fn(),
     subscribeCrosshairMove: vi.fn(),
     timeScale: () => timeScale,
     priceScale: () => ({ applyOptions: vi.fn() }),

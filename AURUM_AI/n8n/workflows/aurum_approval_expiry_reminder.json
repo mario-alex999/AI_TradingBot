@@ -1,0 +1,154 @@
+{
+  "id": "aurumApprovalExpiry01",
+  "name": "AURUM - Approvals expiring soon (read-only)",
+  "active": false,
+  "nodes": [
+    {
+      "id": "e4c3fa05-0007-4d2b-8a42-000000000001",
+      "name": "Every 2 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 2
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "e4c3fa05-0007-4d2b-8a42-000000000002",
+      "name": "GET /approvals/pending (service token)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "http://host.docker.internal:8000/api/v1/approvals/pending",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 20000
+        }
+      }
+    },
+    {
+      "id": "e4c3fa05-0007-4d2b-8a42-000000000003",
+      "name": "One item per request",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "fieldToSplitOut": "items",
+        "options": {}
+      }
+    },
+    {
+      "id": "e4c3fa05-0007-4d2b-8a42-000000000004",
+      "name": "Expires within 5 minutes?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "x1",
+              "leftValue": "={{ $json.secondsRemaining }}",
+              "rightValue": 300,
+              "operator": {
+                "type": "number",
+                "operation": "lte"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "e4c3fa05-0007-4d2b-8a42-000000000005",
+      "name": "Remind (connect Telegram/Slack/email here)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        960,
+        -80
+      ],
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "Every 2 minutes": {
+      "main": [
+        [
+          {
+            "node": "GET /approvals/pending (service token)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET /approvals/pending (service token)": {
+      "main": [
+        [
+          {
+            "node": "One item per request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "One item per request": {
+      "main": [
+        [
+          {
+            "node": "Expires within 5 minutes?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expires within 5 minutes?": {
+      "main": [
+        [
+          {
+            "node": "Remind (connect Telegram/Slack/email here)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

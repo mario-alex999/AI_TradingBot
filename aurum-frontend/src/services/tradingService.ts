@@ -1,6 +1,6 @@
 import { apiGet } from './api';
 import { resolveSource, type RequestOptions } from './source';
-import type { AccountSummary, PerformanceReport, Position, RiskOverview } from '@/types/trading';
+import type { AccountSummary, PerformanceReport, Position } from '@/types/trading';
 import type { Sourced } from '@/types/api';
 
 /**
@@ -20,10 +20,6 @@ export function getOpenTrades(opts: RequestOptions): Promise<Sourced<Position[]>
 
 export function getTradeHistory(opts: RequestOptions): Promise<Sourced<Position[]>> {
   return resolveSource(opts, () => [], (signal) => apiGet<Position[]>('/trades/history', { signal }));
-}
-
-export function getRiskOverview(opts: RequestOptions): Promise<Sourced<RiskOverview | null>> {
-  return resolveSource(opts, () => null, (signal) => apiGet<RiskOverview>('/risk/overview', { signal }));
 }
 
 export type PerformanceFilters = Partial<Record<'from' | 'to' | 'strategy' | 'instrument' | 'timeframe' | 'session', string>>;

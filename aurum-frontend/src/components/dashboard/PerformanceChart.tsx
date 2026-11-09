@@ -20,7 +20,7 @@ const RANGE: Record<Range, { tf: Timeframe; bars: number; label: Intl.DateTimeFo
 };
 const MAX_LINES = 4;
 const DEFAULT_SYMBOLS = DEFAULT_INSTRUMENTS.map((i) => i.symbol).slice(0, MAX_LINES);
-const PALETTE = ['#0F4A3A', '#4F9A75', '#B8892E', '#6B7280'];
+const PALETTE = ['rgb(var(--c-gold))', '#4F9A75', '#B8892E', 'rgb(var(--c-neutral))'];
 
 /**
  * "How have my instruments moved?" — % change from the start of the window, so
@@ -105,7 +105,7 @@ export function PerformanceChart() {
                   off ? 'border-line text-neutral line-through' : 'border-line-control text-ink hover:border-ink/40',
                 )}
               >
-                <span className="h-2 w-2 rounded-full" style={{ background: off ? '#D4D7D5' : COLOURS[s] }} aria-hidden />
+                <span className="h-2 w-2 rounded-full" style={{ background: off ? 'rgb(var(--c-line-control))' : COLOURS[s] }} aria-hidden />
                 <span className="font-medium">{s}</span>
                 {pct !== undefined && (
                   <span className={cn('num', pct > 0 ? 'text-up' : pct < 0 ? 'text-down-text' : 'text-neutral')}>
@@ -133,7 +133,7 @@ export function PerformanceChart() {
                   tickFormatter={(t: number) => formatInZone(t * 1000, 'UTC', label)}
                 />
                 <YAxis {...axisProps} width={48} tickFormatter={(v: number) => `${v > 0 ? '+' : ''}${v.toFixed(1)}%`} domain={['auto', 'auto']} />
-                <ReferenceLine y={0} stroke="#D4D7D5" />
+                <ReferenceLine y={0} stroke="rgb(var(--c-line-control))" />
                 <Tooltip
                   {...tooltipProps}
                   labelFormatter={(t: number) => `${formatInZone(t * 1000, 'UTC', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })} UTC`}

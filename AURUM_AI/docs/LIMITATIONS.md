@@ -8,6 +8,6 @@
 - Approval records a decision, and nothing consumes it yet.
 - Candles are bar data, so a same-candle stop and target is resolved pessimistically.
 - Stored spreads are bar-level, so backtest costs are approximate.
-- `PUT /ai/config` works from the API and not from the browser, because CORS allows GET and POST only.
-- Backtests are slow: about 4 seconds per H1 step for one instrument, measured on one day, so about 7 hours per year of
-  H1 steps if that rate holds. It was much slower when the PC was short of memory or busy.
+- `PUT /ai/config` from the browser needed CORS to allow PUT. Module 06 added PUT to the allowed methods (2026-11-08).
+- Backtests are slow: 4.0 s per H1 step on one day, and 9.1 s per step over one week (121 steps in 1,101 s, with only
+  1.6 GB of RAM free). A year of H1 steps for one instrument would take roughly 7 to 16 hours on this PC.

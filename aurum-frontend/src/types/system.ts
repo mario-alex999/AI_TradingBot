@@ -105,4 +105,10 @@ export interface AppNotification {
   message: string;
   timestamp: string;
   read: boolean;
+  /** 'approvals' = stored Module 07 notification with server-side read state (signed-in sessions only). */
+  source?: 'approvals';
+  notificationId?: string;
+  approvalId?: string | null;
+  managementRequestId?: string | null;
+  positionId?: string | null;
 }

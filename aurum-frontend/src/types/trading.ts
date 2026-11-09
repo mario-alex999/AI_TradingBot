@@ -50,27 +50,6 @@ export interface Position {
   kind: 'position' | 'pending' | 'closed';
 }
 
-export interface RiskLimits {
-  maxRiskPerTradePct: number | null;
-  maxDailyLossPct: number | null;
-  maxOpenPositions: number | null;
-  maxTotalExposurePct: number | null;
-  maxCorrelatedExposurePct: number | null;
-  enforcedBy: 'backend';
-}
-
-export interface RiskOverview {
-  accountRiskPct: number | null;
-  riskPerTradePct: number | null;
-  dailyDrawdownPct: number | null;
-  weeklyDrawdownPct: number | null;
-  maxDrawdownPct: number | null;
-  openRisk: number | null;
-  exposureByInstrument: { name: string; value: number }[];
-  exposureByAssetClass: { name: string; value: number }[];
-  limits: RiskLimits;
-}
-
 export interface PerformanceMetrics {
   totalTrades: number;
   winningTrades: number;

@@ -1,0 +1,174 @@
+{
+  "id": "aurumApprovalEvents01",
+  "name": "AURUM - Approval events receiver (Module 07, notify only)",
+  "active": false,
+  "nodes": [
+    {
+      "id": "d3b2e9c4-0007-4c1a-9f31-000000000001",
+      "name": "Approval event webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "aurum-approval-events",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "aurum-approval-events",
+        "responseMode": "onReceived",
+        "options": {}
+      }
+    },
+    {
+      "id": "d3b2e9c4-0007-4c1a-9f31-000000000002",
+      "name": "Needs a person's attention?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        260,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "combinator": "or",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.body.event_type || $json.body.eventType }}",
+              "rightValue": "approval.requested",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "c2",
+              "leftValue": "={{ $json.body.event_type || $json.body.eventType }}",
+              "rightValue": "approval.invalidated",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "c3",
+              "leftValue": "={{ $json.body.event_type || $json.body.eventType }}",
+              "rightValue": "execution.failed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "c4",
+              "leftValue": "={{ $json.body.event_type || $json.body.eventType }}",
+              "rightValue": "trade_management.requested",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "d3b2e9c4-0007-4c1a-9f31-000000000003",
+      "name": "Build message (link to the AURUM UI, no approve button)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        520,
+        -100
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "text",
+              "type": "string",
+              "value": "={{ ($json.body.event_type || '') + ': ' + ($json.body.payload.direction || '') + ' ' + ($json.body.payload.symbol || '') + ' - review in AURUM: http://localhost:5173/approvals/' + ($json.body.payload.approval_id || '') }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "d3b2e9c4-0007-4c1a-9f31-000000000004",
+      "name": "Notify (connect Telegram/Slack/email here)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        780,
+        -100
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "d3b2e9c4-0007-4c1a-9f31-000000000005",
+      "name": "Other events (log only)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        520,
+        100
+      ],
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "Approval event webhook": {
+      "main": [
+        [
+          {
+            "node": "Needs a person's attention?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs a person's attention?": {
+      "main": [
+        [
+          {
+            "node": "Build message (link to the AURUM UI, no approve button)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Other events (log only)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build message (link to the AURUM UI, no approve button)": {
+      "main": [
+        [
+          {
+            "node": "Notify (connect Telegram/Slack/email here)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

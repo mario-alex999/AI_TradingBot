@@ -29,7 +29,7 @@ export function InfoTip({ children, label = 'More information', className }: { c
         <span
           id={id}
           role="tooltip"
-          className="absolute bottom-full left-1/2 z-30 mb-2 w-64 -translate-x-1/2 rounded-lg bg-ink px-3 py-2 text-xs font-normal leading-relaxed text-white shadow-float"
+          className="absolute bottom-full left-1/2 z-30 mb-2 w-64 -translate-x-1/2 rounded-lg bg-ink px-3 py-2 text-xs font-normal leading-relaxed text-inverse shadow-float"
         >
           {children}
         </span>

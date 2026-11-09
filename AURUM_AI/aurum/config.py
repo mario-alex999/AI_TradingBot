@@ -79,6 +79,30 @@ class Settings(BaseSettings):
     api_port: int = Field(8000, ge=1, le=65535)
     api_cors_origins: Annotated[list[str], NoDecode] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
+    # User authentication (added with Module 07). Sessions are server-side rows; the browser holds only an httpOnly
+    # cookie. Set AUTH_COOKIE_SECURE=true whenever the API is served over HTTPS.
+    auth_session_idle_minutes: int = Field(30, ge=5, le=24 * 60)
+    auth_session_absolute_hours: int = Field(12, ge=1, le=7 * 24)
+    auth_cookie_secure: bool = False
+    auth_password_iterations: int = Field(600_000, ge=1_000)   # PBKDF2-SHA256; tests lower it for speed
+    auth_max_failed_logins: int = Field(5, ge=1)
+    auth_lockout_minutes: int = Field(15, ge=1)
+
+    # Module 07 - human approval. The worker expires requests, hands approved trades to Module 09's queue, dispatches
+    # events and delivers notifications. Email is off until SMTP is configured; nothing is ever reported as sent without it.
+    approvals_config: Path = Path("config/approvals.yaml")
+    approvals_worker_interval_seconds: int = Field(15, ge=2)
+    approvals_events_webhook_url: str | None = None
+    notify_email_enabled: bool = False
+    smtp_host: str | None = None
+    smtp_port: int = Field(587, ge=1, le=65535)
+    smtp_username: str | None = None
+    smtp_password: SecretStr | None = None
+    smtp_from: str | None = None
+    smtp_use_tls: bool = True
+    telegram_bot_token: SecretStr | None = None
+    telegram_chat_id: str | None = None
+
     # Module 04 - market intelligence. Provider keys are secrets: never logged, never returned by the API.
     economic_calendar_enabled: bool = True
     economic_calendar_provider: str | None = None          # fmp | finnhub | tradingeconomics
@@ -125,7 +149,8 @@ class Settings(BaseSettings):
                      "aurum_admin_api_key", "economic_calendar_provider", "economic_calendar_api_key",
                      "economic_calendar_base_url", "fred_api_key", "risk_max_per_trade_pct", "risk_max_daily_loss_pct",
                      "risk_max_open_positions", "risk_max_total_exposure_pct", "risk_max_correlated_exposure_pct", "anthropic_api_key", "openai_api_key", "ai_provider_model", "ai_provider_base_url",
-                     "ai_review_monthly_budget_usd", mode="before")
+                     "ai_review_monthly_budget_usd", "approvals_events_webhook_url", "smtp_host", "smtp_username",
+                     "smtp_password", "smtp_from", "telegram_bot_token", "telegram_chat_id", mode="before")
     @classmethod
     def _blank_is_none(cls, v: Any) -> Any:
         return None if isinstance(v, str) and v.strip() == "" else v

@@ -246,7 +246,7 @@ export function LearningAgentPanel() {
                     onClick={() => setSelected(a.id)}
                     className={cn(
                       'flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition',
-                      a.id === selected ? 'border-gold bg-gold text-white' : 'border-line-control text-ink hover:border-ink/40',
+                      a.id === selected ? 'border-gold bg-gold text-on-accent' : 'border-line-control text-ink hover:border-ink/40',
                     )}
                   >
                     <span

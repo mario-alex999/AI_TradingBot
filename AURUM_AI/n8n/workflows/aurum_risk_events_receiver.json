@@ -1,0 +1,63 @@
+{
+  "id": "aurumRiskEvents01",
+  "name": "AURUM - Risk events receiver",
+  "active": false,
+  "nodes": [
+    {
+      "id": "b1f0c7a2-0001-4a8e-9d10-000000000001",
+      "name": "Risk event webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "aurum-risk-events",
+      "parameters": { "httpMethod": "POST", "path": "aurum-risk-events", "responseMode": "onReceived", "options": {} }
+    },
+    {
+      "id": "b1f0c7a2-0001-4a8e-9d10-000000000002",
+      "name": "Blocked or needs review?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [260, 0],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "combinator": "or",
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json.body.event_type || $json.body.eventType }}", "rightValue": "risk.assessment.blocked",
+              "operator": { "type": "string", "operation": "equals" } },
+            { "id": "c2", "leftValue": "={{ $json.body.event_type || $json.body.eventType }}", "rightValue": "risk.assessment.requires_review",
+              "operator": { "type": "string", "operation": "equals" } },
+            { "id": "c3", "leftValue": "={{ $json.body.event_type || $json.body.eventType }}", "rightValue": "risk.lock.activated",
+              "operator": { "type": "string", "operation": "equals" } }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b1f0c7a2-0001-4a8e-9d10-000000000003",
+      "name": "Notify (connect Telegram/Slack/email here)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [520, -100],
+      "parameters": {}
+    },
+    {
+      "id": "b1f0c7a2-0001-4a8e-9d10-000000000004",
+      "name": "Other events (log only)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [520, 100],
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "Risk event webhook": { "main": [[{ "node": "Blocked or needs review?", "type": "main", "index": 0 }]] },
+    "Blocked or needs review?": { "main": [
+      [{ "node": "Notify (connect Telegram/Slack/email here)", "type": "main", "index": 0 }],
+      [{ "node": "Other events (log only)", "type": "main", "index": 0 }]
+    ] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "pinData": {}
+}

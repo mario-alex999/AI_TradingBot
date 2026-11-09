@@ -3,8 +3,70 @@
 @tailwind utilities;
 
 @layer base {
+  /* Colour tokens as RGB channels (see tailwind.config.ts). Light values are the original palette. */
   :root {
     color-scheme: light;
+    --c-base: 238 239 238;
+    --c-base-raised: 243 244 243;
+    --c-base-card: 255 255 255;
+    --c-base-elevated: 247 248 247;
+    --c-gold: 15 74 58;
+    --c-gold-muted: 27 94 75;
+    --c-gold-faint: 227 239 233;
+    --c-up: 26 127 82;
+    --c-up-faint: 227 244 234;
+    --c-down: 214 69 69;
+    --c-down-text: 196 36 42;
+    --c-down-faint: 253 236 236;
+    --c-warn: 180 83 9;
+    --c-warn-faint: 254 243 199;
+    --c-info: 29 78 216;
+    --c-info-faint: 239 246 255;
+    --c-neutral: 107 114 128;
+    --c-ink: 17 24 39;
+    --c-ink-muted: 75 85 99;
+    --c-line: 229 231 230;
+    --c-line-soft: 240 241 240;
+    --c-line-control: 212 215 213;
+    --c-on-accent: 255 255 255;
+    --c-inverse: 255 255 255;
+    /* Chart series (Recharts): secondary and tertiary greens. */
+    --c-series-2: 94 156 126;
+    --c-series-3: 169 212 188;
+    --shadow-float: 0 12px 32px rgba(17, 24, 39, 0.12);
+    --selection: rgba(15, 74, 58, 0.18);
+  }
+  /* Dark: same structure, near-black green-grey surfaces, light text, a brighter green accent. */
+  .dark {
+    color-scheme: dark;
+    --c-base: 11 14 13;
+    --c-base-raised: 30 35 33;
+    --c-base-card: 22 26 24;
+    --c-base-elevated: 28 33 31;
+    --c-gold: 79 197 150;
+    --c-gold-muted: 110 212 171;
+    --c-gold-faint: 22 52 42;
+    --c-up: 61 201 132;
+    --c-up-faint: 18 46 33;
+    --c-down: 239 99 99;
+    --c-down-text: 255 138 138;
+    --c-down-faint: 58 24 26;
+    --c-warn: 245 165 36;
+    --c-warn-faint: 56 40 12;
+    --c-info: 120 165 255;
+    --c-info-faint: 20 33 60;
+    --c-neutral: 152 161 171;
+    --c-ink: 233 237 235;
+    --c-ink-muted: 182 190 186;
+    --c-line: 42 48 45;
+    --c-line-soft: 33 38 36;
+    --c-line-control: 62 70 66;
+    --c-on-accent: 6 36 27;
+    --c-inverse: 17 24 39;
+    --c-series-2: 111 181 146;
+    --c-series-3: 169 212 188;
+    --shadow-float: 0 12px 32px rgba(0, 0, 0, 0.5);
+    --selection: rgba(79, 197, 150, 0.3);
   }
   html,
   body,
@@ -25,11 +87,11 @@
     @apply outline-none ring-2 ring-gold/60 ring-offset-2 ring-offset-base;
   }
   ::selection {
-    background: rgba(15, 74, 58, 0.18);
+    background: var(--selection);
   }
   * {
     scrollbar-width: thin;
-    scrollbar-color: #D4D7D5 transparent;
+    scrollbar-color: rgb(var(--c-line-control)) transparent;
   }
 }
 

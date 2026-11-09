@@ -8,6 +8,7 @@ no orders.
 
 ```bash
 python -m aurum.cli sync-account --days 90   # one pass: account snapshot + positions from the last 90 days of deals
+python -m aurum.cli sync-account --loop --interval 60   # keep the mirror fresh; MT5 errors are logged and retried
 python -m aurum.cli stream-ticks             # live quotes, plus an account snapshot every 10 s and a deal sync every 60 s
 ```
 

@@ -1,0 +1,49 @@
+# n8n automation for AURUM AI, kept in its own Compose project so it never restarts the database container.
+# Start:  docker compose -f docker-compose.n8n.yml --env-file .env up -d      ->  http://localhost:5678
+# Stop:   docker compose -f docker-compose.n8n.yml --env-file .env down      (workflows/credentials stay in the n8n_data volume)
+#
+# Safety: n8n is an orchestrator only. It reads AURUM's HTTP API; it gets no MT5 credentials, no broker access and no
+# provider API keys, and it cannot override a Module 06 risk decision. The admin key, if a workflow ever needs it, is stored
+# as an n8n credential (Header Auth: X-AURUM-Admin-Key) in the n8n UI, never in this file or in workflow parameters.
+name: aurum-n8n
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:${N8N_VERSION:-2.46.6}
+    container_name: aurum-n8n
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${N8N_PORT:-5678}:5678"          # localhost only, not exposed to the network
+    environment:
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?Set N8N_ENCRYPTION_KEY in .env}
+      N8N_HOST: localhost
+      N8N_PORT: "5678"
+      N8N_PROTOCOL: http
+      WEBHOOK_URL: http://localhost:${N8N_PORT:-5678}/
+      N8N_SECURE_COOKIE: "false"                    # plain http on localhost
+      GENERIC_TIMEZONE: ${N8N_TIMEZONE:-UTC}
+      TZ: ${N8N_TIMEZONE:-UTC}
+      N8N_RUNNERS_ENABLED: "true"
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "true"          # workflows cannot read container environment variables
+      N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: "true"
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_PERSONALIZATION_ENABLED: "false"
+      N8N_VERSION_NOTIFICATIONS_ENABLED: "false"
+      EXECUTIONS_DATA_PRUNE: "true"
+      EXECUTIONS_DATA_MAX_AGE: "336"                # hours (14 days)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"         # reach the AURUM API on the host: http://host.docker.internal:8000
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./n8n/workflows:/workflows:ro
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5678/healthz >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  n8n_data:

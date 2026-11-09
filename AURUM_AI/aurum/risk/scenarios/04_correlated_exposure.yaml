@@ -1,0 +1,14 @@
+# EURUSD and GBPUSD returns correlate at about 0.85 in this synthetic data. A second same-direction USD trade breaches the
+# 2% correlated-exposure limit even though each trade alone is within limits.
+name: correlated_exposure
+profile: moderate
+balance: 10000
+correlations: [[EURUSD, GBPUSD, 0.85]]
+config: {max_correlated_risk_pct: 1.5}
+steps:
+  - propose: {symbol: EURUSD, direction: BUY, entry: 1.10010, stop_loss: 1.09810, take_profit: 1.10510}
+    fill: true
+  - advance_minutes: 10
+    propose: {symbol: GBPUSD, direction: BUY, entry: 1.30000, stop_loss: 1.29700, take_profit: 1.30600}
+  - advance_minutes: 10
+    propose: {symbol: GBPUSD, direction: SELL, entry: 1.30000, stop_loss: 1.30300, take_profit: 1.29400}
