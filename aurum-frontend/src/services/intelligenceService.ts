@@ -14,6 +14,7 @@ import type {
   SessionsSnapshot,
   VolatilityReport,
 } from '@/types/intelligence';
+import type { NewsImpactReport } from '@/types/newsImpact';
 
 /**
  * Module 04 market intelligence. Like the Module 03 analysis outputs, this has NO demo
@@ -58,3 +59,7 @@ export const getVolatility = (opts: RequestOptions, symbol: string) => live<Vola
 
 export const getMarketIntelligence = (opts: RequestOptions, symbol: string) =>
   live<MarketIntelligence>(opts, `/market/${symbol}`, { detail: 'full' });
+
+/** High-impact events with conditional scenarios, measured past reactions and outcomes, plus headlines. */
+export const getNewsImpact = (opts: RequestOptions, q: { importance: string; hoursAhead: number; currency?: string }) =>
+  live<NewsImpactReport>(opts, '/news-impact', { importance: q.importance, hoursAhead: q.hoursAhead, ...(q.currency ? { currency: q.currency } : {}) });

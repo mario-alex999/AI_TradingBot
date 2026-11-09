@@ -1,5 +1,6 @@
 import {
   Activity,
+  ArrowLeftRight,
   BarChart3,
   Bell,
   Bot,
@@ -11,13 +12,13 @@ import {
   FlaskConical,
   Globe2,
   LayoutDashboard,
-  type LucideIcon,
+  Newspaper,
   PieChart,
+  Radar,
   Settings,
   ShieldCheck,
   Sparkles,
-  ArrowLeftRight,
-  Radar,
+  type LucideIcon,
 } from 'lucide-react';
 import type { Permission } from '@/types/auth';
 
@@ -50,6 +51,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { path: '/cot', label: 'COT Analysis', icon: BarChart3, permission: 'view:dashboard' },
       { path: '/sessions', label: 'Trading Sessions', icon: Clock3, permission: 'view:dashboard' },
       { path: '/intelligence', label: 'Market Intelligence', icon: Radar, permission: 'view:dashboard' },
+      { path: '/news', label: 'News Impact', icon: Newspaper, permission: 'view:dashboard' },
     ],
   },
   {

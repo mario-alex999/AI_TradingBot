@@ -16,6 +16,7 @@ const InstitutionalIntelligencePage = lazy(() => import('@/pages/InstitutionalIn
 const COTAnalysisPage = lazy(() => import('@/pages/COTAnalysisPage'));
 const TradingSessionsPage = lazy(() => import('@/pages/TradingSessionsPage'));
 const MarketIntelligencePage = lazy(() => import('@/pages/MarketIntelligencePage'));
+const NewsImpactPage = lazy(() => import('@/pages/NewsImpactPage'));
 const AIEnginePage = lazy(() => import('@/pages/AIEnginePage'));
 const AISignalsPage = lazy(() => import('@/pages/AISignalsPage'));
 const TradeManagementPage = lazy(() => import('@/pages/TradeManagementPage'));
@@ -50,6 +51,7 @@ export default function App() {
           <Route path="cot" element={<COTAnalysisPage />} />
           <Route path="sessions" element={<TradingSessionsPage />} />
           <Route path="intelligence" element={<MarketIntelligencePage />} />
+          <Route path="news" element={<NewsImpactPage />} />
           <Route path="ai-engine" element={<RequirePermission permission="view:trading"><AIEnginePage /></RequirePermission>} />
           <Route path="signals" element={<RequirePermission permission="view:trading"><AISignalsPage /></RequirePermission>} />
           <Route path="trades" element={<RequirePermission permission="view:trading"><TradeManagementPage /></RequirePermission>} />

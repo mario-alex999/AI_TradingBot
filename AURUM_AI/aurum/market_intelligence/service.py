@@ -481,6 +481,15 @@ class MarketIntelligenceService:
                         "issuing institution; nothing here is AI-generated. 'tone' is AURUM's rule-based reading of "
                         "the headline wording (matched terms listed), not part of the news."}
 
+    def news_impact(self, hours_back: int = 24, hours_ahead: int = 168, importance: list[str] | None = None,
+                    currencies: list[str] | None = None) -> dict[str, Any]:
+        """High-impact events with conditional scenarios, measured past reactions and (once released) the outcome,
+        plus high-impact headlines. See ``aurum.market_intelligence.news_impact``."""
+        from aurum.market_intelligence.news_impact import NewsImpact
+        self._require_schema()
+        return NewsImpact(self.repo, self.candles, self.impact, self.symbols, self.now).report(
+            hours_back, hours_ahead, importance, currencies)
+
     def news_context(self, symbol: str, as_of: datetime, hours: int = 72) -> dict[str, Any]:
         """Headlines published in the ``hours`` before ``as_of`` that concern the instrument's currencies."""
         if not self.repo.schema_ready():
