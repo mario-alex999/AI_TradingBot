@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
-import { ShieldAlert, Sparkles } from 'lucide-react';
+import { LineChart, Play, ShieldAlert, Sparkles } from 'lucide-react';
+import { Button } from '@/components/common/Button';
+import { useAdminGate, useRunAnalysis } from '@/hooks/useDecision';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card } from '@/components/common/Card';
 import { Select } from '@/components/common/Select';
@@ -23,6 +25,9 @@ export default function AISignalsPage() {
   const [timeframe, setTimeframe] = useState('');
   const [status, setStatus] = useState('');
   const [open, setOpen] = useState<{ signal: TradeSignal; action: ReviewAction | null } | null>(null);
+  const [analyse, setAnalyse] = useState(DEFAULT_INSTRUMENTS[0]?.symbol ?? 'EURUSD');
+  const gate = useAdminGate();
+  const run = useRunAnalysis();
 
   const filtered = useMemo(
     () =>
@@ -51,6 +56,26 @@ export default function AISignalsPage() {
           success. Every candidate requires human approval and backend risk checks. Approving records your decision. AURUM AI does not place trades.
         </p>
       </div>
+      <Card className="flex flex-wrap items-end justify-between gap-3 p-3">
+        <div className="flex flex-wrap items-end gap-3">
+          <Select label="Analyse instrument" value={analyse} onChange={setAnalyse} options={DEFAULT_INSTRUMENTS.map((i) => ({ value: i.symbol, label: i.symbol }))} />
+          <Button
+            variant="primary"
+            icon={<Play className="h-4 w-4" aria-hidden />}
+            loading={run.isPending}
+            disabled={!gate.allowed}
+            disabledReason={gate.reason}
+            onClick={() => run.mutate(analyse)}
+            title="Runs the decision engine on stored data (and the AI reviewer when it is enabled). New candidates appear below."
+          >
+            Run analysis
+          </Button>
+        </div>
+        <p className="flex max-w-md items-center gap-1.5 text-xs text-ink-muted">
+          <LineChart className="h-4 w-4 shrink-0 text-gold" aria-hidden />
+          Open a candidate to see its chart analysis: entry zone, target and stop boxes, and the market structure behind it.
+        </p>
+      </Card>
       <Card className="grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-4">
         <Select label="Instrument" value={instrument} onChange={setInstrument} options={[{ value: '', label: 'All' }, ...DEFAULT_INSTRUMENTS.map((i) => ({ value: i.symbol, label: i.symbol }))]} />
         <Select label="Direction" value={direction} onChange={setDirection} options={[{ value: '', label: 'All' }, { value: 'long', label: 'Long' }, { value: 'short', label: 'Short' }]} />
