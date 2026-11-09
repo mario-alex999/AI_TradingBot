@@ -10,9 +10,10 @@ import { Select } from '@/components/common/Select';
 import { Switch } from '@/components/common/Switch';
 import { Button } from '@/components/common/Button';
 import { Badge } from '@/components/common/Badge';
+import { SegmentedControl } from '@/components/common/SegmentedControl';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { SessionConfigForm } from '@/components/settings/SessionConfigForm';
-import { useSettingsStore, type DateFormat, type NumberLocale, type Theme } from '@/stores/settingsStore';
+import { useSettingsStore, type DateFormat, type NumberLocale } from '@/stores/settingsStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useSignOut } from '@/hooks/useSession';
 import { toast } from '@/stores/toastStore';
@@ -43,16 +44,12 @@ function General() {
   const s = useSettingsStore();
   return (
     <>
-      <SettingRow title="Application theme" description="Light or dark. Also switchable from the sun/moon button at the top right.">
-        <Select
+      <SettingRow title="Application theme" description="Light, dark, or follow your operating system's setting. Also switchable from the moon/sun button in the top bar.">
+        <SegmentedControl
           label="Application theme"
-          hideLabel
           value={s.theme}
-          onChange={(v) => s.update({ theme: v as Theme })}
-          options={[
-            { value: 'light', label: 'Light' },
-            { value: 'dark', label: 'Dark' },
-          ]}
+          options={[{ value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }, { value: 'system', label: 'System' }]}
+          onChange={(theme) => s.update({ theme })}
         />
       </SettingRow>
       <SettingRow title="Display timezone" description="Used for session times and timestamps shown in your local context. Market data timestamps are stored in UTC.">

@@ -4,14 +4,16 @@ import { env } from '@/config/env';
 import type { NotificationCategory } from '@/types/system';
 import type { Timeframe } from '@/types/market';
 import { DEFAULT_SESSIONS, type SessionDefinition } from '@/config/sessions';
+import type { ThemePreference } from '@/theme/theme';
 
 export type DateFormat = 'dd MMM yyyy' | 'yyyy-MM-dd' | 'MM/dd/yyyy';
-export type Theme = 'light' | 'dark';
 export type NumberLocale = 'en-US' | 'en-GB' | 'de-DE' | 'fr-FR';
 
 /** Non-sensitive UI preferences only. Never store credentials here. */
 export interface SettingsState {
   mockMode: boolean;
+  /** light | dark | system (follow the operating system). */
+  theme: ThemePreference;
   displayTimezone: string;
   dateFormat: DateFormat;
   numberLocale: NumberLocale;
@@ -20,8 +22,6 @@ export interface SettingsState {
   showSpreadInPips: boolean;
   mutedCategories: NotificationCategory[];
   sessions: SessionDefinition[];
-  /** Colour theme. Applied as the `dark` class on <html> (see useApplyTheme). */
-  theme: Theme;
   /** Demo mode only: animate the demo quotes. */
   demoTicks: boolean;
   setMockMode: (v: boolean) => void;
@@ -33,6 +33,7 @@ export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
       mockMode: env.mockDataDefault,
+      theme: 'system',
       displayTimezone: 'UTC',
       dateFormat: 'dd MMM yyyy',
       numberLocale: 'en-US',
@@ -42,7 +43,6 @@ export const useSettingsStore = create<SettingsState>()(
       mutedCategories: [],
       sessions: DEFAULT_SESSIONS,
       demoTicks: true,
-      theme: 'light',
       setMockMode: (mockMode) => set({ mockMode }),
       setDisplayTimezone: (displayTimezone) => set({ displayTimezone }),
       update: (patch) => set(patch),

@@ -116,7 +116,7 @@ export function AssessmentResult({ a }: { a: Assessment }) {
 const RISK_PRESETS = [0.25, 0.5, 1, 2];
 
 const chip = (active: boolean) =>
-  cn('rounded-full border px-3 py-1 text-xs transition', active ? 'border-gold bg-gold text-on-accent' : 'border-line-control text-ink hover:border-ink/40');
+  cn('rounded-full border px-3 py-1 text-xs transition', active ? 'border-gold bg-gold text-white' : 'border-line-control text-ink hover:border-ink/40');
 
 /**
  * Section C: risk engine calculator. Same look as the informational calculator, but every number comes from

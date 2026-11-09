@@ -31,6 +31,7 @@ import {
   getSessionLiquidity,
   getSessionsNow,
   getVolatility,
+  getNewsImpact,
 } from '@/services/intelligenceService';
 import type { CalendarQuery } from '@/types/intelligence';
 import type { Timeframe } from '@/types/market';
@@ -310,5 +311,14 @@ export function useMarketIntelligence(symbol: string) {
     queryKey: ['mi-market', mock, symbol],
     queryFn: ({ signal }) => getMarketIntelligence({ mock, signal }, symbol),
     staleTime: MI_STALE,
+  });
+}
+
+export function useNewsImpact(q: { importance: string; hoursAhead: number; currency?: string }) {
+  const mock = useMock();
+  return useQuery({
+    queryKey: ['news-impact', mock, q.importance, q.hoursAhead, q.currency ?? ''],
+    queryFn: ({ signal }) => getNewsImpact({ mock, signal }, q),
+    refetchInterval: 60_000, // outcomes and measured moves update after a release
   });
 }

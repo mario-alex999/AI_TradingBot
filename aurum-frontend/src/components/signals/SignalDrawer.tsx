@@ -10,6 +10,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { formatDateTime, formatNumber } from '@/utils/format';
 import { humanize } from '@/utils/labels';
 import type { GateRow, ReviewAction, SignalDossier } from '@/types/decision';
+import { SignalChart } from './SignalChart';
 
 const GATE: Record<GateRow['result'], { label: string; tone: Tone }> = {
   pass: { label: 'Pass', tone: 'up' },
@@ -108,6 +109,7 @@ function Dossier({ d, digits, action, onDone }: { d: SignalDossier; digits: numb
         <Badge tone="gold">Grade {d.grade}</Badge>
         <Badge tone="info">{humanize(d.reviewStatus)}</Badge>
       </div>
+      <SignalChart signal={d} digits={digits} />
       <Rows
         rows={[
           ['Entry zone', `${formatNumber(d.entryZone[0], digits)} – ${formatNumber(d.entryZone[1], digits)}`],
@@ -226,7 +228,7 @@ export function SignalDrawer({ id, digits = 5, action = null, onClose }: Props) 
   const q = useDossier(id);
   const d = q.data?.data;
   return (
-    <Drawer open={!!id} title={d ? `${d.instrument} ${d.direction}` : 'Signal'} subtitle={d ? `${humanize(d.strategy)} · ${d.timeframe}` : undefined} onClose={onClose} width="w-[min(94vw,520px)]">
+    <Drawer open={!!id} title={d ? `${d.instrument} ${d.direction}` : 'Signal'} subtitle={d ? `${humanize(d.strategy)} · ${d.timeframe}` : undefined} onClose={onClose} width="w-[min(96vw,960px)]">
       <QueryState query={q} isEmpty={(r) => !r.data}>
         {(r) => r.data && <Dossier d={r.data} digits={digits} action={action} onDone={onClose} />}
       </QueryState>

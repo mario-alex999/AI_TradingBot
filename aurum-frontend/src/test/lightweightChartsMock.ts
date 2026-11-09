@@ -6,14 +6,18 @@ function series() {
     applyOptions: vi.fn(),
     createPriceLine: vi.fn(() => ({})),
     removePriceLine: vi.fn(),
+    setMarkers: vi.fn(),
+    attachPrimitive: vi.fn(),
+    detachPrimitive: vi.fn(),
+    priceToCoordinate: vi.fn(() => 0),
     priceScale: () => ({ applyOptions: vi.fn() }),
   };
 }
 
-export const createdCharts: { candleData: unknown[] }[] = [];
+export const createdCharts: { candleData: unknown[]; markers: unknown[]; priceLines: unknown[] }[] = [];
 
 export function createChart() {
-  const record = { candleData: [] as unknown[] };
+  const record = { candleData: [] as unknown[], markers: [] as unknown[], priceLines: [] as unknown[] };
   createdCharts.push(record);
   const timeScale = {
     fitContent: vi.fn(),
@@ -26,6 +30,13 @@ export function createChart() {
       const s = series();
       s.setData = vi.fn((d: unknown[]) => {
         record.candleData = d;
+      });
+      s.setMarkers = vi.fn((m: unknown[]) => {
+        record.markers = m;
+      });
+      s.createPriceLine = vi.fn((l: unknown) => {
+        record.priceLines.push(l);
+        return {};
       });
       return s;
     },

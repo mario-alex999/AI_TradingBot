@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { ChartCard } from '@/components/analytics/ChartCard';
 import { axisProps, gridProps, legendProps, SERIES, tooltipProps } from '@/components/analytics/chartStyles';
+import { chartPalette } from '@/theme/theme';
 import { formatCompact } from '@/utils/format';
 import type { CotHistory } from '@/types/cot';
 import { CATEGORY_COLORS } from './cotFormat';
@@ -83,9 +84,9 @@ export function NetHistoryChart({ series, categories }: Props) {
           <YAxis {...axisProps} tickFormatter={yTick} width={56} />
           <Tooltip {...tooltipProps} formatter={num} labelFormatter={tooltipLabel} />
           <Legend {...legendProps} />
-          <ReferenceLine y={0} stroke="rgb(var(--c-line-control))" />
+          <ReferenceLine y={0} stroke={SERIES.reference} />
           {cats.map((c) => (
-            <Line key={c.key} type="monotone" dataKey={`${c.key}_net`} name={c.label} stroke={CATEGORY_COLORS[c.key] ?? 'rgb(var(--c-neutral))'} dot={false} strokeWidth={1.4} connectNulls={false} />
+            <Line key={c.key} type="monotone" dataKey={`${c.key}_net`} name={c.label} stroke={CATEGORY_COLORS[c.key] ?? chartPalette().grey2} dot={false} strokeWidth={1.4} connectNulls={false} />
           ))}
         </LineChart>
       </ResponsiveContainer>
@@ -124,7 +125,7 @@ export function WeeklyChangeChart({ series, categories, primary }: Props) {
           <XAxis dataKey="reportDate" {...axisProps} tickFormatter={xTick} minTickGap={28} />
           <YAxis {...axisProps} tickFormatter={yTick} width={56} />
           <Tooltip {...tooltipProps} formatter={num} labelFormatter={tooltipLabel} />
-          <ReferenceLine y={0} stroke="rgb(var(--c-line-control))" />
+          <ReferenceLine y={0} stroke={SERIES.reference} />
           <Bar dataKey={key} name="Weekly change">
             {rows.map((r) => (
               <Cell key={String(r.reportDate)} fill={Number(r[key] ?? 0) >= 0 ? SERIES.up : SERIES.down} fillOpacity={0.75} />
@@ -191,7 +192,7 @@ export function CotIndexChart({ series, categories, primary }: Props) {
           <XAxis dataKey="reportDate" {...axisProps} tickFormatter={xTick} minTickGap={28} />
           <YAxis {...axisProps} domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} width={36} />
           <Tooltip {...tooltipProps} formatter={(v: number) => v.toFixed(1)} labelFormatter={tooltipLabel} />
-          <ReferenceLine y={50} stroke="rgb(var(--c-line-control))" />
+          <ReferenceLine y={50} stroke={SERIES.reference} />
           <Area type="monotone" dataKey={key} name="COT index" stroke={SERIES.nonCommercial} fill={SERIES.nonCommercial} fillOpacity={0.1} strokeWidth={1.5} dot={false} />
         </AreaChart>
       </ResponsiveContainer>

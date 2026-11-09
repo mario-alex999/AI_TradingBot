@@ -122,13 +122,13 @@ export default function MarketStructurePage() {
                         onClick={() => setTf(t)}
                         className={cn(
                           'flex items-center justify-between rounded-lg px-3 py-2.5 text-left transition',
-                          active ? 'bg-gold text-on-accent' : 'hover:bg-base-raised',
+                          active ? 'bg-gold text-white' : 'hover:bg-base-raised',
                         )}
                       >
-                        <span className={cn('num text-sm font-semibold', active ? 'text-on-accent' : 'text-ink')}>{t}</span>
+                        <span className={cn('num text-sm font-semibold', active ? 'text-white' : 'text-ink')}>{t}</span>
                         <span className="flex items-center gap-2">
-                          {active ? <span className="text-xs text-on-accent/85">{b.label}</span> : <Badge tone={b.tone}>{b.label}</Badge>}
-                          <ChevronRight className={cn('h-4 w-4', active ? 'text-on-accent' : 'text-neutral')} aria-hidden />
+                          {active ? <span className="text-xs text-white/85">{b.label}</span> : <Badge tone={b.tone}>{b.label}</Badge>}
+                          <ChevronRight className={cn('h-4 w-4', active ? 'text-white' : 'text-neutral')} aria-hidden />
                         </span>
                       </button>
                     );

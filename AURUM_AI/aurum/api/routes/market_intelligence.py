@@ -232,6 +232,15 @@ def build_router(state: AppState, service: MarketIntelligenceService | None = No
              page: int = Query(1, ge=1), page_size: int = Query(30, ge=1, le=200, alias="pageSize")):
         return camelize(run(svc().news, as_of_q(as_of), symbol, page, page_size))
 
+    @r.get("/news-impact", summary="High-impact events: expectation, conditional scenarios, measured past reactions, outcome")
+    def news_impact(hours_back: int = Query(24, ge=0, le=720, alias="hoursBack"),
+                    hours_ahead: int = Query(168, ge=1, le=720, alias="hoursAhead"),
+                    importance: str | None = None, currency: str | None = None):
+        imp = _csv(importance) or ["high"]
+        if any(i not in ("low", "medium", "high") for i in imp):
+            raise HTTPException(422, "importance must be low, medium and/or high.")
+        return camelize(run(svc().news_impact, hours_back, hours_ahead, imp, _csv(currency, True)))
+
     @r.post("/news/refresh", status_code=202, dependencies=[AdminDep], summary="Admin: refresh official news feeds")
     def news_refresh():
         run(svc()._require_schema)

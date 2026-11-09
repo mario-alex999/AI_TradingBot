@@ -1,7 +1,7 @@
 import { Bell, Database, Menu, Moon, Search, Sun } from 'lucide-react';
+import { useResolvedTheme } from '@/theme/theme';
 import { Link } from 'react-router-dom';
 import { useClock } from '@/hooks/useClock';
-import { useTheme } from '@/hooks/useTheme';
 import { useHealth, useNotifications } from '@/hooks/queries';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useNotificationStore } from '@/stores/notificationStore';
@@ -14,6 +14,19 @@ import { formatInZone } from '@/utils/format';
 import { forexMarketOpen } from '@/utils/sessions';
 import type { ConnectionState } from '@/types/system';
 import { UserMenu } from './UserMenu';
+
+/** Flips between light and dark (an explicit choice; "follow system" is in Settings). */
+function ThemeToggle({ className }: { className: string }) {
+  const resolved = useResolvedTheme();
+  const update = useSettingsStore((s) => s.update);
+  const next = resolved === 'dark' ? 'light' : 'dark';
+  return (
+    <button type="button" className={className} aria-label={`Switch to ${next} mode`} title={`Switch to ${next} mode`}
+      onClick={() => update({ theme: next })}>
+      {resolved === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+    </button>
+  );
+}
 
 function StatusChip({ label, status, detail }: { label: string; status: ConnectionState; detail?: string }) {
   return (
@@ -31,8 +44,6 @@ export function Topbar() {
   const mockMode = useSettingsStore((s) => s.mockMode);
   const setMobileNavOpen = useUiStore((s) => s.setMobileNavOpen);
   const setPaletteOpen = useUiStore((s) => s.setPaletteOpen);
-  const { theme, toggle: toggleTheme } = useTheme();
-  const dark = theme === 'dark';
   const notifications = useNotifications();
   const readIds = useNotificationStore((s) => s.readIds);
   const unread = notifications.data?.data.filter((n) => !n.read && !readIds.includes(n.id)).length ?? 0;
@@ -88,7 +99,7 @@ export function Topbar() {
             className={
               isLive
                 ? 'rounded-full bg-down-faint px-3 py-1 text-2xs font-semibold tracking-[0.06em] text-down-text'
-                : 'rounded-full bg-gold px-3 py-1 text-2xs font-semibold tracking-[0.06em] text-on-accent'
+                : 'rounded-full bg-gold px-3 py-1 text-2xs font-semibold tracking-[0.06em] text-white'
             }
             data-testid="environment-badge"
           >
@@ -101,17 +112,7 @@ export function Topbar() {
           <button type="button" className={circle} aria-label="Search pages and instruments (Ctrl+K)" title="Search  ·  Ctrl+K" onClick={() => setPaletteOpen(true)}>
             <Search className="h-4 w-4" />
           </button>
-          <button
-            type="button"
-            className={circle}
-            aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'}
-            aria-pressed={dark}
-            title={dark ? 'Light theme' : 'Dark theme'}
-            onClick={toggleTheme}
-            data-testid="theme-toggle"
-          >
-            {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </button>
+          <ThemeToggle className={circle} />
           <Link to="/data" className={`${circle} hidden sm:flex`} aria-label="Data Centre" title="Data Centre">
             <Database className="h-4 w-4" />
           </Link>

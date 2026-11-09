@@ -34,13 +34,13 @@ export function NavList({ collapsed = false, onNavigate }: { collapsed?: boolean
                         cn(
                           'group relative flex h-9 items-center gap-2.5 rounded-lg px-3 text-[13px] transition-colors',
                           collapsed && 'justify-center px-0',
-                          isActive ? 'bg-gold font-medium text-on-accent' : 'text-ink hover:bg-base-raised',
+                          isActive ? 'bg-gold font-medium text-white' : 'text-ink hover:bg-base-raised',
                         )
                       }
                     >
                       {({ isActive }) => (
                         <>
-                          <Icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-on-accent' : 'text-ink-muted group-hover:text-ink')} aria-hidden />
+                          <Icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-white' : 'text-ink-muted group-hover:text-ink')} aria-hidden />
                           {!collapsed && <span className="truncate">{item.label}</span>}
                         </>
                       )}

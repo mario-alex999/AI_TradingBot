@@ -11,14 +11,15 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
     <title>AURUM AI — Market Intelligence</title>
     <script>
-      // Apply the saved theme before first paint so dark mode never flashes light.
-      try {
-        var t = JSON.parse(localStorage.getItem('aurum.settings') || '{}').state;
-        if (t && t.theme === 'dark') {
-          document.documentElement.classList.add('dark');
-          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0B0E0D');
-        }
-      } catch (e) {}
+      // Apply the saved theme before first paint (no light flash in dark mode). Mirrors src/theme/theme.ts.
+      (function () {
+        try {
+          var s = JSON.parse(localStorage.getItem('aurum.settings') || '{}').state || {};
+          var pref = s.theme || 'system';
+          var dark = pref === 'dark' || (pref === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (dark) document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
     </script>
   </head>
   <body>

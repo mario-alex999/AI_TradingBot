@@ -1,9 +1,9 @@
 import { lazy } from 'react';
+import { useApplyTheme } from '@/theme/theme';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { RequireAuth, RequirePermission } from '@/components/layout/ProtectedRoute';
 import { Toaster } from '@/components/common/Toaster';
-import { useApplyTheme } from '@/hooks/useTheme';
 import { useSessionBootstrap } from '@/hooks/useSession';
 import { useApprovalStream } from '@/hooks/useApprovals';
 import DashboardPage from '@/pages/DashboardPage';
@@ -18,6 +18,7 @@ const InstitutionalIntelligencePage = lazy(() => import('@/pages/InstitutionalIn
 const COTAnalysisPage = lazy(() => import('@/pages/COTAnalysisPage'));
 const TradingSessionsPage = lazy(() => import('@/pages/TradingSessionsPage'));
 const MarketIntelligencePage = lazy(() => import('@/pages/MarketIntelligencePage'));
+const NewsImpactPage = lazy(() => import('@/pages/NewsImpactPage'));
 const AIEnginePage = lazy(() => import('@/pages/AIEnginePage'));
 const AISignalsPage = lazy(() => import('@/pages/AISignalsPage'));
 const TradeManagementPage = lazy(() => import('@/pages/TradeManagementPage'));
@@ -56,6 +57,7 @@ export default function App() {
           <Route path="cot" element={<COTAnalysisPage />} />
           <Route path="sessions" element={<TradingSessionsPage />} />
           <Route path="intelligence" element={<MarketIntelligencePage />} />
+          <Route path="news" element={<NewsImpactPage />} />
           <Route path="ai-engine" element={<RequirePermission permission="view:trading"><AIEnginePage /></RequirePermission>} />
           <Route path="signals" element={<RequirePermission permission="view:trading"><AISignalsPage /></RequirePermission>} />
           <Route path="trades" element={<RequirePermission permission="view:trading"><TradeManagementPage /></RequirePermission>} />

@@ -138,13 +138,13 @@ export function CommandPalette() {
                   onClick={() => go(e)}
                   className={cn(
                     'flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2',
-                    i === active ? 'bg-gold text-on-accent' : 'text-ink',
+                    i === active ? 'bg-gold text-white' : 'text-ink',
                   )}
                 >
                   <span className="text-sm font-medium">{e.label}</span>
-                  {e.favourite && <Star className={cn('h-3.5 w-3.5', i === active ? 'fill-on-accent text-on-accent' : 'fill-amber-400 text-amber-400')} aria-label="Favourite" />}
-                  <span className={cn('ml-auto truncate text-xs', i === active ? 'text-on-accent/75' : 'text-neutral')}>{e.hint}</span>
-                  {i === active && <CornerDownLeft className="h-3.5 w-3.5 shrink-0 text-on-accent/75" aria-hidden />}
+                  {e.favourite && <Star className={cn('h-3.5 w-3.5', i === active ? 'fill-white text-white' : 'fill-amber-400 text-amber-400')} aria-label="Favourite" />}
+                  <span className={cn('ml-auto truncate text-xs', i === active ? 'text-white/75' : 'text-neutral')}>{e.hint}</span>
+                  {i === active && <CornerDownLeft className="h-3.5 w-3.5 shrink-0 text-white/75" aria-hidden />}
                 </div>
               </li>
             );

@@ -1,22 +1,24 @@
 import type { Tone } from '@/components/common/Badge';
 import type { CotFreshnessStatus, CotSeverity, CotStrength } from '@/types/cot';
 import { formatInteger, PLACEHOLDER } from '@/utils/format';
+import { chartPalette } from '@/theme/theme';
 
 // One hue per screen: the speculative category (the one COT screens ask about) takes the gold;
 // hedgers are near-white and everything else a neutral grey. No blue, teal or violet.
-export const CATEGORY_COLORS: Record<string, string> = {
-  commercial: 'rgb(var(--c-series-2))',
-  non_commercial: 'rgb(var(--c-gold))',
-  non_reportable: 'rgb(var(--c-series-3))',
-  total_reportable: 'rgb(var(--c-line-control))',
-  dealer: 'rgb(var(--c-series-2))',
-  asset_manager: 'rgb(var(--c-neutral))',
-  leveraged_funds: 'rgb(var(--c-gold))',
-  other_reportable: 'rgb(var(--c-series-3))',
-  producer_merchant: 'rgb(var(--c-series-2))',
-  swap_dealer: 'rgb(var(--c-neutral))',
-  managed_money: 'rgb(var(--c-gold))',
-};
+// Colours follow the active theme (read when a chart renders).
+export const CATEGORY_COLORS: Record<string, string> = Object.defineProperties({} as Record<string, string>, {
+  commercial: { enumerable: true, get: () => chartPalette().green2 },
+  non_commercial: { enumerable: true, get: () => chartPalette().green1 },
+  non_reportable: { enumerable: true, get: () => chartPalette().green3 },
+  total_reportable: { enumerable: true, get: () => chartPalette().grey2 },
+  dealer: { enumerable: true, get: () => chartPalette().green2 },
+  asset_manager: { enumerable: true, get: () => chartPalette().grey1 },
+  leveraged_funds: { enumerable: true, get: () => chartPalette().green1 },
+  other_reportable: { enumerable: true, get: () => chartPalette().green3 },
+  producer_merchant: { enumerable: true, get: () => chartPalette().green2 },
+  swap_dealer: { enumerable: true, get: () => chartPalette().grey1 },
+  managed_money: { enumerable: true, get: () => chartPalette().green1 },
+});
 
 export const signed = (v: number | null | undefined): string => (v == null ? PLACEHOLDER : `${v > 0 ? '+' : ''}${formatInteger(v)}`);
 

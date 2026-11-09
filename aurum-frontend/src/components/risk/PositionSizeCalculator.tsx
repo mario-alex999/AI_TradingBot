@@ -74,7 +74,7 @@ export function PositionSizeCalculator() {
                   onClick={() => setValue('riskPct', r, { shouldValidate: true })}
                   className={cn(
                     'rounded-full border px-3 py-1 text-xs transition',
-                    Number(values.riskPct) === r ? 'border-gold bg-gold text-on-accent' : 'border-line-control text-ink hover:border-ink/40',
+                    Number(values.riskPct) === r ? 'border-gold bg-gold text-white' : 'border-line-control text-ink hover:border-ink/40',
                   )}
                 >
                   {r}%
