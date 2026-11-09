@@ -1552,6 +1552,10 @@ class ApprovalService:
             with self.repo.read() as s:
                 if s.get(TradeIdea, c["candidate_uid"]) is not None:
                     continue
+                # Refused once (e.g. already expired or invalid): don't retry and re-audit it on every worker tick.
+                if s.execute(select(ApprovalAuditLog.seq).where(ApprovalAuditLog.action == "idea.rejected_at_intake",
+                                                                ApprovalAuditLog.entity_id == c["candidate_uid"]).limit(1)).first():
+                    continue
             try:
                 raw = intake.from_module05(c, self.ideas.evidence(c["candidate_uid"]), self.ideas.ai_review(c["candidate_uid"]),
                                            symbols.get(c["symbol"], "unknown"), self.risk.normalised_entry(c["candidate_uid"]))
