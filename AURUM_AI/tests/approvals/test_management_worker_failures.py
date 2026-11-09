@@ -257,3 +257,28 @@ def test_concurrent_approve_and_expiry(h):
     assert h.view(aid)["status"] == "EXPIRED" and out["approve"] in ("EXPIRED", "NOT_PENDING")
     assert not [e for e in h.svc.repo.events(0, 500) if e["event_type"] == "trade.approved_for_execution"]
     assert FakeExecution(h).take() == []
+
+
+def test_refused_module05_candidate_is_audited_once_not_every_tick(h):
+    """An expired Module 05 candidate is refused at intake once; later syncs skip it instead of re-auditing it each tick."""
+    from datetime import timedelta
+
+    now = h.svc.now()
+    cand = {"candidate_uid": "c-expired", "symbol": "EURUSD", "direction": "BUY", "entry_low": 1.0849, "entry_high": 1.0851,
+            "stop_loss": 1.083, "take_profit": 1.09, "risk_reward": 2.5, "timeframe": "H1", "template": "trend_pullback",
+            "as_of": (now - timedelta(hours=3)).isoformat(), "expires_at": (now - timedelta(hours=1)).isoformat(),
+            "input_hash": "0" * 32, "status": "new"}
+
+    class Ideas:
+        def active_candidates(self): return [cand]
+        def candidate(self, uid): return cand
+        def evidence(self, uid): return []
+        def ai_review(self, uid): return None
+        def gates(self, uid): return []
+        def feedback(self, *a): return "applied"
+
+    h.svc.ideas = Ideas()
+    assert h.svc.sync_module05()["errors"] == 1
+    assert h.svc.sync_module05() == {"ingested": 0, "closed": 0, "errors": 0}
+    rows = [a for a in h.svc.audit_log(h.users["alice"], limit=500)["items"] if a["action"] == "idea.rejected_at_intake"]
+    assert len(rows) == 1

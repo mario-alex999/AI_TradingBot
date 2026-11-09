@@ -78,6 +78,6 @@ def build_router(state: AppState, login_rate_per_minute: int = 10) -> APIRouter:
             return {"ready": False, "hasUsers": False, "message": "Run `python -m aurum.cli init-db` first."}
         return {"ready": True, "hasUsers": has_users,
                 "message": None if has_users else "No users yet. Create the first administrator with "
-                                                  "`python -m aurum.cli users create --role admin`."}
+                                                  "`python -m aurum.cli users create <username> --role admin`."}
 
     return r
