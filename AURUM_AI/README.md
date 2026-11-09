@@ -250,6 +250,39 @@ python -m aurum.cli ai bias --symbol EURUSD
 
 Start with [docs/MODULE_05_AI_ENGINE.md](docs/MODULE_05_AI_ENGINE.md).
 
+## Module 06 - Advanced Risk Management Engine
+
+Decides whether a proposed trade fits the account's limits and how large it may be: **PASS, REVIEW, BLOCK or ERROR**,
+explained rule by rule. It covers position size from the broker specification (floored, never rounded up), loss limits,
+drawdown, losing streaks, portfolio and correlated exposure, market filters, and persistent locks with a kill switch.
+**It cannot place, modify or close a trade.**
+
+```
+python -m aurum.cli init-db
+python -m aurum.cli risk health
+python -m aurum.cli risk status
+python -m aurum.cli risk size -s EURUSD -d BUY --entry 1.1001 --sl 1.0981 --tp 1.1051
+python -m aurum.cli risk assess -s EURUSD -d BUY --entry 1.1001 --sl 1.0981 --tp 1.1051
+python -m aurum.cli risk simulate
+```
+
+Start with [docs/MODULE_06_README.md](docs/MODULE_06_README.md). n8n in Docker: [docs/N8N_SETUP.md](docs/N8N_SETUP.md).
+
+## Module 07 - Human Approval and Trade Management Engine
+
+Every trade idea needs an explicit, signed-in person to approve it, after Module 06 and 14 server-side checks.
+**APPROVE** creates an execution *request* for Module 09, which is not built yet. Module 07 never places, modifies or
+closes a trade and never connects to MT5. A Module 06 BLOCK can never be approved.
+
+```
+python -m aurum.cli init-db
+python -m aurum.cli users create alice --role admin     # password prompted, hidden
+python -m aurum.cli approvals status
+python -m aurum.cli approvals worker                    # expiry, handoff, outbox, notifications
+```
+
+Start with [docs/module07/README.md](docs/module07/README.md).
+
 ## Project layout
 ```
 aurum/  config.py · logging_config.py · cli.py
@@ -263,8 +296,10 @@ aurum/  config.py · logging_config.py · cli.py
         collectors/                      candles · ticks · instrument specs
         services/                        market_data_service (orchestration) · validation_service
         database/                        connection · models (SQLAlchemy) · repository (upserts)
+        risk/                            Module 06: calculator · account · portfolio · rules · engine ·
+                                         repository · service · simulation · cli (never places trades)
         exporters/market_data_exporter.py
-sql/schema.sql  sql/migrations/   config/instruments.yaml · cot.yaml · analysis.yaml   scripts/setup_database.py
+sql/schema.sql  sql/migrations/   config/instruments.yaml · cot.yaml · analysis.yaml · risk.yaml   scripts/setup_database.py
 data/raw · data/processed · data/exports   logs/aurum.log (JSON lines)   tests/
 ```
 Security: secrets live only in `.env` (git-ignored), are `SecretStr` in code, and a log filter masks them.

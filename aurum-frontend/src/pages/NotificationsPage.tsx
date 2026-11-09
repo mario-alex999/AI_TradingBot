@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { CheckCheck } from 'lucide-react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card } from '@/components/common/Card';
@@ -12,6 +14,9 @@ import { SegmentedControl } from '@/components/common/SegmentedControl';
 import { SeverityIcon } from '@/components/agents/SeverityIcon';
 import { useNotifications } from '@/hooks/queries';
 import { useNotificationStore } from '@/stores/notificationStore';
+import { markApprovalNotificationsRead } from '@/services/approvalService';
+import { toast } from '@/stores/toastStore';
+import { describeError } from '@/utils/errors';
 import { formatDateTime, relativeTime } from '@/utils/format';
 import { cn } from '@/utils/cn';
 import { CATEGORY_LABEL } from '@/config/notifications';
@@ -39,6 +44,20 @@ export default function NotificationsPage() {
     [q.data, readIds, readFilter, severity, category],
   );
   const unreadIds = items.filter((n) => !n.read).map((n) => n.id);
+  const qc = useQueryClient();
+  // Approval notifications keep their read state on the server, per person; the others stay in this browser.
+  const serverRead = async (id?: string) => {
+    try {
+      await markApprovalNotificationsRead(id);
+      await qc.invalidateQueries({ queryKey: ['notifications'] });
+    } catch (e) {
+      toast({ tone: 'error', title: 'Could not mark as read', description: describeError(e).description });
+    }
+  };
+  const markAll = () => {
+    markRead(items.filter((n) => !n.read && n.source !== 'approvals').map((n) => n.id));
+    if (items.some((n) => !n.read && n.source === 'approvals')) void serverRead();
+  };
 
   return (
     <div className="flex flex-col gap-5">
@@ -49,7 +68,7 @@ export default function NotificationsPage() {
         actions={
           <>
             <DataSourceBadge source={q.data?.source} fetchedAt={q.data?.fetchedAt} />
-            <Button size="sm" icon={<CheckCheck className="h-3.5 w-3.5" aria-hidden />} disabled={unreadIds.length === 0} onClick={() => markRead(unreadIds)}>
+            <Button size="sm" icon={<CheckCheck className="h-3.5 w-3.5" aria-hidden />} disabled={unreadIds.length === 0} onClick={markAll}>
               Mark all as read
             </Button>
           </>
@@ -106,9 +125,24 @@ export default function NotificationsPage() {
                       {relativeTime(n.timestamp)}
                     </p>
                   </div>
-                  <Button size="sm" variant="ghost" onClick={() => (n.read ? markUnread(n.id) : markRead([n.id]))}>
-                    {n.read ? 'Mark unread' : 'Mark as read'}
-                  </Button>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    {n.approvalId && (
+                      <Link to={`/approvals/${n.approvalId}`} className="text-xs text-ink underline-offset-2 hover:underline">
+                        Open request
+                      </Link>
+                    )}
+                    {n.source === 'approvals' ? (
+                      !n.read && (
+                        <Button size="sm" variant="ghost" onClick={() => void serverRead(n.notificationId)}>
+                          Mark as read
+                        </Button>
+                      )
+                    ) : (
+                      <Button size="sm" variant="ghost" onClick={() => (n.read ? markUnread(n.id) : markRead([n.id]))}>
+                        {n.read ? 'Mark unread' : 'Mark as read'}
+                      </Button>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>

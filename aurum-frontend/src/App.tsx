@@ -4,6 +4,8 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { RequireAuth, RequirePermission } from '@/components/layout/ProtectedRoute';
 import { Toaster } from '@/components/common/Toaster';
+import { useSessionBootstrap } from '@/hooks/useSession';
+import { useApprovalStream } from '@/hooks/useApprovals';
 import DashboardPage from '@/pages/DashboardPage';
 import LoginPage from '@/pages/LoginPage';
 
@@ -28,9 +30,13 @@ const AgentCentrePage = lazy(() => import('@/pages/AgentCentrePage'));
 const NotificationsPage = lazy(() => import('@/pages/NotificationsPage'));
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'));
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'));
+const ApprovalsPage = lazy(() => import('@/pages/ApprovalsPage'));
+const ApprovalDetailPage = lazy(() => import('@/pages/ApprovalDetailPage'));
 
 export default function App() {
   useApplyTheme();
+  useSessionBootstrap();
+  useApprovalStream();
   return (
     <>
       <Routes>
@@ -55,6 +61,8 @@ export default function App() {
           <Route path="ai-engine" element={<RequirePermission permission="view:trading"><AIEnginePage /></RequirePermission>} />
           <Route path="signals" element={<RequirePermission permission="view:trading"><AISignalsPage /></RequirePermission>} />
           <Route path="trades" element={<RequirePermission permission="view:trading"><TradeManagementPage /></RequirePermission>} />
+          <Route path="approvals" element={<RequirePermission permission="view:dashboard"><ApprovalsPage /></RequirePermission>} />
+          <Route path="approvals/:id" element={<RequirePermission permission="view:dashboard"><ApprovalDetailPage /></RequirePermission>} />
           <Route path="risk" element={<RequirePermission permission="view:risk"><RiskManagementPage /></RequirePermission>} />
           <Route path="backtesting" element={<RequirePermission permission="view:trading"><BacktestingPage /></RequirePermission>} />
           <Route path="performance" element={<RequirePermission permission="view:trading"><PerformancePage /></RequirePermission>} />

@@ -15,6 +15,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'config:instruments',
     'config:agents',
     'signals:review',
+    'risk:manage',
     'settings:security',
   ],
   trader: ['view:dashboard', 'view:trading', 'view:risk', 'data:export', 'signals:review'],

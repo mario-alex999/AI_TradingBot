@@ -56,8 +56,10 @@ names in `AURUM_AI/config/instruments.yaml`, and `trading_hours` for gap classif
    `AI_REVIEW_MONTHLY_BUDGET_USD` in `.env`, then `python -m aurum.cli init-db` once. `python -m aurum.cli ai-review run
    EURUSD` writes an advisory review of stored analysis; the budget is a hard stop checked before each API call.
    Details: `AURUM_AI/docs/AI_REVIEW.md`.
-8. Next: a signal engine (`/analysis/signals`) and backtests on stored data (`/backtests/latest`), then chart
-   drawing tools.
+8. **Done:** the signal engine and backtests were delivered with Module 05 (below). A one-week EURUSD replay took
+   9.1 s per H1 step (see `AURUM_AI/docs/IMPLEMENTATION_REPORT.md`).
+9. **Done (2026-11-08):** Module 06 risk engine and dashboard, plus n8n in Docker (below). Next: chart drawing tools, and
+   Module 07 (human review) built on the Module 06 contract.
 
 ## Module 05
 
@@ -66,6 +68,22 @@ AI Analysis and Decision Engine, on branch `claude/module-05-decision-engine`. S
 Still to do on the PC: add `AI_REVIEW_ENABLED`, `ANTHROPIC_API_KEY` and `AI_REVIEW_MONTHLY_BUDGET_USD` to `AURUM_AI/.env`
 to use AI review. No real AI provider has been called yet.
 
+## Module 06
+
+Advanced Risk Management Engine, on branch `claude/module-06-risk-engine` (not committed yet). Start with
+`AURUM_AI/docs/MODULE_06_README.md`. On the PC:
+- run `python -m aurum.cli init-db` (done 2026-11-08: migration 0008 is applied);
+- run `python -m aurum.cli sync-account` with MT5 open. Without an account snapshot every assessment returns ERROR,
+  by design.
+
+The dashboard is the Risk Management page. Admin actions need the admin key from Settings → Security.
+
+n8n runs in Docker: `docker compose -f AURUM_AI/docker-compose.n8n.yml --env-file AURUM_AI/.env up -d`, then open
+http://localhost:5678. See `AURUM_AI/docs/N8N_SETUP.md`. Back up `N8N_ENCRYPTION_KEY` from `.env`.
+
+The Module 05 AI review is configured in `.env`. The first real call was refused because the Anthropic account has no
+API credit; add credit at console.anthropic.com.
+
 ## Rules that must not change
 
 - Module 01 is **read-only**: no order placement, modification or closing. `ReadOnlyMT5` in
@@ -73,6 +91,9 @@ to use AI review. No real AI provider has been called yet.
   `tests/test_mt5_gateway.py` scans the source for trading calls.
 - **DEMO accounts only**; real and contest accounts are rejected.
 - Never commit `.env` or credentials. Invalid market data is flagged, never deleted.
+- Module 06 decides; it never executes. BLOCK and ERROR cannot be overridden by Module 05, Module 07 or n8n, and no
+  size is ever rounded up.
+- Frontend changes follow the existing style and theme: extend components, never replace them.
 
 ## GitHub housekeeping still open
 

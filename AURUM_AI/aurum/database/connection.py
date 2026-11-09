@@ -96,6 +96,9 @@ def init_database(engine: Engine) -> list[str]:
         import aurum.account.db_models  # noqa: F401 - registers account mirror tables on the shared Base
         import aurum.ai_review.db_models  # noqa: F401 - registers AI review tables on the shared Base
         import aurum.decision.db_models  # noqa: F401 - registers Module 05 tables on the shared Base
+        import aurum.risk.db_models  # noqa: F401 - registers Module 06 tables on the shared Base
+        import aurum.auth.db_models  # noqa: F401 - registers users, sessions and service tokens
+        import aurum.approvals.db_models  # noqa: F401 - registers Module 07 tables on the shared Base
         from aurum.database.models import Base
         Base.metadata.create_all(engine)
         steps.append("sqlalchemy create_all")

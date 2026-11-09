@@ -3,10 +3,11 @@ import { ChevronDown, LogOut, Settings, User } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ROLE_LABEL } from '@/config/permissions';
 import { useAuthStore } from '@/stores/authStore';
+import { useSignOut } from '@/hooks/useSession';
 
 export function UserMenu() {
   const user = useAuthStore((s) => s.user);
-  const signOut = useAuthStore((s) => s.signOut);
+  const signOut = useSignOut();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -66,8 +67,7 @@ export function UserMenu() {
             role="menuitem"
             type="button"
             onClick={() => {
-              signOut();
-              navigate('/login');
+              void signOut().then(() => navigate('/login'));
             }}
             className="flex w-full items-center gap-2 rounded px-3 py-2 text-sm text-ink-muted hover:bg-base-card hover:text-ink"
           >

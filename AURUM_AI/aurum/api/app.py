@@ -68,7 +68,8 @@ def _camel(s: str) -> str:
 def create_app(settings: Settings | None = None, cfg: CotConfig | None = None, engine: Engine | None = None,
                client: CftcClient | None = None, analysis_service: Any = None,
                intelligence_service: Any = None, ai_review_service: Any = None,
-               decision_service: Any = None) -> FastAPI:
+               decision_service: Any = None, risk_service: Any = None, auth_service: Any = None,
+               approval_service: Any = None) -> FastAPI:
     from aurum.database.connection import engine_from_settings
     settings = settings or get_settings()
     cfg = cfg or load_cot_config()
@@ -78,14 +79,21 @@ def create_app(settings: Settings | None = None, cfg: CotConfig | None = None, e
 
     app = FastAPI(title="AURUM AI API", version="0.4.0",
                   description="AURUM AI backend. Module 02: COT Institutional Intelligence Engine; Module 03: Technical Analysis and SMC "
-                              "Engine; Module 04: Trading Sessions and Market Intelligence (read-only research; no trading "
-                              "endpoints). Admin operations need the X-AURUM-Admin-Key header.")
+                              "Engine; Module 04: Trading Sessions and Market Intelligence; Module 06: Risk Management; Module 07: Human Approval (research, risk decisions and "
+                              "human authorisation; no endpoint places an order). Admin operations need the X-AURUM-Admin-Key header.")
     app.state.aurum = state
+    from aurum.auth.service import AuthError, AuthService
+    app.state.auth = auth_service or AuthService.from_settings(engine, settings)
+
+    @app.exception_handler(AuthError)
+    def _auth_error(request: Request, exc: AuthError) -> JSONResponse:
+        from aurum.api.security import auth_error_response
+        return auth_error_response(exc, request.headers.get("X-Correlation-ID"))
     # Added first so it sits INSIDE the CORS middleware: a 500 then still carries CORS headers and the browser
     # reports a server error instead of a misleading "blocked by CORS policy".
     app.add_middleware(_CatchUnhandled)
     app.add_middleware(CORSMiddleware, allow_origins=settings.api_cors_origins, allow_credentials=True,
-                       allow_methods=["GET", "POST"], allow_headers=["*"])
+                       allow_methods=["GET", "POST", "PUT", "DELETE"], allow_headers=["*"])
 
     @app.on_event("shutdown")
     def _stop() -> None:
@@ -116,7 +124,8 @@ def create_app(settings: Settings | None = None, cfg: CotConfig | None = None, e
                          "capabilities": ["market.export.csv", "market.export.parquet"] if db_ok else [],
                          "modules": {"cot": service.repo.schema_ready() if db_ok else False,
                                      "intelligence": _mi_ready(engine) if db_ok else False,
-                                     "account": _account_ready(engine) if db_ok else False}})
+                                     "account": _account_ready(engine) if db_ok else False,
+                                     "risk": _risk_ready(engine) if db_ok else False}})
 
     from aurum.api.routes.cot import build_router
     app.include_router(build_router(state), prefix=f"{API_PREFIX}/cot", tags=["cot"])
@@ -140,6 +149,18 @@ def create_app(settings: Settings | None = None, cfg: CotConfig | None = None, e
     decision = service_getter(state, decision_service, analysis_service, intelligence_service)
     app.include_router(build_decision_router(state, decision), prefix=API_PREFIX, tags=["decision"])
     app.include_router(build_ai_engine_router(state, decision), prefix=API_PREFIX, tags=["ai-engine"])
+    from aurum.api.routes.risk import build_router as build_risk_router, service_getter as risk_getter
+    risk = risk_getter(state, risk_service, intelligence_service)
+    app.include_router(build_risk_router(state, risk),
+                       prefix=f"{API_PREFIX}/risk", tags=["risk"])
+    from aurum.api.routes.auth import build_router as build_auth_router
+    app.include_router(build_auth_router(state), prefix=f"{API_PREFIX}/auth", tags=["auth"])
+    from aurum.api.routes.approvals import build_routers as build_approval_routers, service_getter as approval_getter
+    approvals_svc = approval_getter(state, approval_service, risk, decision, analysis_service, intelligence_service)
+    app.state.approvals_service = approvals_svc          # also read by /notifications for signed-in people
+    approvals, management = build_approval_routers(state, approvals_svc)
+    app.include_router(approvals, prefix=f"{API_PREFIX}/approvals", tags=["approvals"])
+    app.include_router(management, prefix=f"{API_PREFIX}/trade-management", tags=["trade-management"])
     from aurum.api.routes.system import build_router as build_system_router
     app.include_router(build_system_router(state), prefix=API_PREFIX, tags=["system"])
     return app
@@ -182,6 +203,14 @@ def _account_ready(engine: Engine) -> bool:
         from aurum.database.connection import session_scope
         with session_scope(engine) as s:
             return s.execute(select(AccountSnapshot.id).limit(1)).first() is not None
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _risk_ready(engine: Engine) -> bool:
+    try:
+        from aurum.risk.repository import RiskRepository
+        return RiskRepository(engine).schema_ready()
     except Exception:  # noqa: BLE001
         return False
 

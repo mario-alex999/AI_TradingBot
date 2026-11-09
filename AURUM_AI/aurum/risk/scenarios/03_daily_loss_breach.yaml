@@ -1,0 +1,13 @@
+# A large floating loss takes the day past the 3% daily limit; the next proposal is blocked and the day is locked.
+name: daily_loss_breach
+profile: moderate
+balance: 10000
+steps:
+  - propose: {symbol: EURUSD, direction: BUY, entry: 1.10010, stop_loss: 1.09810, take_profit: 1.10510}
+    fill: true
+  - advance_minutes: 30
+    equity_change: -320
+  - advance_minutes: 5
+    propose: {symbol: XAUUSD, direction: BUY, entry: 2650.000, stop_loss: 2644.000, take_profit: 2662.000}
+  - advance_minutes: 1440
+    propose: {symbol: XAUUSD, direction: BUY, entry: 2650.000, stop_loss: 2644.000, take_profit: 2662.000}

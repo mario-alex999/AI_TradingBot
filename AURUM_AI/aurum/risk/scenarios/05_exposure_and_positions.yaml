@@ -1,0 +1,18 @@
+# Filling trades until aggregate open risk (3%) and the position count stop new approvals; an open position without a stop
+# makes total risk unbounded and blocks everything.
+name: exposure_and_positions
+profile: moderate
+balance: 10000
+steps:
+  - propose: {symbol: EURUSD, direction: BUY, entry: 1.10010, stop_loss: 1.09810, take_profit: 1.10510}
+  - advance_minutes: 5
+    propose: {symbol: XAUUSD, direction: SELL, entry: 2650.000, stop_loss: 2656.000, take_profit: 2638.000}
+  - advance_minutes: 5
+    propose: {symbol: US30, direction: BUY, entry: 44000.0, stop_loss: 43900.0, take_profit: 44250.0}
+  - advance_minutes: 5
+    propose: {symbol: GBPUSD, direction: SELL, entry: 1.30000, stop_loss: 1.30300, take_profit: 1.29400}
+  - advance_minutes: 5
+    close_all: true
+    open_position: {symbol: US30, side: SELL, volume: 1, open_price: 44000.0}
+  - advance_minutes: 5
+    propose: {symbol: EURUSD, direction: BUY, entry: 1.10010, stop_loss: 1.09810, take_profit: 1.10510}

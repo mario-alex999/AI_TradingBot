@@ -1,0 +1,51 @@
+# Module 07 (human approval and trade management) services, in their own Compose project so starting or stopping them
+# never restarts the database or n8n.
+#
+#   docker compose -f docker-compose.approvals.yml --env-file .env up -d --build              # worker only
+#   docker compose -f docker-compose.approvals.yml --env-file .env --profile api up -d --build  # worker + API on :8001
+#   docker compose -f docker-compose.approvals.yml --env-file .env down
+#
+# The database is the existing aurum-timescaledb container (docker-compose.yml), reached through the host port.
+# Run migrations first:  python -m aurum.cli init-db   (or: docker compose -f docker-compose.approvals.yml run --rm approvals-worker python -m aurum.cli init-db)
+#
+# Safety: the worker never approves, never executes and never contacts MT5. It moves approved requests to the Module 09
+# queue after final validation, expires stale requests, dispatches outbox events and delivers notifications.
+name: aurum-approvals
+x-aurum: &aurum
+  build: .
+  image: aurum-backend:local
+  restart: unless-stopped
+  env_file: .env
+  environment:
+    DB_HOST: host.docker.internal               # the TimescaleDB container's published port on the host
+    APPROVALS_EVENTS_WEBHOOK_URL: ${APPROVALS_EVENTS_WEBHOOK_URL:-}
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  deploy:
+    resources:
+      limits:
+        memory: 512m
+
+services:
+  approvals-worker:
+    <<: *aurum
+    container_name: aurum-approvals-worker
+    command: ["python", "-m", "aurum.cli", "approvals", "worker"]
+    healthcheck:
+      test: ["CMD", "python", "-m", "aurum.cli", "approvals", "status"]
+      interval: 60s
+      timeout: 20s
+      retries: 3
+
+  api:
+    <<: *aurum
+    profiles: ["api"]
+    container_name: aurum-api-container
+    command: ["python", "-m", "aurum.api"]
+    environment:
+      DB_HOST: host.docker.internal
+      API_HOST: 0.0.0.0
+      API_PORT: "8000"
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
+    ports:
+      - "127.0.0.1:${APPROVALS_API_PORT:-8001}:8000"   # localhost only; 8000 stays free for the API on the host

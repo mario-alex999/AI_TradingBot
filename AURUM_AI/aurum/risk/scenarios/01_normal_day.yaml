@@ -1,0 +1,13 @@
+# A quiet day: valid trades on uncorrelated instruments, mixed outcomes.
+name: normal_day
+profile: moderate
+balance: 10000
+steps:
+  - propose: {symbol: EURUSD, direction: BUY, entry: 1.10010, stop_loss: 1.09810, take_profit: 1.10510, strategy: bos_continuation}
+    outcome_r: 2.0
+  - advance_minutes: 60
+    propose: {symbol: XAUUSD, direction: SELL, entry: 2650.000, stop_loss: 2656.000, take_profit: 2638.000, strategy: choch_reversal}
+    outcome_r: -1.0
+  - advance_minutes: 60
+    propose: {symbol: US30, direction: BUY, entry: 44000.0, stop_loss: 43900.0, take_profit: 44250.0, strategy: session_breakout}
+    outcome_r: 1.5

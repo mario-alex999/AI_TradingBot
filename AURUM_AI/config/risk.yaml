@@ -1,0 +1,112 @@
+# Module 06 - Advanced Risk Management Engine: default configuration.
+#
+# This file seeds configuration version 1 the first time the engine runs. After that the ACTIVE configuration lives in the
+# database (table risk_config_versions), is changed only through PUT /api/v1/risk/config or `risk config set`, and every change
+# is versioned and audited. Editing this file later does not change an existing database.
+#
+# Percentages are percent of equity (or of the loss basis below). These are starting values for a DEMO account, not
+# financial advice.
+
+default_profile: moderate
+
+profiles:
+  conservative:
+    risk_per_trade_pct: 0.5
+    max_daily_loss_pct: 2
+    max_weekly_loss_pct: 4
+    max_monthly_loss_pct: 6
+    max_drawdown_pct: 6
+    max_open_positions: 3
+    max_total_open_risk_pct: 1.5
+    max_consecutive_losses: 2
+    min_risk_reward: 2.0
+    max_margin_utilization_pct: 20
+  moderate:
+    risk_per_trade_pct: 1
+    max_daily_loss_pct: 3
+    max_weekly_loss_pct: 6
+    max_monthly_loss_pct: 10
+    max_drawdown_pct: 10
+    max_open_positions: 5
+    max_total_open_risk_pct: 3
+    max_consecutive_losses: 3
+    min_risk_reward: 1.5
+    max_margin_utilization_pct: 30
+  aggressive:
+    risk_per_trade_pct: 2
+    max_daily_loss_pct: 5
+    max_weekly_loss_pct: 10
+    max_monthly_loss_pct: 15
+    max_drawdown_pct: 20
+    max_open_positions: 8
+    max_total_open_risk_pct: 6
+    max_consecutive_losses: 5
+    min_risk_reward: 1.2
+    max_margin_utilization_pct: 50
+
+# Shared by every profile; a profile value above wins over these.
+base:
+  max_risk_per_trade_pct: 2            # hard ceiling on any requested risk percentage
+  max_symbol_risk_pct: 2               # open + reserved + new risk on one instrument
+  max_asset_class_risk_pct: 3          # per asset class (forex, metal, index, crypto)
+  max_correlated_risk_pct: 2           # new trade plus positions correlated with it in the same effective direction
+  max_trades_per_day: 6                # trades opened in the current trading day
+  min_free_margin: 0                   # account currency; 0 disables
+  max_slippage_points:                 # assumed adverse slippage on the stop, in points, per symbol (default for others)
+    default: 0
+    EURUSD: 5
+    GBPUSD: 8
+    XAUUSD: 50
+    US30: 20
+  commission_per_lot:                  # account currency per lot, round trip; leave 0 if the broker charges none
+    default: 0
+  max_spread_points:                   # hard cap on the current spread, in points (absent = only the median check)
+    EURUSD: 40
+    GBPUSD: 60
+    XAUUSD: 600
+    US30: 60
+  max_spread_median_multiple: 3        # current spread above this multiple of its median is abnormal
+  min_stop_spread_multiple: 2          # stop distance must be at least this many spreads
+  atr_check:
+    enabled: true
+    timeframe: H1
+    min_stop_atr: 0.25                 # stop tighter than this many ATRs -> warning
+    max_stop_atr: 6                    # stop wider than this many ATRs -> warning
+  loss_basis: equity                   # equity | balance  (what daily/weekly/monthly loss is measured on)
+  breakeven_tolerance_pct: 0.05        # a closed trade within +/- this % of equity is breakeven, not a loss
+  trading_day:                         # risk day boundaries; never the computer's local time zone
+    timezone: America/New_York
+    rollover: "17:00"                  # FX convention: the trading day starts at 17:00 New York
+  period_start_tolerance_minutes: 120  # first snapshot later than this after a period start -> start equity is uncertain
+  reset_policy:                        # what releases an automatic loss lock: next_period | manual
+    daily_loss: next_period
+    weekly_loss: next_period
+    monthly_loss: next_period
+    drawdown: manual
+    consecutive_losses: manual
+  consecutive_loss_cooldown_minutes: 0 # >0 lets the consecutive-loss lock expire after this cooldown instead of manual release
+  assessment_ttl_minutes: 15           # a PASS/REVIEW assessment is valid (and reserves its risk) for this long
+  account_max_age_minutes: 10          # older account snapshot -> ERROR
+  quote_max_age_minutes: 5             # older quote while the market is open -> BLOCK
+  spec_max_age_hours: 72               # older instrument specification -> ERROR
+  conversion_max_age_minutes: 30       # broker tick value or conversion quote older than this is not used for cross-currency risk
+  correlation:
+    timeframe: H1
+    lookback_bars: 500
+    min_samples: 120
+    threshold: 0.7
+    max_age_hours: 72                  # newest common bar older than this -> unreliable
+    unreliable_policy: assume_correlated   # assume_correlated | ignore  (ignore still warns)
+  news:
+    block_states: [HIGH_EVENT_RISK, RELEASE_WINDOW]
+    warn_states: [EVENT_APPROACHING, POST_EVENT_VOLATILITY]
+    unknown_policy: review             # review | block
+  volatility:
+    block_regimes: [VERY_HIGH]         # Module 04 regimes: VERY_LOW LOW NORMAL HIGH VERY_HIGH
+    warn_regimes: [HIGH, VERY_LOW]
+    unknown_policy: review
+  sessions:
+    blocked_sessions: {}               # e.g. {US30: [sydney, tokyo]} or {forex: [sydney]}
+    blocked_weekdays: []               # 0=Mon .. 6=Sun, in the trading_day time zone
+  data_unavailable_policy: review      # market-condition inputs that cannot be evaluated: review | block
+  rules: {}                            # per-rule overrides, e.g. {R030: {enabled: false}}

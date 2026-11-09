@@ -81,8 +81,8 @@ class Table(_RichTable):
         kwargs.setdefault("header_style", "muted")
         kwargs.setdefault("title_style", "bold")
         kwargs.setdefault("title_justify", "left")
+        self._numeric = set(numeric)  # before super(): rich calls add_column() for headers passed positionally
         super().__init__(*args, **kwargs)
-        self._numeric = set(numeric)
 
     def add_column(self, header="", *args, **kwargs):  # type: ignore[override]
         if header in self._numeric:

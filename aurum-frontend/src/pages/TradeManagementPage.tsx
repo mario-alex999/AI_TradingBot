@@ -9,6 +9,7 @@ import { DataSourceBadge } from '@/components/common/DataSourceBadge';
 import { EmptyState } from '@/components/common/EmptyState';
 import { QueryState } from '@/components/common/QueryState';
 import { Badge } from '@/components/common/Badge';
+import { PositionManagement } from '@/components/approvals/PositionManagement';
 import { useOpenTrades, useTradeHistory } from '@/hooks/queries';
 import { formatCurrency, formatDateTime, formatDuration, formatNumber, PLACEHOLDER } from '@/utils/format';
 import type { Position } from '@/types/trading';
@@ -80,8 +81,8 @@ export default function TradeManagementPage() {
       />
       <div className="flex items-center gap-2 rounded-card border border-line bg-base-card px-4 py-3 text-xs text-ink-muted">
         <Lock className="h-4 w-4 shrink-0 text-neutral" aria-hidden />
-        Read-only. Order placement and position modification are not available in this release; future trading actions will require backend authorisation and human
-        approval.
+        AURUM never places or changes orders by itself. Position changes are requests that a person approves below; approved changes are handed to Module 09 (the
+        execution module), which checks them again before acting.
       </div>
       <SegmentedControl
         label="Trade view"
@@ -111,6 +112,7 @@ export default function TradeManagementPage() {
           )}
         </QueryState>
       </Card>
+      <PositionManagement />
     </div>
   );
 }

@@ -1,0 +1,61 @@
+# Module 07 approval policy - seed for version 1. After the first start, change it through PUT /api/v1/approvals/policies
+# (or the Approval Settings page): every change is a new, audited version and needs a reason.
+#
+# These are DEMO defaults chosen for review comfort, not trading rules.
+
+expiry:
+  default_minutes: 60
+  by_timeframe: {M5: 5, M15: 15, H1: 60, H4: 240, D1: 1440}
+  by_symbol: {}             # e.g. {XAUUSD: 30}; the shortest applicable value wins
+  by_strategy: {}
+  high_volatility_minutes: null   # when Module 04 reports HIGH/VERY_HIGH volatility, cap the window (null = off)
+  min_minutes: 2
+  max_minutes: 1440
+  honour_idea_expiry: true  # the idea's own expiry is used when it is earlier than the policy window
+  expiring_soon_minutes: 2  # "expiring soon" notification
+
+review:
+  # Module 06 REVIEW: "acknowledge" = the approver must accept each warning explicitly; "block" = cannot be approved.
+  risk_review_policy: acknowledge
+  risk_max_age_seconds: 300         # older assessments must be revalidated before approval
+  market_data_max_age_seconds: 120  # quote age allowed at approval and handoff (outside market hours approval is refused)
+  require_comment_on_approve: false
+  rejection_reason_required: true
+  rejection_reasons:
+    - poor_market_structure
+    - weak_ai_analysis
+    - unfavourable_risk_reward
+    - excessive_risk
+    - poor_entry_location
+    - news_risk
+    - high_volatility
+    - stale_market_data
+    - incomplete_evidence
+    - strategy_mismatch
+    - trader_discretion
+    - other
+  required_evidence: [trade, risk]  # sections that must be available before approval
+  multi_person:
+    enabled: false                  # off by default; when on, requests at or above min_risk_pct need N distinct approvers
+    required_approvals: 2
+    min_risk_pct: null
+  reviewers_see_assigned_only: false
+
+handoff:
+  revalidate_risk: always           # always | if_older_than
+  revalidate_if_older_than_seconds: 60
+  allowed_accounts: []              # account logins allowed for execution; empty = the mirrored DEMO account
+
+management:
+  expiry_minutes: 15
+  allow_stop_widening: false        # never widen a stop-loss unless an administrator changes this and a new risk assessment passes
+  max_partial_close_fraction: "0.99"
+  emergency:
+    allow_self_authorisation: true  # the requester may authorise their own emergency exit with the typed confirmation
+    confirmation_phrase: "CLOSE {symbol}"
+    expiry_minutes: 5
+
+notifications:
+  channels: {in_app: true, email: false, telegram: false}
+  email_events: [approval.requested, approval.expiring_soon, risk.blocked, execution.failed, management.emergency_requested]
+  retry_max_attempts: 6

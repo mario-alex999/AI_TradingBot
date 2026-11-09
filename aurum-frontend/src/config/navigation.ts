@@ -18,6 +18,7 @@ import {
   Settings,
   ShieldCheck,
   Sparkles,
+  ClipboardCheck,
   type LucideIcon,
 } from 'lucide-react';
 import type { Permission } from '@/types/auth';
@@ -59,6 +60,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { path: '/ai-engine', label: 'AI Engine', icon: BrainCircuit, permission: 'view:trading' },
       { path: '/signals', label: 'AI Signals', icon: Sparkles, permission: 'view:trading' },
+      { path: '/approvals', label: 'Trade Approvals', icon: ClipboardCheck, permission: 'view:dashboard' },
       { path: '/trades', label: 'Trade Management', icon: ArrowLeftRight, permission: 'view:trading' },
       { path: '/risk', label: 'Risk Management', icon: ShieldCheck, permission: 'view:risk' },
       { path: '/backtesting', label: 'Backtesting', icon: FlaskConical, permission: 'view:trading' },
