@@ -79,6 +79,21 @@ reports what it *would* request without publishing.
 4. Dry run once from the Orchestration page (trigger WF08-01 with input `{"dryRun": true}`) and check the execution's
    output lists every pair with `ready` or a reason.
 
+### n8n Cloud
+
+The JSON file above targets self-hosted n8n in Docker (`host.docker.internal`). n8n Cloud cannot reach your machine, so
+the Cloud build of WF08-01 differs in three ways:
+
+* **API address.** The address lives in one node, *AURUM settings* (`aurumApi`). Set it to a public HTTPS URL of the
+  AURUM API ending in `/api/v1/orchestration`, for example a reverse proxy or tunnel. Every request in the workflow goes
+  only to this address.
+* **Service token credential.** Its type is *Custom Auth* (`httpTemplatedCustomAuth`), with headers
+  `{"Authorization": "Bearer <service token>"}`. The webhook token stays *Header Auth* with `X-AURUM-Webhook-Token`.
+  Select the credentials on the webhook node and on all 13 HTTP nodes.
+* **AURUM calls the Cloud webhook.** Set `n8n_webhook_base_url` (or `N8N_WEBHOOK_BASE_URL`) to
+  `https://<your-instance>.app.n8n.cloud/webhook`. Then run step 3 with the Cloud workflow id, which is the last part of
+  the workflow URL.
+
 ## Tests
 
 `tests/orchestration/test_wf08_01.py` (no n8n or MT5 needed): configuration defaults, preflight and the off switch,
