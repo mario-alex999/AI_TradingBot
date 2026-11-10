@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AdminJobButton } from '@/components/common/AdminJobButton';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Select } from '@/components/common/Select';
@@ -51,6 +52,9 @@ export default function MarketIntelligencePage() {
               </Badge>
             )}
             {st && !st.schemaReady && <Badge tone="down">Module 04 tables missing</Badge>}
+            <AdminJobButton action="calendarRefresh" invalidate={['mi-calendar', 'mi-news', 'mi-macro', 'mi-market', 'mi-risk', 'mi-status', 'news-impact']} />
+            <AdminJobButton action="newsRefresh" invalidate={['mi-calendar', 'mi-news', 'mi-macro', 'mi-market', 'mi-risk', 'mi-status', 'news-impact']} />
+            <AdminJobButton action="macroRefresh" invalidate={['mi-calendar', 'mi-news', 'mi-macro', 'mi-market', 'mi-risk', 'mi-status', 'news-impact']} />
             <Select label="Instrument" hideLabel value={symbol} onChange={setSymbol} options={DEFAULT_INSTRUMENTS.map((i) => ({ value: i.symbol, label: i.symbol }))} className="w-32" />
           </>
         }

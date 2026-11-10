@@ -105,32 +105,44 @@ class NewsImpact:
         self.symbols = symbols
         self.now = now
         self._frames: dict[tuple[str, str], pd.DataFrame] = {}
+        self._past: dict[str | None, list[dict[str, Any]]] = {}
 
     # ------------------------------------------------------------------ candles
-    def _frame(self, symbol: str) -> pd.DataFrame:
+    def _frame(self, symbol: str, tf: str) -> pd.DataFrame:
+        key = (symbol, tf)
+        if key not in self._frames:
+            self._frames[key] = self.candles.frame(symbol, tf, self.now())
+        return self._frames[key]
+
+    def _move(self, symbol: str, released: datetime) -> tuple[float | None, int]:
+        """Reaction on the finest timeframe that covers this release: M5 history is usually shorter than M15, so older
+        releases fall back to M15 instead of being dropped."""
         for tf in REACTION_TIMEFRAMES:
-            key = (symbol, tf)
-            if key not in self._frames:
-                self._frames[key] = self.candles.frame(symbol, tf, self.now())
-            if not self._frames[key].empty:
-                return self._frames[key]
-        return self._frames[(symbol, REACTION_TIMEFRAMES[-1])]
+            mv, measured = _reaction(self._frame(symbol, tf), released, REACTION_MINUTES, self.now())
+            if mv is not None:
+                return mv, measured
+        return None, 0
+
+    def _past_events(self, currency: str | None) -> list[dict[str, Any]]:
+        """One history query per currency per report (not one per event)."""
+        if currency not in self._past:
+            now = self.now()
+            self._past[currency], _ = self.repo.events(now - timedelta(days=365 * HISTORY_YEARS), now,
+                                                       currencies=[currency] if currency else None)
+        return self._past[currency]
 
     # ------------------------------------------------------------------ history
     def _history(self, ev: dict[str, Any], instruments: list[str]) -> dict[str, dict[str, dict[str, Any]]]:
-        """{scenario: {instrument: stats}} from past releases of the same indicator (same currency + subcategory,
-        or same name when the event is unclassified)."""
-        now = self.now()
-        past, _ = self.repo.events(now - timedelta(days=365 * HISTORY_YEARS), ev["scheduled_at"],
-                                   currencies=[ev["currency"]] if ev.get("currency") else None)
-        same = [p for p in past if p["id"] != ev["id"] and _num(p.get("actual")) is not None and _num(p.get("consensus")) is not None
-                and ((ev.get("subcategory") and p.get("subcategory") == ev["subcategory"])
-                     or (not ev.get("subcategory") and p.get("name") == ev.get("name")))][-HISTORY_MAX_EVENTS:]
+        """{scenario: {instrument: stats}} from past releases of the same indicator (same currency and subcategory;
+        only classified indicators have a rule, so only they get history)."""
+        same = [p for p in self._past_events(ev.get("currency"))
+                if p["id"] != ev["id"] and p["scheduled_at"] < ev["scheduled_at"] and p.get("subcategory") == ev.get("subcategory")
+                and _num(p.get("actual")) is not None and _num(p.get("consensus")) is not None][-HISTORY_MAX_EVENTS:]
         moves: dict[str, dict[str, list[float]]] = {}
         for p in same:
             sc = classify_surprise(_num(p["actual"]), _num(p["consensus"]))  # type: ignore[arg-type]
             for sym in instruments:
-                mv, measured = _reaction(self._frame(sym), p["scheduled_at"], REACTION_MINUTES, now)
+                mv, measured = self._move(sym, p["scheduled_at"])
                 if mv is not None and measured >= REACTION_MINUTES // 2:
                     moves.setdefault(sc, {}).setdefault(sym, []).append(mv)
         polarity = POLARITY.get(ev.get("subcategory") or "")
@@ -156,7 +168,9 @@ class NewsImpact:
         why = {a["instrument"]: a.get("explanation") for a in ev.get("affected_instruments") or []}
         polarity = POLARITY.get(ev.get("subcategory") or "")
         actual, consensus, previous = _num(ev.get("actual")), _num(ev.get("consensus")), _num(ev.get("previous"))
-        released = ev["scheduled_at"] <= now and actual is not None
+        # Released once its time has passed and a figure is published - or immediately for events that never publish a
+        # figure (speeches, press conferences, minutes: no numeric rule).
+        released = ev["scheduled_at"] <= now and (ev.get("actual") is not None or polarity is None)
 
         expectation = None
         if consensus is not None and previous is not None:
@@ -186,7 +200,7 @@ class NewsImpact:
             rows = []
             for sym in instruments:
                 expected, _ = instrument_direction(sym, ev.get("currency"), sign)
-                mv, measured = _reaction(self._frame(sym), ev["scheduled_at"], REACTION_MINUTES, now)
+                mv, measured = self._move(sym, ev["scheduled_at"])
                 followed = None if mv is None or expected not in ("up", "down") else ((mv > 0) if expected == "up" else (mv < 0))
                 rows.append({"instrument": sym, "expected": expected, "move_pct": mv, "minutes_measured": measured,
                              "followed_rule": followed})
@@ -196,8 +210,11 @@ class NewsImpact:
                        "currency_effect": "bullish" if sign > 0 else "bearish" if sign < 0 else "neutral",
                        "instruments": rows}
         elif released:
+            note = ("This event publishes no figure: its effect depends on what was said. Check the headline tone."
+                    if polarity is None else
+                    "Released, but the figure or forecast is not numeric, so the surprise cannot be measured.")
             outcome = {"scenario": None, "surprise": None, "surprise_pct": None, "currency_effect": None, "instruments": [],
-                       "note": "Released, but without a numeric forecast or rule the surprise cannot be measured."}
+                       "note": note}
 
         return {
             "id": ev["id"], "name": ev["name"], "currency": ev.get("currency"), "country": ev.get("country"),
@@ -213,8 +230,8 @@ class NewsImpact:
         }
 
     # ------------------------------------------------------------------ headlines
-    def headlines(self, since: datetime, limit: int = 30) -> list[dict[str, Any]]:
-        items, _ = self.repo.news(self.now(), None, 300, 0)
+    def headlines(self, since: datetime, currencies: list[str] | None = None, limit: int = 30) -> list[dict[str, Any]]:
+        items, _ = self.repo.news(self.now(), currencies, 500, 0, since=since)
         enabled = set(self.symbols())
         out = []
         for it in items:
@@ -222,24 +239,23 @@ class NewsImpact:
             if pub is None or pub < since:
                 continue
             tone = headline_tone(it["headline"], it.get("category"), it.get("description"))
-            currencies = [c.upper() for c in it.get("currencies") or []]
+            if not (it.get("category") == "central_bank" or abs(tone.get("score") or 0) >= 2):
+                continue                                   # not high-impact: skip before building directions
+            currencies_ = [c.upper() for c in it.get("currencies") or []]
             sign = {"hawkish": 1, "dovish": -1}.get(tone["label"], 0) if tone["kind"] == "policy_tone" else 0
             effect = None
             rows = []
-            if sign and currencies:
-                effect = {"currencies": currencies, "bias": "bullish" if sign > 0 else "bearish"}
-                for c in currencies:
+            if sign and currencies_:
+                effect = {"currencies": currencies_, "bias": "bullish" if sign > 0 else "bearish"}
+                for c in currencies_:
                     # Only instruments this currency drives (the same impact table the calendar uses).
                     linked = [m["instrument"] for m in self.impact.by_currency.get(c, []) if m["instrument"] in enabled]
                     for sym in linked:
                         d, explanation = instrument_direction(sym, c, sign)
                         if d is not None:
                             rows.append({"instrument": sym, "direction": d, "explanation": explanation})
-            high = it.get("category") == "central_bank" or abs(tone.get("score") or 0) >= 2
-            if not high:
-                continue
             out.append({"id": it["id"], "headline": it["headline"], "source": it["source"], "url": it["url"],
-                        "published_at": pub, "category": it.get("category"), "currencies": currencies,
+                        "published_at": pub, "category": it.get("category"), "currencies": currencies_,
                         "tone": {"kind": tone["kind"], "label": tone["label"], "terms": tone["terms"]},
                         "effect": effect, "instruments": rows})
             if len(out) >= limit:
@@ -259,5 +275,5 @@ class NewsImpact:
             "window": {"start": start, "end": end}, "importance": importance or ["high"],
             "next_event": upcoming[0] if upcoming else None,
             "events": built,
-            "headlines": self.headlines(now - timedelta(hours=max(hours_back, 48))),
+            "headlines": self.headlines(now - timedelta(hours=max(hours_back, 48)), currencies),
         }

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import pytest
-from conftest import EURUSD_BUY, Harness
+from risk_helpers import EURUSD_BUY, Harness
 from cot_helpers import cot_cfg
 from fastapi.testclient import TestClient
 

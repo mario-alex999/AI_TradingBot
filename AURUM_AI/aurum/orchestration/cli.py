@@ -167,6 +167,27 @@ def setup_test_workflow(n8n_workflow_id: str = typer.Option(..., help="Id of the
     console.print(f"{TEST_WORKFLOW_ID}: {svc.get_workflow(TEST_WORKFLOW_ID)['state']}")
 
 
+@orchestration_app.command("setup-wf08-01")
+def setup_wf08_01(n8n_workflow_id: str = typer.Option(..., help="Id of the imported 'AURUM - WF08-01 Market Monitoring "
+                                                                 "Scheduler' workflow in n8n (from its URL)."),
+                  schedule: str = typer.Option("1-59/5 * * * *", help="Cron (UTC by default): 1 minute after every M5 close."),
+                  timezone: str = typer.Option("UTC", help="Time zone the cron expression is read in."),
+                  no_schedule: bool = typer.Option(False, "--no-schedule", help="Do not create the schedule."),
+                  activate: bool = typer.Option(True, help="Activate WF08-01 in AURUM after validation.")) -> None:
+    """Installs WF08-01: links the reserved registration to n8n, adds and validates version 1.0.0, activates it and
+    creates the candle-close schedule. Safe to re-run."""
+    from aurum.orchestration.market_monitoring import install
+    svc = _svc()
+    out = _guard(lambda: install(svc, _console_actor(), n8n_workflow_id, schedule=None if no_schedule else schedule,
+                                 schedule_timezone=timezone, activate=activate))
+    for step in out["steps"]:
+        console.print(f" - {step}")
+    console.print(kv_table({"Workflow": out["workflow_id"], "State": out["state"], "Version": out["version"],
+                            "Validation": json.dumps(out.get("validation") or {}, default=str)[:300],
+                            "Schedule": (out["schedule"] or {}).get("expression"),
+                            "Next run (UTC)": (out["schedule"] or {}).get("next_run_at")}, title="WF08-01"))
+
+
 @orchestration_app.command("test-run")
 def test_run(wait: int = typer.Option(60, help="Seconds to wait for the callback."),
              message: str = typer.Option("hello from AURUM", help="Echoed back by the test workflow."),

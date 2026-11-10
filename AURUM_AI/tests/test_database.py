@@ -12,7 +12,7 @@ from sqlalchemy import text
 from aurum.database.connection import check_database, init_database, make_engine
 from aurum.database.repository import Repository, fingerprint
 from aurum.services.validation_service import QualityIssue
-from conftest import TUESDAY, candle_frame
+from module01_helpers import TUESDAY, candle_frame
 
 PG_URL = os.environ.get("AURUM_TEST_DATABASE_URL")
 BACKENDS = ["sqlite"] + (["postgresql"] if PG_URL else [])

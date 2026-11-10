@@ -1,4 +1,5 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import { AdminJobButton } from '@/components/common/AdminJobButton';
 import { ArrowDownRight, ArrowUpRight, ChevronDown, ExternalLink, Minus, Newspaper, ShieldAlert, Shuffle } from 'lucide-react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card, CardBody, CardHeader } from '@/components/common/Card';
@@ -13,6 +14,9 @@ import { formatDateTime, formatDuration, formatInZone } from '@/utils/format';
 import { humanize } from '@/utils/labels';
 import { cn } from '@/utils/cn';
 import type { Direction, EventOutcome, ImpactEvent, ImpactHeadline, NewsImpactReport, ReactionHistory, Scenario } from '@/types/newsImpact';
+
+// A fixed list: building it from the (already filtered) response would hide every other currency once one is chosen.
+const CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'CHF', 'AUD', 'CAD', 'NZD', 'CNY'];
 
 const EFFECT: Record<string, { label: string; tone: Tone }> = {
   bullish: { label: 'bullish', tone: 'up' },
@@ -209,13 +213,13 @@ function EventCard({ e, now, defaultOpen }: { e: ImpactEvent; now: number; defau
   );
 }
 
-function NextEvent({ e, now }: { e: ImpactEvent; now: number }) {
+function NextEvent({ e, now, impact }: { e: ImpactEvent; now: number; impact: string }) {
   const at = Date.parse(e.scheduledAt);
   const above = e.scenarios.find((s) => s.key === 'above');
   return (
     <section className="flex flex-col gap-4 overflow-hidden rounded-card bg-feature p-5 text-white lg:flex-row lg:items-center lg:justify-between" aria-labelledby="next-title">
       <div className="min-w-0">
-        <p className="text-xs text-feature-muted">Next high-impact release</p>
+        <p className="text-xs text-feature-muted">Next {impact} release</p>
         <h2 id="next-title" className="mt-1 text-lg font-semibold">
           {e.currency} · {e.name}
         </h2>
@@ -288,6 +292,9 @@ function Headlines({ items }: { items: ImpactHeadline[] }) {
 function Body({ r, now }: { r: NewsImpactReport; now: number }) {
   const released = r.events.filter((e) => e.released || Date.parse(e.scheduledAt) <= now);
   const upcoming = r.events.filter((e) => !released.includes(e));
+  // Wording follows the filters actually applied by the backend.
+  const impact = r.importance.includes('medium') ? 'high- or medium-impact' : 'high-impact';
+  const backHours = Math.round((Date.parse(r.generatedAt) - Date.parse(r.window.start)) / 3_600_000);
   const section = (title: string, list: ImpactEvent[], open: (i: number) => boolean, empty: string): ReactNode => (
     <section className="flex flex-col gap-3" aria-label={title}>
       <h2 className="text-base font-semibold text-ink">
@@ -299,9 +306,9 @@ function Body({ r, now }: { r: NewsImpactReport; now: number }) {
   return (
     <div className="grid gap-5 2xl:grid-cols-[1fr_400px]">
       <div className="flex flex-col gap-5">
-        {r.nextEvent && <NextEvent e={r.nextEvent} now={now} />}
-        {section('Released', [...released].reverse(), (i) => i === 0, 'No high-impact release in the last 24 hours.')}
-        {section('Coming up', upcoming, (i) => i === 0, 'No high-impact event in the selected window.')}
+        {r.nextEvent && <NextEvent e={r.nextEvent} now={now} impact={impact} />}
+        {section('Released', [...released].reverse(), (i) => i === 0, `No ${impact} release in the last ${backHours} hours.`)}
+        {section('Coming up', upcoming, (i) => i === 0, `No ${impact} event in the selected window.`)}
       </div>
       <Card className="h-fit">
         <CardHeader title="High-impact headlines" subtitle="Central-bank and strongly worded market headlines, with their rule-based tone" icon={<Newspaper className="h-4 w-4" />} />
@@ -320,14 +327,19 @@ export default function NewsImpactPage() {
   const [hoursAhead, setHoursAhead] = useState('168');
   const [currency, setCurrency] = useState('');
   const q = useNewsImpact({ importance, hoursAhead: Number(hoursAhead), currency: currency || undefined });
-  const currencies = useMemo(() => [...new Set((q.data?.data?.events ?? []).map((e) => e.currency).filter(Boolean) as string[])].sort(), [q.data]);
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
         eyebrow="Intelligence"
         title="News Impact"
         description="High-impact economic releases and headlines, what the market expects, how each outcome usually moves your instruments, and what actually happened."
-        actions={<DataSourceBadge source={q.data?.source} fetchedAt={q.data?.fetchedAt} />}
+        actions={
+          <>
+            <AdminJobButton action="calendarRefresh" invalidate={['mi-calendar', 'mi-news', 'mi-macro', 'mi-market', 'mi-risk', 'mi-status', 'news-impact']} />
+            <AdminJobButton action="newsRefresh" invalidate={['mi-calendar', 'mi-news', 'mi-macro', 'mi-market', 'mi-risk', 'mi-status', 'news-impact']} />
+            <DataSourceBadge source={q.data?.source} fetchedAt={q.data?.fetchedAt} />
+          </>
+        }
       />
       <div className="flex gap-2 rounded-card border border-warn/30 bg-warn-faint px-4 py-3 text-xs text-ink-muted">
         <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-warn" aria-hidden />
@@ -339,7 +351,7 @@ export default function NewsImpactPage() {
       <Card className="grid gap-3 p-3 sm:grid-cols-3">
         <Select label="Impact" value={importance} onChange={setImportance} options={[{ value: 'high', label: 'High only' }, { value: 'high,medium', label: 'High and medium' }]} />
         <Select label="Window" value={hoursAhead} onChange={setHoursAhead} options={[{ value: '24', label: 'Next 24 hours' }, { value: '72', label: 'Next 3 days' }, { value: '168', label: 'Next 7 days' }]} />
-        <Select label="Currency" value={currency} onChange={setCurrency} options={[{ value: '', label: 'All' }, ...currencies.map((c) => ({ value: c, label: c }))]} />
+        <Select label="Currency" value={currency} onChange={setCurrency} options={[{ value: '', label: 'All' }, ...CURRENCIES.map((c) => ({ value: c, label: c }))]} />
       </Card>
       <QueryState
         query={q}

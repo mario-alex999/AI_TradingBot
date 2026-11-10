@@ -283,3 +283,13 @@ export interface ReviewInput {
   reviewer: string;
   note: string;
 }
+
+/** GET /decision/status (Module 05). */
+export interface DecisionStatus {
+  schemaReady: boolean;
+  engineVersion: string;
+  counts: Record<string, number>;
+  recentRuns: { symbol: string; asOf: string; mode: string; status: string; durationMs: number | null; error: string | null; createdAt: string }[];
+  aiReviewer: { enabled: boolean; blockedReason: string | null; model: string | null; budgetUsd: number | null; budgetUsedUsd: number };
+  disclaimer: string;
+}

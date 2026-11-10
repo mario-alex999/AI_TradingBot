@@ -7,7 +7,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 import pytest
-from conftest import EURUSD_BUY, EURUSD_SELL, NOW, Harness, ids
+from risk_helpers import EURUSD_BUY, EURUSD_SELL, NOW, Harness, ids
 
 from aurum.risk.account import ClosedTrade, EquityPoint
 from aurum.risk.calculator import Quote

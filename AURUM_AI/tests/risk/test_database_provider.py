@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from conftest import NOW
+from risk_helpers import NOW
 from sqlalchemy import insert
 
 from aurum.account.db_models import AccountDeal, AccountSnapshot, TradeRecord

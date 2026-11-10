@@ -151,6 +151,7 @@ def create_app(settings: Settings | None = None, cfg: CotConfig | None = None, e
     app.include_router(build_ai_engine_router(state, decision), prefix=API_PREFIX, tags=["ai-engine"])
     from aurum.api.routes.risk import build_router as build_risk_router, service_getter as risk_getter
     risk = risk_getter(state, risk_service, intelligence_service)
+    app.state.risk_service = risk                        # read by /agents/status
     app.include_router(build_risk_router(state, risk),
                        prefix=f"{API_PREFIX}/risk", tags=["risk"])
     from aurum.api.routes.auth import build_router as build_auth_router

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { AdminJobButton } from '@/components/common/AdminJobButton';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Card, CardBody } from '@/components/common/Card';
 import { DataSourceBadge } from '@/components/common/DataSourceBadge';
@@ -68,7 +69,12 @@ export default function COTAnalysisPage() {
         eyebrow="Intelligence"
         title="COT Analysis"
         description="CFTC Commitments of Traders positioning. Positions are as of Tuesday and become usable only when the CFTC releases them (normally Friday 15:30 ET). Medium- to long-term context, not an entry signal."
-        actions={<DataSourceBadge source={source} fetchedAt={history.data?.fetchedAt} />}
+        actions={
+          <>
+            <AdminJobButton action="cotUpdate" invalidate={['cot-status', 'cot-history', 'cot-analysis', 'cot-report', 'cot-reports', 'cot-divergence', 'cot-quality', 'cot-logs']} />
+            <DataSourceBadge source={source} fetchedAt={history.data?.fetchedAt} />
+          </>
+        }
       />
       <CotOverview status={status.data?.data} demo={demo} probing={probe && status.isFetching} onProbe={() => setProbe(true)} />
       {instruments.isError ? (

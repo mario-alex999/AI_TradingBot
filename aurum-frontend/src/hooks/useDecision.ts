@@ -19,6 +19,7 @@ import {
   runAnalysis,
   runBacktest,
   type BacktestStart,
+  getDecisionStatus,
 } from '@/services/decisionService';
 import type { ReviewAction, ReviewInput } from '@/types/decision';
 
@@ -134,4 +135,9 @@ export function useRunBacktest() {
     onSuccess: (r) => toast({ tone: 'info', title: 'Backtest started', description: `Job ${r.jobId}` }),
     onError: (e) => toast({ tone: 'error', title: 'Backtest not started', description: describeError(e).description }),
   });
+}
+
+export function useDecisionStatus() {
+  const mock = useMock();
+  return useQuery({ queryKey: ['decision-status', mock], queryFn: ({ signal }) => getDecisionStatus({ mock, signal }), staleTime: 30_000 });
 }

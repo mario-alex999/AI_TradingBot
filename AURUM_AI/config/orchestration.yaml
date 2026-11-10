@@ -50,3 +50,12 @@ alerts:
   failure_rate_warn: 0.25
 
 modules: {}                 # e.g. module_09: {base_url: "http://module09:8100"} once Module 09 exists
+
+market_monitoring:          # WF08-01 Market Monitoring Scheduler (candle-close based)
+  enabled: true             # backend off switch: false = WF08-01 stops before checking or requesting anything
+  symbols: [EURUSD, GBPUSD, XAUUSD, US30]
+  timeframes: [D1, H4, H1, M15, M5]
+  settle_seconds: 60        # wait this long after a candle closes so Module 01 has stored it
+  stale_factor: 3.0         # latest closed candle older than 3 x its period -> reported stale (collection behind)
+  request_event: ai.analysis.requested   # or technical.analysis.requested
+  require_module_01_data: true

@@ -27,9 +27,15 @@ execution decision, and nothing in Module 08 turns AI output into a trade.
 
 ## What is deliberately NOT built
 
-WF08-01 (market monitoring), WF08-02 (market analysis), WF08-03 (risk/approval) and WF08-04 (execution handoff) exist only
-as **reserved registrations** (`placeholder = true`). They cannot be activated or triggered until they are built,
-versioned, validated and activated by an administrator.
+WF08-02 (market analysis), WF08-03 (risk/approval) and WF08-04 (execution handoff) exist only as **reserved
+registrations** (`placeholder = true`). They cannot be activated or triggered until they are built, versioned, validated
+and activated by an administrator.
+
+## Built workflows
+
+| Workflow | n8n file | Install | Guide |
+| --- | --- | --- | --- |
+| WF08-01 Market Monitoring Scheduler | `n8n/workflows/aurum_wf08_01_market_monitoring.json` | `python -m aurum.cli orchestration setup-wf08-01 --n8n-workflow-id <id>` | [MODULE_08_WF08_01.md](MODULE_08_WF08_01.md) |
 
 ## Quick start
 

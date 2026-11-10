@@ -73,6 +73,33 @@ class ModuleCfg(_M):
     enabled: bool = True
 
 
+class MarketMonitoringCfg(_M):
+    """WF08-01 Market Monitoring Scheduler. ``enabled`` is its backend-enforced off switch: when false the monitoring API
+    tells the workflow to stop before it checks or requests anything (pausing the workflow in the registry also works)."""
+    enabled: bool = True
+    symbols: list[str] = ["EURUSD", "GBPUSD", "XAUUSD", "US30"]
+    timeframes: list[Literal["D1", "H4", "H1", "M15", "M5"]] = ["D1", "H4", "H1", "M15", "M5"]
+    settle_seconds: int = Field(60, ge=0, le=3600)         # wait after a candle closes so Module 01 has stored it
+    stale_factor: float = Field(3.0, ge=1.0, le=100.0)     # a closed candle older than factor x period is reported stale
+    request_event: Literal["ai.analysis.requested", "technical.analysis.requested"] = "ai.analysis.requested"
+    require_module_01_data: bool = True                     # stop when Module 01 has stored no candles at all
+
+    @field_validator("symbols")
+    @classmethod
+    def _symbols(cls, v: list[str]) -> list[str]:
+        out = [str(x).strip().upper() for x in v if str(x).strip()]
+        if not out or len(set(out)) != len(out):
+            raise ValueError("market_monitoring.symbols must be a non-empty list without duplicates.")
+        return out
+
+    @field_validator("timeframes")
+    @classmethod
+    def _timeframes(cls, v: list[str]) -> list[str]:
+        if not v or len(set(v)) != len(v):
+            raise ValueError("market_monitoring.timeframes must be a non-empty list without duplicates.")
+        return v
+
+
 class OrchestrationConfig(_M):
     retry: dict[str, Any] = Field(default_factory=dict)
     dispatch: DispatchCfg = DispatchCfg()
@@ -83,6 +110,7 @@ class OrchestrationConfig(_M):
     health: HealthCfg = HealthCfg()
     alerts: AlertCfg = AlertCfg()
     modules: dict[str, ModuleCfg] = Field(default_factory=dict)
+    market_monitoring: MarketMonitoringCfg = MarketMonitoringCfg()
 
     @field_validator("retry")
     @classmethod

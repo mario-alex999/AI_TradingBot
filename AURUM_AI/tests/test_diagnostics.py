@@ -11,7 +11,7 @@ from pydantic import SecretStr
 from aurum.config import Settings
 from aurum.diagnostics import FAIL, OK, WARN, classify_db_error, diagnose_database, diagnose_mt5
 from aurum.gateways.mt5_gateway import MT5ConnectionError, MT5Gateway, explain_mt5_error
-from conftest import FakeMT5
+from module01_helpers import FakeMT5
 
 Sym = namedtuple("Sym", "name")
 

@@ -14,8 +14,7 @@ import type {
   SetupScan,
   SignalDossier,
   StrategyRow,
-  TradeIdea,
-} from '@/types/decision';
+  TradeIdea, DecisionStatus } from '@/types/decision';
 
 /**
  * Module 05 endpoints. Every one is display-only or records a human decision; none can place a trade.
@@ -123,4 +122,8 @@ export interface BacktestStart {
 
 export function getJob(id: string, signal?: AbortSignal): Promise<JobState> {
   return apiGet<JobState>(`/decision/jobs/${encodeURIComponent(id)}`, { signal });
+}
+
+export function getDecisionStatus(opts: RequestOptions): Promise<Sourced<DecisionStatus | null>> {
+  return resolveSource(opts, () => null, (signal) => apiGet<DecisionStatus>('/decision/status', { signal }));
 }
