@@ -14,6 +14,7 @@ import { formatInZone } from '@/utils/format';
 import { forexMarketOpen } from '@/utils/sessions';
 import type { ConnectionState } from '@/types/system';
 import { UserMenu } from './UserMenu';
+import { Mt5LinkChip } from '@/components/mt5/Mt5LinkChip';
 
 /** Flips between light and dark (an explicit choice; "follow system" is in Settings). */
 function ThemeToggle({ className }: { className: string }) {
@@ -86,6 +87,7 @@ export function Topbar() {
               <StatusChip label="Database" status={db} />
               <StatusChip label="Collection" status={collection} />
             </span>
+            <Mt5LinkChip />
           </div>
         </div>
 

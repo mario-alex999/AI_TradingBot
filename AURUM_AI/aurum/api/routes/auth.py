@@ -21,6 +21,17 @@ from aurum.auth.passwords import csrf_for
 from aurum.auth.service import AuthError
 
 
+def _end_mt5_link(request: Request, session_id: str) -> None:
+    """Signing out also logs the person's MT5 terminal slot out (the connector would notice anyway within seconds)."""
+    getter = getattr(request.app.state, "mt5link_service", None)
+    if getter is None:
+        return
+    try:
+        getter().disconnect_session(session_id, "signed_out")
+    except Exception:  # noqa: BLE001 - mt5_connections may not exist before migration 0011; sign-out must still work
+        pass
+
+
 def build_router(state: AppState, login_rate_per_minute: int = 10) -> APIRouter:
     r = APIRouter()
     limiter = RateLimiter(login_rate_per_minute)
@@ -55,6 +66,7 @@ def build_router(state: AppState, login_rate_per_minute: int = 10) -> APIRouter:
             p = None
         if p is not None and p.session_id:
             auth_service(request).logout(p.session_id)
+            _end_mt5_link(request, p.session_id)
         response.delete_cookie(SESSION_COOKIE, path="/")
         return {"signedOut": True}
 

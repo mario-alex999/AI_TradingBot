@@ -49,6 +49,16 @@ class Settings(BaseSettings):
     mt5_server: str | None = None
     mt5_timeout_ms: int = 60_000
     mt5_server_timezone: str = "Etc/UTC"
+    mt5_portable: bool = False            # start the terminal with /portable (used by the per-person terminal slots)
+
+    # Per-person MT5 link: after signing in, a person authorises their own DEMO account and AURUM mirrors it read-only
+    # through a dedicated terminal copy ("slot"). 0 slots = the feature is off. Create slots with
+    # `python -m aurum.cli mt5-slots setup --count N`. Broker passwords are only ever held in the connector's memory.
+    mt5_slots_dir: Path = Path("C:/AURUM/mt5")
+    mt5_slot_count: int = Field(0, ge=0, le=32)
+    mt5_link_sync_seconds: int = Field(30, ge=5, le=3600)
+    mt5_link_lookback_days: int = Field(90, ge=1, le=3650)
+    mt5_link_connect_timeout_seconds: int = Field(120, ge=10, le=900)
 
     # Database
     db_host: str = "localhost"

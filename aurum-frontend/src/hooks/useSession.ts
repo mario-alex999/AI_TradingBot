@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { ApiError } from '@/services/api';
 import { logout, me } from '@/services/authService';
 import { useAuthStore } from '@/stores/authStore';
+import { useMt5Store } from '@/stores/mt5Store';
 
 /**
  * After a page reload a server session still has its httpOnly cookie, but the in-memory CSRF token is gone. This asks
@@ -43,5 +44,8 @@ export function useSignOut(): () => Promise<void> {
     useAuthStore.getState().signOut();
     qc.removeQueries({ queryKey: ['approvals'] });
     qc.removeQueries({ queryKey: ['management'] });
+    // The backend also logs this person's MT5 terminal out on sign-out.
+    qc.removeQueries({ queryKey: ['mt5-connection'] });
+    useMt5Store.getState().setPromptOpen(false);
   }, [qc]);
 }

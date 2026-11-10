@@ -238,6 +238,8 @@ class MT5Gateway:
         kwargs: dict[str, Any] = {"timeout": s.mt5_timeout_ms}
         if s.mt5_terminal_path:
             kwargs["path"] = s.mt5_terminal_path
+        if getattr(s, "mt5_portable", False):
+            kwargs["portable"] = True
         if s.mt5_login is not None:
             if s.mt5_password is None or not s.mt5_server:
                 raise MT5ConnectionError("MT5_LOGIN is set, so MT5_PASSWORD and MT5_SERVER must be set too.")

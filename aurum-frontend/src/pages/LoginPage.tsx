@@ -9,6 +9,7 @@ import { LogoMark } from '@/components/common/Logo';
 import { Button } from '@/components/common/Button';
 import { ROLE_LABEL } from '@/config/permissions';
 import { useAuthStore } from '@/stores/authStore';
+import { useMt5Store } from '@/stores/mt5Store';
 import { ApiError } from '@/services/api';
 import { getAuthStatus, login } from '@/services/authService';
 import type { Role } from '@/types/auth';
@@ -95,6 +96,8 @@ function ServerForm({ from, onDemo }: { from: string; onDemo: () => void }) {
     try {
       const r = await login(v.username.trim().toLowerCase(), v.password);
       signInServer(r.user, r.csrfToken);
+      // Straight after sign-in, ask the person to authorise their own MT5 DEMO account (they can skip).
+      if (r.user.permissions.includes('mt5:link')) useMt5Store.getState().setPromptOpen(true);
       navigate(from, { replace: true });
     } catch (e) {
       if (e instanceof ApiError && e.status === 429) setError('Too many sign-in attempts. Wait a minute and try again.');

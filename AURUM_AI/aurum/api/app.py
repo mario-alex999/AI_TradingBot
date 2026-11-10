@@ -69,7 +69,7 @@ def create_app(settings: Settings | None = None, cfg: CotConfig | None = None, e
                client: CftcClient | None = None, analysis_service: Any = None,
                intelligence_service: Any = None, ai_review_service: Any = None,
                decision_service: Any = None, risk_service: Any = None, auth_service: Any = None,
-               approval_service: Any = None, orchestration_service: Any = None) -> FastAPI:
+               approval_service: Any = None, orchestration_service: Any = None, mt5link_service: Any = None) -> FastAPI:
     from aurum.database.connection import engine_from_settings
     settings = settings or get_settings()
     cfg = cfg or load_cot_config()
@@ -166,6 +166,10 @@ def create_app(settings: Settings | None = None, cfg: CotConfig | None = None, e
     orch = orch_getter(state, orchestration_service)
     app.state.orchestration_service = orch
     app.include_router(build_orch_router(state, orch), prefix=f"{API_PREFIX}/orchestration", tags=["orchestration"])
+    from aurum.api.routes.mt5link import build_router as build_mt5_router, service_getter as mt5_getter
+    mt5link = mt5_getter(state, mt5link_service)
+    app.state.mt5link_service = mt5link                  # also used by /auth/logout to end the person's MT5 link
+    app.include_router(build_mt5_router(state, mt5link), prefix=f"{API_PREFIX}/mt5", tags=["mt5"])
     from aurum.api.routes.system import build_router as build_system_router
     app.include_router(build_system_router(state), prefix=API_PREFIX, tags=["system"])
     return app

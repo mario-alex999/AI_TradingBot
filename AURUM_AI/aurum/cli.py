@@ -442,5 +442,9 @@ from aurum.orchestration.cli import orchestration_app  # noqa: E402 - Module 08:
 
 app.add_typer(orchestration_app, name="orchestration")
 
+from aurum.mt5link.cli import mt5_slots_app  # noqa: E402 - per-person MT5 links: python -m aurum.cli mt5-slots ...
+
+app.add_typer(mt5_slots_app, name="mt5-slots")
+
 if __name__ == "__main__":
     app()

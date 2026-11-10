@@ -25,13 +25,17 @@ class AccountSnapshot(Base):
     margin_free: Mapped[float | None] = mapped_column(Float)
     margin_level: Mapped[float | None] = mapped_column(Float)                  # % ; None when no margin is used
     profit: Mapped[float | None] = mapped_column(Float)                        # floating P/L reported by MT5
-    __table_args__ = (Index("ix_account_snapshots_time", "captured_at"),)
+    __table_args__ = (Index("ix_account_snapshots_time", "captured_at"),
+                      Index("ix_account_snapshots_login_time", "login", "captured_at"))
 
 
 class AccountDeal(Base):
     """One raw MT5 deal (trade or balance operation). Positions are always rebuilt from every stored deal of the
     position, so syncing overlapping or late windows never double-counts anything."""
     __tablename__ = "account_deals"
+    # Several people can link their own MT5 accounts, so every mirrored row carries the account it came from
+    # (migration 0011). Deal tickets are only unique within one broker account.
+    login: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False, default=0)
     ticket: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
     position_id: Mapped[int | None] = mapped_column(BigInteger)
     ts_utc: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
@@ -48,13 +52,15 @@ class AccountDeal(Base):
     tp: Mapped[float | None] = mapped_column(Float)
     magic: Mapped[int | None] = mapped_column(BigInteger)
     comment: Mapped[str | None] = mapped_column(Text)
-    __table_args__ = (Index("ix_account_deals_position", "position_id"), Index("ix_account_deals_time", "ts_utc"))
+    __table_args__ = (Index("ix_account_deals_position", "position_id"), Index("ix_account_deals_time", "ts_utc"),
+                      Index("ix_account_deals_login_time", "login", "ts_utc"))
 
 
 class TradeRecord(Base):
     """One position leg rebuilt from its deals (open or closed). ``id`` is the MT5 position id, or
     ``<position_id>-<n>`` for the legs a netting reversal opens."""
     __tablename__ = "trade_records"
+    login: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False, default=0)
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     position_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     symbol: Mapped[str] = mapped_column(String(64), nullable=False)            # canonical when mapped, else broker symbol
@@ -73,4 +79,5 @@ class TradeRecord(Base):
     magic: Mapped[int | None] = mapped_column(BigInteger)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False, default=utcnow, onupdate=utcnow)
     __table_args__ = (Index("ix_trade_records_status_close", "status", "close_time"),
-                      Index("ix_trade_records_position", "position_id"))
+                      Index("ix_trade_records_position", "position_id"),
+                      Index("ix_trade_records_login_status", "login", "status"))

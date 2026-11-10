@@ -109,12 +109,12 @@ def test_overlapping_syncs_never_double_count_partial_closes(env):
     entry, partial = deal(10, 200, 0, 0, 2.0, 1.1, T0), deal(11, 200, 1, 1, 0.5, 1.101, T0 + timedelta(days=20), profit=50.0)
     rec.store_deals([entry, partial], to_utc)
     with session_scope(eng) as s:
-        r = s.get(TradeRecord, "200")
+        r = s.get(TradeRecord, (0, "200"))
         assert (r.status, r.volume, r.pnl) == ("open", 1.5, 50.0)
     # A later window holds the partial exit again and the final exit, but not the entry deal.
     rec.store_deals([partial, deal(12, 200, 1, 1, 1.5, 1.102, T0 + timedelta(days=40), profit=300.0)], to_utc)
     with session_scope(eng) as s:
-        r = s.get(TradeRecord, "200")
+        r = s.get(TradeRecord, (0, "200"))
         assert (r.status, r.pnl, r.volume) == ("closed", 350.0, 2.0)
         assert r.close_price == pytest.approx(1.10175)
 
@@ -153,6 +153,44 @@ def test_sync_uses_only_account_info_and_deal_history(env):
                          deals=lambda a, b: calls.append("deals") or history(now), clock=SimpleNamespace(to_utc=to_utc))
     res = AccountRecorder(eng).sync(gw, lookback_days=30, now=now)
     assert calls == ["account", "deals"] and res["open"] == 1 and res["cash_flows"] == 1
+
+
+def test_two_linked_accounts_never_mix(env):
+    """Same deal tickets and position ids on two broker accounts stay separate rows; each account rebuilds only its own."""
+    eng, _, now = env
+    a, b = AccountRecorder(eng, login=111), AccountRecorder(eng, login=222)
+    a.store_deals([deal(10, 200, 0, 0, 1.0, 1.1, now - timedelta(days=5))], to_utc)
+    b.store_deals([deal(10, 200, 1, 0, 3.0, 1.2, now - timedelta(days=2))], to_utc)
+    b.store_deals([deal(11, 200, 0, 1, 3.0, 1.19, now - timedelta(days=1), profit=30.0)], to_utc)
+    with session_scope(eng) as s:
+        ra, rb = s.get(TradeRecord, (111, "200")), s.get(TradeRecord, (222, "200"))
+        assert (ra.side, ra.status, ra.volume) == ("buy", "open", 1.0)
+        assert (rb.side, rb.status, rb.pnl) == ("sell", "closed", 30.0)
+    assert a.sync_window_start(now, 1) == now - timedelta(days=6)
+    assert b.sync_window_start(now, 1) == now - timedelta(days=2)
+
+
+def test_recorder_bound_to_a_login_refuses_another_accounts_snapshot(env):
+    eng, _, _ = env
+    with pytest.raises(ValueError, match="not the linked account"):
+        AccountRecorder(eng, login=999).record_snapshot(ACCOUNT)
+
+
+def test_thinning_is_per_account(env):
+    eng, _, now = env
+    old = (now - timedelta(days=10)).replace(minute=0, second=0)
+    rec = AccountRecorder(eng)
+    rec.record_snapshot(ACCOUNT, old)
+    rec.record_snapshot({**ACCOUNT, "login": 456}, old + timedelta(seconds=10))
+    assert rec.compact(now) == 0
+
+
+def test_sync_stores_deals_under_the_reported_login(env):
+    eng, _, now = env
+    gw = SimpleNamespace(account_snapshot=lambda: ACCOUNT, deals=lambda a, b: history(now), clock=SimpleNamespace(to_utc=to_utc))
+    assert AccountRecorder(eng).sync(gw, lookback_days=30, now=now)["login"] == 123
+    with session_scope(eng) as s:
+        assert {r.login for r in s.query(TradeRecord).all()} == {123}
 
 
 def test_account_summary_null_until_first_snapshot(env):

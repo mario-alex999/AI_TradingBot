@@ -35,21 +35,22 @@ ORCH_OPERATE = "orchestration:operate"     # manual trigger, retry, cancel, repl
 ORCH_MANAGE = "orchestration:manage"       # register workflows and versions, activate, configuration, subscriptions
 ORCH_CALLBACK = "orchestration:callback"   # n8n: execution callbacks and the events webhook (service tokens only)
 ORCH_LOCKS = "orchestration:locks"         # acquire, renew and release coordination leases (services)
+MT5_LINK = "mt5:link"                      # link one's own MT5 DEMO account after signing in (read-only mirror)
 
 ROLE_PERMISSIONS: dict[Role, frozenset[str]] = {
     Role.ADMIN: frozenset({VIEW, DECIDE, CREATE_REQUEST, CANCEL, REVALIDATE, MANAGE_REQUEST, MANAGE_DECIDE, EMERGENCY,
-                           POLICY, AUDIT_ALL, USERS, ORCH_VIEW, ORCH_TRIGGER, ORCH_OPERATE, ORCH_MANAGE}),
+                           POLICY, AUDIT_ALL, USERS, ORCH_VIEW, ORCH_TRIGGER, ORCH_OPERATE, ORCH_MANAGE, MT5_LINK}),
     Role.TRADER: frozenset({VIEW, DECIDE, CREATE_REQUEST, CANCEL, REVALIDATE, MANAGE_REQUEST, MANAGE_DECIDE, EMERGENCY,
-                            ORCH_VIEW, ORCH_TRIGGER, ORCH_OPERATE}),
-    Role.REVIEWER: frozenset({VIEW, DECIDE, REVALIDATE, ORCH_VIEW}),
-    Role.OBSERVER: frozenset({VIEW, ORCH_VIEW}),
+                            ORCH_VIEW, ORCH_TRIGGER, ORCH_OPERATE, MT5_LINK}),
+    Role.REVIEWER: frozenset({VIEW, DECIDE, REVALIDATE, ORCH_VIEW, MT5_LINK}),
+    Role.OBSERVER: frozenset({VIEW, ORCH_VIEW, MT5_LINK}),
     Role.SERVICE: frozenset({VIEW, EVENTS_IN, EXECUTION_REPORT, EXECUTION_READ, ORCH_VIEW, ORCH_TRIGGER, ORCH_CALLBACK,
                              ORCH_LOCKS}),
 }
 
 # Permissions that only a signed-in person may use, whatever a service token's scopes say.
 HUMAN_ONLY = frozenset({DECIDE, CREATE_REQUEST, CANCEL, MANAGE_REQUEST, MANAGE_DECIDE, EMERGENCY, POLICY, USERS, ORCH_OPERATE,
-                        ORCH_MANAGE})
+                        ORCH_MANAGE, MT5_LINK})
 
 
 def permissions_for(role: Role, scopes: frozenset[str] | None = None) -> frozenset[str]:

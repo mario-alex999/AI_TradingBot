@@ -42,4 +42,5 @@ export type ServerPermission =
   | 'orchestration:view'
   | 'orchestration:trigger'
   | 'orchestration:operate'
-  | 'orchestration:manage';
+  | 'orchestration:manage'
+  | 'mt5:link';
