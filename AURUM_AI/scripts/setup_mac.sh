@@ -25,17 +25,27 @@ echo "Project: $REPO_ROOT"
 git fetch --prune origin
 git remote set-head origin --auto >/dev/null
 DEFAULT="$(git symbolic-ref --short refs/remotes/origin/HEAD | sed 's#^origin/##')"
+FOLLOW="$DEFAULT"
+SYNC_ARGS=""
+if ! git cat-file -e "origin/$DEFAULT:AURUM_AI/scripts/sync_from_github.sh" 2>/dev/null; then
+  # The default branch does not have these scripts yet (their pull request is not merged): stay where we are.
+  FOLLOW="$(git rev-parse --abbrev-ref HEAD)"
+  SYNC_ARGS="--branch $FOLLOW"
+  echo "Note: $DEFAULT does not have the sync scripts yet, so this copy follows $FOLLOW for now."
+  echo "      After the pull request is merged, run this setup again to follow $DEFAULT."
+fi
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
   echo "You have edited tracked files, so the branch was left as it is:"
   git status --short --untracked-files=no
 else
-  git checkout "$DEFAULT"
-  git merge --ff-only "origin/$DEFAULT"
-  echo "On $DEFAULT, up to date."
+  git checkout "$FOLLOW"
+  git merge --ff-only "origin/$FOLLOW"
+  echo "On $FOLLOW, up to date."
 fi
 
 # 2. Background sync.
-bash "$SCRIPT_DIR/sync_from_github.sh" --install
+# shellcheck disable=SC2086
+bash "$SCRIPT_DIR/sync_from_github.sh" --install $SYNC_ARGS
 
 # 3. Terminal shortcuts.
 BLOCK="$BEGIN
