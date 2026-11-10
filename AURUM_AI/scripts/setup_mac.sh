@@ -9,6 +9,8 @@
 #      aurum-root   go to the project root
 #      aurum-sync   pull the latest version now
 #      aurum-log    show the last sync results
+#      aurum-start  run the whole project (database, API, dashboard) and open it   (start_mac.sh)
+#      aurum-stop   stop it;  aurum-status  show what is running
 #    plus AURUM_HOME, the project root, for your own scripts.
 set -eu
 
@@ -54,6 +56,9 @@ aurum() { cd \"\$AURUM_HOME/AURUM_AI\" || return; [ -f .venv/bin/activate ] && .
 alias aurum-root='cd \"\$AURUM_HOME\"'
 alias aurum-sync='bash \"\$AURUM_HOME/AURUM_AI/scripts/sync_from_github.sh\"'
 alias aurum-log='tail -n 20 \"\$AURUM_HOME/AURUM_AI/logs/sync.txt\"'
+alias aurum-start='bash \"\$AURUM_HOME/AURUM_AI/scripts/start_mac.sh\"'
+alias aurum-stop='bash \"\$AURUM_HOME/AURUM_AI/scripts/start_mac.sh\" --stop'
+alias aurum-status='bash \"\$AURUM_HOME/AURUM_AI/scripts/start_mac.sh\" --status'
 $END"
 
 add_block() {
