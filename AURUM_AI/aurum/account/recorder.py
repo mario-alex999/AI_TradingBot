@@ -1,8 +1,11 @@
 """Turns MT5 account_info / history_deals_get output into stored rows. Read-only towards MT5.
 
-Raw deals are stored once (keyed by deal ticket); every position touched by a sync is then rebuilt from ALL of its
+Raw deals are stored once (keyed by account login + deal ticket); every position touched by a sync is then rebuilt from ALL of its
 stored deals, so overlapping windows, partial closes and netting reversals never double-count. Open positions come
 from the deal history, so no position or order query is ever needed.
+
+Every row carries the MT5 login it came from, so several people's linked accounts never mix: a recorder built with
+``login=`` only reads and writes that account; without it, each sync uses the login the terminal reports.
 """
 from __future__ import annotations
 
@@ -55,8 +58,12 @@ def _as_deal(r: AccountDeal) -> dict[str, Any]:
 
 
 class AccountRecorder:
-    def __init__(self, engine: Engine):
+    def __init__(self, engine: Engine, login: int | None = None):
         self.engine = engine
+        self.login = int(login) if login is not None else None
+
+    def _login(self, login: int | None) -> int | None:
+        return int(login) if login is not None else self.login
 
     def canonical_map(self) -> dict[str, str]:
         with session_scope(self.engine) as s:
@@ -66,12 +73,16 @@ class AccountRecorder:
         row = snapshot_from_account(account, at or datetime.now(timezone.utc))
         if row["trade_mode"] != "DEMO":  # Module 01 refuses non-demo accounts; never mirror one either.
             raise ValueError(f"Refusing to record a {row['trade_mode']} account; AURUM mirrors DEMO accounts only.")
+        if self.login is not None and row["login"] != self.login:
+            raise ValueError(f"The terminal reports account {row['login']}, not the linked account {self.login}.")
         with session_scope(self.engine) as s:
             s.add(AccountSnapshot(**row))
         return row
 
-    def store_deals(self, deals: list[dict[str, Any]], to_utc: Callable[[float], datetime]) -> dict[str, int]:
-        rows = [_deal_row(d, to_utc) for d in deals if d.get("ticket")]
+    def store_deals(self, deals: list[dict[str, Any]], to_utc: Callable[[float], datetime],
+                    login: int | None = None) -> dict[str, int]:
+        acct = self._login(login) or 0               # 0 = rows mirrored before accounts were told apart
+        rows = [{**_deal_row(d, to_utc), "login": acct} for d in deals if d.get("ticket")]
         touched = {r["position_id"] for r in rows if r["position_id"] and r["type"] in (0, 1)}
         with session_scope(self.engine) as s:
             for r in rows:
@@ -79,38 +90,44 @@ class AccountRecorder:
             s.flush()
             legs: list[dict[str, Any]] = []
             if touched:
-                stored = s.execute(select(AccountDeal).where(AccountDeal.position_id.in_(touched))).scalars().all()
+                stored = s.execute(select(AccountDeal).where(AccountDeal.login == acct,
+                                                             AccountDeal.position_id.in_(touched))).scalars().all()
                 legs = build_positions([_as_deal(r) for r in stored], _utc_from_seconds, self.canonical_map())
-                s.execute(delete(TradeRecord).where(TradeRecord.position_id.in_(touched)))
-                s.add_all(TradeRecord(**leg) for leg in legs)
+                s.execute(delete(TradeRecord).where(TradeRecord.login == acct, TradeRecord.position_id.in_(touched)))
+                s.add_all(TradeRecord(**leg, login=acct) for leg in legs)
         return {"deals": len(rows), "positions": len(legs), "open": sum(p["status"] == "open" for p in legs),
                 "cash_flows": sum(r["type"] not in (0, 1, 13, 14) for r in rows)}
 
-    def sync_window_start(self, now: datetime, lookback_days: int) -> datetime:
+    def sync_window_start(self, now: datetime, lookback_days: int, login: int | None = None) -> datetime:
         """Read back to the newest stored deal (minus a day) when that is older than the lookback, so a long pause
         never leaves a close unseen."""
+        acct = self._login(login)
+        q = select(func.max(AccountDeal.ts_utc))
+        if acct is not None:
+            q = q.where(AccountDeal.login == acct)
         with session_scope(self.engine) as s:
-            latest = s.execute(select(func.max(AccountDeal.ts_utc))).scalar()
+            latest = s.execute(q).scalar()
         start = now - timedelta(days=lookback_days)
         return min(start, latest - timedelta(days=1)) if latest else start
 
-    def sync_deals(self, gateway: Any, lookback_days: int = 30, now: datetime | None = None) -> dict[str, int]:
+    def sync_deals(self, gateway: Any, lookback_days: int = 30, now: datetime | None = None,
+                   login: int | None = None) -> dict[str, int]:
         now = now or datetime.now(timezone.utc)
-        start = self.sync_window_start(now, lookback_days)
-        return self.store_deals(gateway.deals(start, now + timedelta(days=1)), gateway.clock.to_utc)
+        start = self.sync_window_start(now, lookback_days, login)
+        return self.store_deals(gateway.deals(start, now + timedelta(days=1)), gateway.clock.to_utc, login)
 
     def compact(self, now: datetime | None = None, raw_days: int = RAW_SNAPSHOT_DAYS) -> int:
         """Keep every snapshot of the last ``raw_days``; older ones are thinned to the last snapshot of each UTC hour.
         Bounds the table at ~24 rows/day of history (a 10 s cadence would otherwise add ~8,600 rows/day)."""
         cutoff = (now or datetime.now(timezone.utc)) - timedelta(days=raw_days)
         with session_scope(self.engine) as s:
-            rows = s.execute(select(AccountSnapshot.id, AccountSnapshot.captured_at)
+            rows = s.execute(select(AccountSnapshot.id, AccountSnapshot.captured_at, AccountSnapshot.login)
                              .where(AccountSnapshot.captured_at < cutoff).order_by(AccountSnapshot.captured_at)).all()
-            keep: dict[datetime, int] = {}
-            for id_, at in rows:
-                keep[at.replace(minute=0, second=0, microsecond=0)] = id_
+            keep: dict[tuple[int, datetime], int] = {}
+            for id_, at, login in rows:                       # per account: one account never thins another away
+                keep[(login, at.replace(minute=0, second=0, microsecond=0))] = id_
             kept = set(keep.values())
-            drop = [id_ for id_, _ in rows if id_ not in kept]
+            drop = [id_ for id_, _, _ in rows if id_ not in kept]
             for i in range(0, len(drop), 500):
                 s.execute(delete(AccountSnapshot).where(AccountSnapshot.id.in_(drop[i:i + 500])))
         return len(drop)
@@ -119,7 +136,7 @@ class AccountRecorder:
         """One read-only pass: an account snapshot plus the deal history since the last sync (at least ``lookback_days``)."""
         now = now or datetime.now(timezone.utc)
         snap = self.record_snapshot(gateway.account_snapshot(), now)
-        counts = self.sync_deals(gateway, lookback_days, now)
+        counts = self.sync_deals(gateway, lookback_days, now, login=snap["login"])
         self.compact(now)
         log.info("Account synced", extra={"equity": snap["equity"], **counts})
-        return {"equity": snap["equity"], "currency": snap["currency"], **counts}
+        return {"login": snap["login"], "equity": snap["equity"], "currency": snap["currency"], **counts}

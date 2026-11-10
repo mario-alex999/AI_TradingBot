@@ -19,6 +19,11 @@ export default tseslint.config(
     },
   },
   {
+    // Vercel Edge Function (runs on the server, not in the browser).
+    files: ['api/**/*.ts'],
+    languageOptions: { globals: { ...globals.node, ...globals.browser } },
+  },
+  {
     files: ['src/test/**', '**/*.test.{ts,tsx}'],
     rules: { 'react-refresh/only-export-components': 'off' },
   },

@@ -10,6 +10,7 @@ import { MobileNavigation } from './MobileNavigation';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { useResolvedTheme } from '@/theme/theme';
+import { Mt5Prompt } from '@/components/mt5/Mt5Prompt';
 
 export function AppLayout() {
   useRealtimeQuotes();
@@ -26,6 +27,7 @@ export function AppLayout() {
       <MobileNavigation />
       <CommandPalette />
       <ShortcutsDialog />
+      <Mt5Prompt />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar />
         <main id="main" className="mx-auto w-full max-w-[1680px] flex-1 px-4 pb-8 pt-5 lg:px-8 lg:pt-6">

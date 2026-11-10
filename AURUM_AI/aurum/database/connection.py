@@ -100,6 +100,7 @@ def init_database(engine: Engine) -> list[str]:
         import aurum.auth.db_models  # noqa: F401 - registers users, sessions and service tokens
         import aurum.approvals.db_models  # noqa: F401 - registers Module 07 tables on the shared Base
         import aurum.orchestration.db_models  # noqa: F401 - registers Module 08 tables on the shared Base
+        import aurum.mt5link.db_models  # noqa: F401 - registers per-person MT5 account links
         from aurum.database.models import Base
         Base.metadata.create_all(engine)
         steps.append("sqlalchemy create_all")
