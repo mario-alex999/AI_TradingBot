@@ -67,7 +67,16 @@ esac
 say "Starting AURUM AI from $REPO_ROOT"
 
 # ---- 0. tools ----
-command -v docker >/dev/null 2>&1 || die "Docker is not installed. Install Docker Desktop: https://www.docker.com/products/docker-desktop/"
+# Docker Desktop puts its command in one of these folders; a new Terminal may not search them yet.
+export PATH="$PATH:$HOME/.docker/bin:/Applications/Docker.app/Contents/Resources/bin:/usr/local/bin:/opt/homebrew/bin"
+if ! command -v docker >/dev/null 2>&1; then
+  if [ -d /Applications/Docker.app ]; then
+    warn "Docker Desktop is installed but has not finished its first start; opening it…"
+    open -a Docker 2>/dev/null || true
+    for _ in $(seq 1 60); do command -v docker >/dev/null 2>&1 && break; sleep 2; done
+  fi
+  command -v docker >/dev/null 2>&1 || die "Docker is not installed. Install Docker Desktop: https://www.docker.com/products/docker-desktop/ (then open it once)"
+fi
 if ! docker info >/dev/null 2>&1; then
   warn "Docker Desktop is not running; opening it…"
   open -a Docker 2>/dev/null || true
