@@ -13,6 +13,7 @@ Executions  POST /executions/trigger; GET /executions, /executions/{id}; POST /e
 Events      POST /events/publish; GET /events, /events/{id}, /events/{id}/deliveries; POST /events/{id}/replay
             GET /events/stream (server-sent events); GET|POST /subscriptions; POST /subscriptions/{id}/enable|disable
 Webhooks    POST /webhooks/n8n/callback, /webhooks/n8n/events
+Monitoring  GET /market-monitoring/config|preflight|eligible|candle-status|dispatch-status (WF08-01, read-only)
 Integrations GET /integrations, /integrations/{id}/health; POST /integrations/{id}/test
 Config      GET|PUT /config
 Schedules   GET|POST /schedules; PUT /schedules/{id}; POST /schedules/{id}/pause|resume; GET /schedules/{id}/runs
@@ -493,5 +494,35 @@ def build_router(state: AppState, svc: Callable[[], Any]) -> APIRouter:
               before: int | None = Query(None, ge=1), limit: int = Query(200, ge=1, le=1000)) -> Any:
         return run(response, lambda: svc().audit_log(action=action, entity_type=entity_type, entity_id=entity_id,
                                                      actor=actor_name, since=since, limit=limit, before=before))
+
+    # ---- WF08-01 market monitoring (read-only checks the n8n workflow branches on) ---------------------------------------
+    def monitor() -> Any:
+        from aurum.orchestration.market_monitoring import MarketMonitor
+        service = svc()
+        return MarketMonitor(service.repo.engine, service.config, clock=service.now)
+
+    @r.get("/market-monitoring/config")
+    def mm_config(response: Response, who: Principal = View) -> Any:
+        return run(response, lambda: monitor().config_view())
+
+    @r.get("/market-monitoring/preflight")
+    def mm_preflight(response: Response, who: Principal = View) -> Any:
+        return run(response, lambda: monitor().preflight())
+
+    @r.get("/market-monitoring/eligible")
+    def mm_eligible(response: Response, symbols: str | None = Query(None, max_length=200),
+                    timeframes: str | None = Query(None, max_length=60), who: Principal = View) -> Any:
+        split = lambda v: [x.strip() for x in v.split(",") if x.strip()] if v else None  # noqa: E731
+        return run(response, lambda: monitor().eligible(split(symbols), split(timeframes)))
+
+    @r.get("/market-monitoring/candle-status")
+    def mm_candle(response: Response, symbol: str = Query(..., max_length=16), timeframe: str = Query(..., max_length=4),
+                  who: Principal = View) -> Any:
+        return run(response, lambda: monitor().candle_status(symbol, timeframe))
+
+    @r.get("/market-monitoring/dispatch-status")
+    def mm_dispatch(response: Response, symbol: str = Query(..., max_length=16), timeframe: str = Query(..., max_length=4),
+                    candle_open: datetime = Query(..., alias="candleOpen"), who: Principal = View) -> Any:
+        return run(response, lambda: monitor().dispatch_status(symbol, timeframe, candle_open))
 
     return r
