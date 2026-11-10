@@ -438,5 +438,9 @@ from aurum.approvals.cli import approvals_app, users_app  # noqa: E402 - Module 
 app.add_typer(users_app, name="users")
 app.add_typer(approvals_app, name="approvals")
 
+from aurum.orchestration.cli import orchestration_app  # noqa: E402 - Module 08: python -m aurum.cli orchestration ...
+
+app.add_typer(orchestration_app, name="orchestration")
+
 if __name__ == "__main__":
     app()

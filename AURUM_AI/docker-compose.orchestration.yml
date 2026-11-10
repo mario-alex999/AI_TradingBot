@@ -1,0 +1,37 @@
+# Module 08 (workflow orchestration) worker, in its own Compose project so starting or stopping it never restarts the
+# database, n8n or the Module 07 services.
+#
+#   docker compose -f docker-compose.orchestration.yml --env-file .env up -d --build
+#   docker compose -f docker-compose.orchestration.yml --env-file .env logs -f
+#   docker compose -f docker-compose.orchestration.yml --env-file .env down
+#
+# Run migrations first:  python -m aurum.cli init-db   (adds the orch_* tables; existing tables are not changed)
+# Run ONE worker per environment for now. Several workers are safe (claims, leases and unique slots prevent duplicates),
+# but one is enough for the demo and keeps the logs simple.
+#
+# The worker bridges Module 06/07 events (read-only), delivers subscriptions, fires schedules, sends queued executions to
+# n8n, sweeps time-outs and runs health checks. It never approves, executes or contacts MT5 or a broker.
+name: aurum-orchestration
+services:
+  orchestration-worker:
+    build: .
+    image: aurum-backend:local
+    container_name: aurum-orchestration-worker
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_HOST: host.docker.internal                       # the TimescaleDB container's published port on the host
+      N8N_BASE_URL: ${ORCH_DOCKER_N8N_BASE_URL:-http://host.docker.internal:5678}
+      AURUM_INTERNAL_BASE_URL: ${ORCH_DOCKER_INTERNAL_BASE_URL:-http://host.docker.internal:8000/api/v1}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: ["python", "-m", "aurum.cli", "orchestration", "worker"]
+    healthcheck:
+      test: ["CMD", "python", "-m", "aurum.cli", "orchestration", "status"]
+      interval: 60s
+      timeout: 20s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 384m

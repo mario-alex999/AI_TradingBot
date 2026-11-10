@@ -28,6 +28,7 @@ const PerformancePage = lazy(() => import('@/pages/PerformancePage'));
 const DataCentrePage = lazy(() => import('@/pages/DataCentrePage'));
 const AgentCentrePage = lazy(() => import('@/pages/AgentCentrePage'));
 const NotificationsPage = lazy(() => import('@/pages/NotificationsPage'));
+const OrchestrationPage = lazy(() => import('@/pages/OrchestrationPage'));
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'));
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'));
 const ApprovalsPage = lazy(() => import('@/pages/ApprovalsPage'));
@@ -69,6 +70,7 @@ export default function App() {
           <Route path="data" element={<DataCentrePage />} />
           <Route path="agents" element={<RequirePermission permission="view:system"><AgentCentrePage /></RequirePermission>} />
           <Route path="notifications" element={<NotificationsPage />} />
+          <Route path="orchestration" element={<RequirePermission permission="view:dashboard"><OrchestrationPage /></RequirePermission>} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="dashboard" element={<Navigate to="/" replace />} />
           <Route path="*" element={<NotFoundPage />} />

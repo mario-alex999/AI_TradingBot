@@ -103,6 +103,26 @@ class Settings(BaseSettings):
     telegram_bot_token: SecretStr | None = None
     telegram_chat_id: str | None = None
 
+    # Module 08 - workflow orchestration with n8n. Secrets are SecretStr, never logged and never returned by the API.
+    # N8N_BASE_URL is how AURUM reaches n8n (inside Docker use the service name, e.g. http://n8n:5678, never localhost);
+    # ORCHESTRATION_CALLBACK_BASE_URL is how n8n reaches AURUM (from the n8n container: http://host.docker.internal:8000/...).
+    orchestration_environment: Literal["development", "test", "demo", "production"] = "demo"
+    orchestration_config: Path = Path("config/orchestration.yaml")
+    orchestration_worker_interval_seconds: int = Field(10, ge=2)
+    orchestration_callback_base_url: str = "http://host.docker.internal:8000/api/v1/orchestration"
+    aurum_internal_base_url: str = "http://127.0.0.1:8000/api/v1"
+    orchestration_service_token: SecretStr | None = None
+    n8n_base_url: str = "http://localhost:5678"
+    n8n_public_url: str | None = None                  # editor URL shown in the UI (defaults to N8N_BASE_URL)
+    n8n_webhook_base_url: str | None = None            # defaults to N8N_BASE_URL/webhook
+    n8n_environment: Literal["development", "test", "demo", "production"] | None = None   # must match when set
+    n8n_api_key: SecretStr | None = None
+    n8n_webhook_shared_secret: SecretStr | None = None
+    n8n_webhook_shared_secret_previous: SecretStr | None = None
+    n8n_webhook_auth_token: SecretStr | None = None
+    n8n_request_timeout: float = Field(10, gt=0, le=120)
+    n8n_retry_limit: int = Field(5, ge=1, le=20)       # upper bound on automatic dispatch attempts
+
     # Module 04 - market intelligence. Provider keys are secrets: never logged, never returned by the API.
     economic_calendar_enabled: bool = True
     economic_calendar_provider: str | None = None          # fmp | finnhub | tradingeconomics
@@ -150,7 +170,9 @@ class Settings(BaseSettings):
                      "economic_calendar_base_url", "fred_api_key", "risk_max_per_trade_pct", "risk_max_daily_loss_pct",
                      "risk_max_open_positions", "risk_max_total_exposure_pct", "risk_max_correlated_exposure_pct", "anthropic_api_key", "openai_api_key", "ai_provider_model", "ai_provider_base_url",
                      "ai_review_monthly_budget_usd", "approvals_events_webhook_url", "smtp_host", "smtp_username",
-                     "smtp_password", "smtp_from", "telegram_bot_token", "telegram_chat_id", mode="before")
+                     "smtp_password", "smtp_from", "telegram_bot_token", "telegram_chat_id", "orchestration_service_token",
+                     "n8n_public_url", "n8n_webhook_base_url", "n8n_environment", "n8n_api_key", "n8n_webhook_shared_secret",
+                     "n8n_webhook_shared_secret_previous", "n8n_webhook_auth_token", mode="before")
     @classmethod
     def _blank_is_none(cls, v: Any) -> Any:
         return None if isinstance(v, str) and v.strip() == "" else v
