@@ -69,7 +69,7 @@ def create_app(settings: Settings | None = None, cfg: CotConfig | None = None, e
                client: CftcClient | None = None, analysis_service: Any = None,
                intelligence_service: Any = None, ai_review_service: Any = None,
                decision_service: Any = None, risk_service: Any = None, auth_service: Any = None,
-               approval_service: Any = None) -> FastAPI:
+               approval_service: Any = None, orchestration_service: Any = None) -> FastAPI:
     from aurum.database.connection import engine_from_settings
     settings = settings or get_settings()
     cfg = cfg or load_cot_config()
@@ -161,6 +161,10 @@ def create_app(settings: Settings | None = None, cfg: CotConfig | None = None, e
     approvals, management = build_approval_routers(state, approvals_svc)
     app.include_router(approvals, prefix=f"{API_PREFIX}/approvals", tags=["approvals"])
     app.include_router(management, prefix=f"{API_PREFIX}/trade-management", tags=["trade-management"])
+    from aurum.api.routes.orchestration import build_router as build_orch_router, service_getter as orch_getter
+    orch = orch_getter(state, orchestration_service)
+    app.state.orchestration_service = orch
+    app.include_router(build_orch_router(state, orch), prefix=f"{API_PREFIX}/orchestration", tags=["orchestration"])
     from aurum.api.routes.system import build_router as build_system_router
     app.include_router(build_system_router(state), prefix=API_PREFIX, tags=["system"])
     return app

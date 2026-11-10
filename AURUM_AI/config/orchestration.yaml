@@ -1,0 +1,52 @@
+# Module 08 - Workflow Orchestration: initial (version 1) configuration.
+# After the first start this file only seeds the database. Later changes go through PUT /api/v1/orchestration/config
+# (a new audited version with a reason) or the Configuration tab of the Orchestration page.
+# No secrets here: N8N_API_KEY, N8N_WEBHOOK_SHARED_SECRET, N8N_WEBHOOK_AUTH_TOKEN and ORCHESTRATION_SERVICE_TOKEN live in .env.
+
+retry:                      # default policy; a workflow registration can override any field
+  max_attempts: 5
+  base_seconds: 15
+  factor: 2.0
+  max_backoff_seconds: 900
+  max_elapsed_seconds: 21600
+  jitter: 0.1
+  retry_on_workflow_failure: false
+  retry_on_timeout: false
+
+dispatch:
+  max_parallel: 5           # starting point for the demo (regular n8n execution mode); raise only after load testing
+  batch_size: 50
+  lease_seconds: 120
+
+timeouts:
+  default_execution_seconds: 300
+  n8n_request_seconds: 10
+  module_request_seconds: 10
+
+callbacks:
+  max_skew_seconds: 300
+  signature_required: false # true = callbacks must carry X-Aurum-Signature as well as the service token
+  max_output_bytes: 65536
+
+events:
+  delivery_max_attempts: 6
+  retention_days: 30
+  bridge_sources: [module_06, module_07]
+  allowed_webhook_hosts: [localhost, 127.0.0.1, host.docker.internal, n8n, aurum-n8n]
+
+scheduling:
+  timezone: Africa/Lagos    # schedules are read in this zone; every stored timestamp is UTC
+  catch_up: latest
+
+health:
+  interval_seconds: 60
+  history_days: 7
+  degraded_failure_rate: 0.5
+  min_executions_for_rate: 4
+  event_lag_warn_seconds: 300
+
+alerts:
+  dead_letter_warn: 1
+  failure_rate_warn: 0.25
+
+modules: {}                 # e.g. module_09: {base_url: "http://module09:8100"} once Module 09 exists

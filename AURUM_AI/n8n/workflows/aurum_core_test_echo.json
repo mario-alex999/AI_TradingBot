@@ -1,0 +1,135 @@
+{
+  "id": "aurumCoreTestEcho01",
+  "name": "AURUM - Core test echo (Module 08, harmless)",
+  "active": false,
+  "nodes": [
+    {
+      "id": "8a0c7e10-0008-4d00-9e01-000000000001",
+      "name": "AURUM trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "aurum-core-test-echo",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "aurum-core-test-echo",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {"id": "aurumM08WebhookTok", "name": "AURUM Module 08 - webhook token (X-AURUM-Webhook-Token)"}
+      }
+    },
+    {
+      "id": "8a0c7e10-0008-4d00-9e01-000000000002",
+      "name": "Accept (return the n8n execution id)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [240, 0],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ accepted: true, executionId: $execution.id }) }}",
+        "options": {"responseCode": 200}
+      }
+    },
+    {
+      "id": "8a0c7e10-0008-4d00-9e01-000000000003",
+      "name": "Callback: started",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/v1/orchestration/webhooks/n8n/callback",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-started', executionId: $('AURUM trigger').item.json.body.executionId, workflowId: $('AURUM trigger').item.json.body.workflowId, workflowVersion: $('AURUM trigger').item.json.body.workflowVersion, attempt: $('AURUM trigger').item.json.body.attempt, environment: $('AURUM trigger').item.json.body.environment, status: 'started', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO() }) }}",
+        "options": {"timeout": 10000}
+      },
+      "credentials": {
+        "httpHeaderAuth": {"id": "aurumM08ServiceTok", "name": "AURUM Module 08 - service token (Authorization: Bearer)"}
+      }
+    },
+    {
+      "id": "8a0c7e10-0008-4d00-9e01-000000000004",
+      "name": "Simulate failure?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [720, 0],
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "loose"},
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "sim1",
+              "leftValue": "={{ ($('AURUM trigger').item.json.body.input || {}).simulate || 'success' }}",
+              "rightValue": "failure",
+              "operator": {"type": "string", "operation": "equals"}
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "8a0c7e10-0008-4d00-9e01-000000000005",
+      "name": "Callback: failed (simulated)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, -120],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/v1/orchestration/webhooks/n8n/callback",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-failed', executionId: $('AURUM trigger').item.json.body.executionId, workflowId: $('AURUM trigger').item.json.body.workflowId, workflowVersion: $('AURUM trigger').item.json.body.workflowVersion, attempt: $('AURUM trigger').item.json.body.attempt, environment: $('AURUM trigger').item.json.body.environment, status: 'failed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), error: { category: 'WORKFLOW_ERROR', message: 'Simulated failure requested by the test input', retryable: false } }) }}",
+        "options": {"timeout": 10000}
+      },
+      "credentials": {
+        "httpHeaderAuth": {"id": "aurumM08ServiceTok", "name": "AURUM Module 08 - service token (Authorization: Bearer)"}
+      }
+    },
+    {
+      "id": "8a0c7e10-0008-4d00-9e01-000000000006",
+      "name": "Callback: completed (echo)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 120],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/v1/orchestration/webhooks/n8n/callback",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-completed', executionId: $('AURUM trigger').item.json.body.executionId, workflowId: $('AURUM trigger').item.json.body.workflowId, workflowVersion: $('AURUM trigger').item.json.body.workflowVersion, attempt: $('AURUM trigger').item.json.body.attempt, environment: $('AURUM trigger').item.json.body.environment, status: 'completed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), output: { echo: String(($('AURUM trigger').item.json.body.input || {}).message || ''), receivedAt: $now.toUTC().toISO() } }) }}",
+        "options": {"timeout": 10000}
+      },
+      "credentials": {
+        "httpHeaderAuth": {"id": "aurumM08ServiceTok", "name": "AURUM Module 08 - service token (Authorization: Bearer)"}
+      }
+    }
+  ],
+  "connections": {
+    "AURUM trigger": {"main": [[{"node": "Accept (return the n8n execution id)", "type": "main", "index": 0}]]},
+    "Accept (return the n8n execution id)": {"main": [[{"node": "Callback: started", "type": "main", "index": 0}]]},
+    "Callback: started": {"main": [[{"node": "Simulate failure?", "type": "main", "index": 0}]]},
+    "Simulate failure?": {"main": [
+      [{"node": "Callback: failed (simulated)", "type": "main", "index": 0}],
+      [{"node": "Callback: completed (echo)", "type": "main", "index": 0}]
+    ]}
+  },
+  "settings": {"executionOrder": "v1", "saveDataErrorExecution": "all", "saveDataSuccessExecution": "all",
+               "saveManualExecutions": true, "callerPolicy": "workflowsFromSameOwner"},
+  "pinData": {},
+  "meta": {
+    "aurum": "Module 08 Core harmless test workflow. It reads nothing, decides nothing and touches no market, broker or MT5 system. It echoes the input message back to AURUM through the callback endpoint. The callback URL is fixed here (not taken from the request) so the service token can only ever be sent to AURUM."
+  },
+  "tags": []
+}

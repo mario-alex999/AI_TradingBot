@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   Sparkles,
   ClipboardCheck,
+  Workflow,
   type LucideIcon,
 } from 'lucide-react';
 import type { Permission } from '@/types/auth';
@@ -72,6 +73,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { path: '/data', label: 'Data Centre', icon: Database, permission: 'view:dashboard' },
       { path: '/agents', label: 'Agent Centre', icon: Bot, permission: 'view:system' },
+      { path: '/orchestration', label: 'Workflow Orchestration', icon: Workflow, permission: 'view:dashboard' },
       { path: '/notifications', label: 'Notifications', icon: Bell, permission: 'view:dashboard' },
       { path: '/settings', label: 'Settings', icon: Settings, permission: 'view:dashboard' },
     ],

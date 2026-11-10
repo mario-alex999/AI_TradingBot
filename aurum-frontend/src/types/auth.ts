@@ -38,4 +38,8 @@ export type ServerPermission =
   | 'approvals:audit'
   | 'management:request'
   | 'management:decide'
-  | 'management:emergency';
+  | 'management:emergency'
+  | 'orchestration:view'
+  | 'orchestration:trigger'
+  | 'orchestration:operate'
+  | 'orchestration:manage';
