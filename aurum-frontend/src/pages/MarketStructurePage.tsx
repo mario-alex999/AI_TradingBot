@@ -1,4 +1,12 @@
 import { useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { RefreshCw } from 'lucide-react';
+import { Button } from '@/components/common/Button';
+import { useAdminGate } from '@/hooks/useDecision';
+import { useAdminKeyStore } from '@/stores/adminKeyStore';
+import { toast } from '@/stores/toastStore';
+import { describeError } from '@/utils/errors';
+import { runStructureAnalysis } from '@/services/adminJobService';
 import { ChevronRight } from 'lucide-react';
 import { Card, CardBody, CardHeader } from '@/components/common/Card';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -61,6 +69,28 @@ function RangeBar({ pd }: { pd: NonNullable<TimeframeStructure['premiumDiscount'
   );
 }
 
+/** Module 03 admin action: analyse the instrument across timeframes now and store the result. */
+function RunStructureButton({ symbol }: { symbol: string }) {
+  const gate = useAdminGate();
+  const key = useAdminKeyStore((s) => s.key);
+  const qc = useQueryClient();
+  const run = useMutation({
+    mutationFn: () => runStructureAnalysis(symbol, key),
+    onSuccess: (r) => {
+      toast({ tone: 'success', title: `${r.symbol} analysed`, description: `Bias ${r.bias}, grade ${r.grade}.` });
+      for (const k of ['structure', 'overlays']) void qc.invalidateQueries({ queryKey: [k] });
+    },
+    onError: (e) => toast({ tone: 'error', title: 'Analysis failed', description: describeError(e).description }),
+  });
+  return (
+    <Button size="sm" variant="secondary" icon={<RefreshCw className={run.isPending ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} aria-hidden />}
+      disabled={!gate.allowed || run.isPending} disabledReason={run.isPending ? 'Running…' : gate.reason} onClick={() => run.mutate()}
+      title="Admin action: analyse every timeframe on stored candles and store the result">
+      {run.isPending ? 'Analysing…' : `Analyse ${symbol}`}
+    </Button>
+  );
+}
+
 export default function MarketStructurePage() {
   const instruments = useInstruments();
   const [symbol, setSymbol] = useState('EURUSD');
@@ -91,7 +121,12 @@ export default function MarketStructurePage() {
       <PageHeader
         title="Market Structure"
         description="Multi-timeframe swing structure, breaks and liquidity events from the Market Structure Agent. Select a timeframe, or click any cell to see the events behind it."
-        actions={<DataSourceBadge source={q.data?.source} />}
+        actions={
+          <>
+            <RunStructureButton symbol={symbol} />
+            <DataSourceBadge source={q.data?.source} />
+          </>
+        }
       />
       <SegmentedControl label="Instrument" value={symbol} options={symbols.map((s) => ({ value: s, label: s }))} onChange={setSymbol} />
 

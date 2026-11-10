@@ -95,16 +95,25 @@ class AccountQueries:
         return {"environment": "demo" if snap.trade_mode == "DEMO" else "live", "currency": snap.currency,
                 "balance": _r(snap.balance), "equity": _r(snap.equity), "freeMargin": _r(snap.margin_free),
                 "marginLevel": _r(snap.margin_level), "openPositions": self._open_count(),
-                # AURUM generates no trade proposals yet, so nothing can be waiting for approval.
                 "pendingApprovals": self._pending_approvals(), "updatedAt": _iso(snap.captured_at)}
 
     # ------------------------------------------------------------------ /trades/*
     def _pending_approvals(self) -> int:
-        """Module 05 candidates waiting for a person. Zero when its tables do not exist yet."""
+        """Trade ideas waiting for a person: the Module 07 approval queue (pending / under review) once Module 07 is in use
+        (it holds at least one request), otherwise Module 05 candidates still open for review. Zero when neither exists."""
         from sqlalchemy.exc import SQLAlchemyError
 
         from aurum.decision.db_models import TradeCandidate
         from aurum.decision.lifecycle import ACTIVE
+        try:
+            from aurum.approvals.db_models import ApprovalRequest
+            from aurum.approvals.states import OPEN
+            with session_scope(self.engine) as s:
+                if s.execute(select(ApprovalRequest.approval_id).limit(1)).first() is not None:
+                    return s.execute(select(func.count()).select_from(ApprovalRequest)
+                                     .where(ApprovalRequest.status.in_([x.value for x in OPEN]))).scalar_one()
+        except SQLAlchemyError:
+            pass                                         # Module 07 not initialised: fall back to Module 05
         try:
             with session_scope(self.engine) as s:
                 return s.execute(select(func.count()).select_from(TradeCandidate).where(TradeCandidate.status.in_(ACTIVE))).scalar_one()

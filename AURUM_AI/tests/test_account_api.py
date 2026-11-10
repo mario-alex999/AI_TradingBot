@@ -198,14 +198,19 @@ def test_risk_overview(client):
 
 
 def test_agents_status_and_notifications(client, env):
-    eng, _, now = env
+    eng, settings, now = env
     with session_scope(eng) as s:
         s.add(DataCollectionLog(run_id="r", event="run", status="failed", started_at=now - timedelta(minutes=3),
                                 finished_at=now - timedelta(minutes=2), message="terminal timeout"))
     agents = {a["id"]: a for a in client.get("/api/v1/agents/status").json()}
     assert agents["market-data"]["status"] == "failed" and agents["market-data"]["errorCount"] == 1
     assert agents["cot"]["status"] == "idle" and agents["decision"]["status"] == "idle"
-    assert agents["risk"]["status"] == "warning" and "Daily drawdown" in agents["risk"]["lastResult"]
+    # The risk agent reports the Module 06 risk engine; the RISK_MAX_* limit check remains its fallback.
+    assert agents["risk"]["configuration"]["engineVersion"] and agents["risk"]["status"] in ("completed", "warning")
+    assert agents["approval"]["lastResult"].endswith("waiting for a decision.") and agents["orchestration"]["status"] != "unknown"
+    from aurum.api.system_queries import SystemQueries
+    fallback = SystemQueries(eng, settings)._risk_limits(now)
+    assert fallback["status"] == "warning" and "Daily drawdown" in fallback["lastResult"]
     assert agents["learning"]["status"] == "idle"
     notes = client.get("/api/v1/notifications").json()
     cats = {n["category"] for n in notes}

@@ -56,8 +56,10 @@ class Repo:
                and (not currencies or e["currency"] in currencies) and (not importance or e["importance"] in importance)]
         return out, len(out)
 
-    def news(self, as_of, currencies, limit, offset):
-        return self._news, len(self._news)
+    def news(self, as_of, currencies, limit, offset, since=None):
+        out = [n for n in self._news if (not currencies or set(currencies) & set(n["currencies"]))
+               and (since is None or n["published_at"] >= since)]
+        return out, len(out)
 
 
 def impact(events, news=()) -> NewsImpact:
@@ -135,3 +137,35 @@ def test_api_serves_news_impact(tmp_path):
         assert body["events"][0]["name"] == "CPI (YoY)" and body["nextEvent"]["consensus"] == 3.2
         assert {s["key"] for s in body["events"][0]["scenarios"]} == {"above", "inline", "below"}
         assert c.get("/api/v1/intelligence/news-impact", params={"importance": "huge"}).status_code == 422
+
+
+def test_older_releases_fall_back_to_m15_candles():
+    """M5 covers only the latest release; the two earlier ones exist on M15 and must still be measured."""
+    m5 = candles()._frames[("EURUSD", "M5")]
+    recent = m5.loc[m5["ts"] >= pd.Timestamp(datetime(2026, 2, 20, tzinfo=UTC))]
+    raw = m5.rename(columns={"ts": "ts_utc"})[["ts_utc", "open", "high", "low", "close", "tick_volume"]].assign(is_complete=True)
+    src = FrameCandleSource({("EURUSD", "M5"): recent.rename(columns={"ts": "ts_utc"})[["ts_utc", "open", "high", "low", "close", "tick_volume"]]
+                             .assign(is_complete=True), ("EURUSD", "M15"): raw.iloc[::3]})
+    past = [ev(i, t, a, c) for i, (t, a, c) in enumerate(PAST, start=1)]
+    nxt = ev(10, NOW + timedelta(hours=3), consensus=3.2, previous=3.0)
+    ni = NewsImpact(Repo(past + [nxt]), src, ImpactMapper(C), lambda: ["EURUSD"], lambda: NOW)
+    e = next(x for x in ni.report()["events"] if x["id"] == 10)
+    above = next(s for s in e["scenarios"] if s["key"] == "above")
+    assert above["instruments"][0]["history"]["samples"] == 2      # both beats measured, one only on M15
+
+
+def test_a_past_speech_counts_as_released_with_a_note():
+    speech = ev(31, NOW - timedelta(hours=2), consensus=None, previous=None, name="Fed Chair Powell Speaks")
+    speech["importance"] = "high"
+    e = impact([speech]).report()["events"][0]
+    assert e["released"] is True and "publishes no figure" in e["outcome"]["note"]
+    pending = impact([ev(32, NOW - timedelta(minutes=5), actual=None, consensus=3.1)]).report()["events"][0]
+    assert pending["released"] is False                            # a data release waits for its figure
+
+
+def test_headlines_follow_the_currency_filter():
+    news = [{"id": 1, "headline": "ECB raises interest rates by 25 basis points", "source": "ECB", "url": "https://x",
+             "published_at": NOW - timedelta(hours=2), "category": "central_bank", "currencies": ["EUR"], "description": None},
+            {"id": 2, "headline": "Fed holds rates unchanged", "source": "Fed", "url": "https://y",
+             "published_at": NOW - timedelta(hours=1), "category": "central_bank", "currencies": ["USD"], "description": None}]
+    assert [h["id"] for h in impact([], news).report(currencies=["USD"])["headlines"]] == [2]

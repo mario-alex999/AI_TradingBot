@@ -26,6 +26,16 @@ STATUS = {"success": "completed", "ok": "completed", "completed": "completed", "
 LEVEL = {"completed": "info", "running": "info", "warning": "warning", "failed": "error"}
 
 
+def _ts(v: Any) -> str | None:
+    """ISO timestamp from a datetime or an ISO string (services report either)."""
+    if isinstance(v, str):
+        try:
+            return _iso(datetime.fromisoformat(v.replace("Z", "+00:00")))
+        except ValueError:
+            return None
+    return _iso(v)
+
+
 def _agent(id_: str, name: str, description: str, status: str = "unknown", last: datetime | None = None,
            result: str | None = None, errors: int | None = None, config: dict[str, Any] | None = None,
            logs: list[dict[str, Any]] | None = None) -> dict[str, Any]:
@@ -47,18 +57,26 @@ class SystemQueries:
         self.settings = settings
 
     # ------------------------------------------------------------------ agents
-    def agents(self, now: datetime | None = None) -> list[dict[str, Any]]:
+    def agents(self, now: datetime | None = None, services: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+        """``services``: getters for the Module 06 risk, Module 07 approval and Module 08 orchestration services (the API
+        passes its own). Without them those agents report from the database or say they are unavailable."""
         now = now or datetime.now(timezone.utc)
+        self._services = services or {}
         defs = [
             ("market-data", "Market Data Agent", "Collects and validates MT5 OHLCV candles for configured instruments and timeframes.", self._market_data),
             ("cot", "COT Intelligence Agent", "Ingests weekly CFTC Commitments of Traders reports and computes positioning metrics.", self._cot),
             ("structure", "Market Structure Agent", "Identifies swing structure, BOS and CHoCH across timeframes.", self._analysis),
             ("smc", "ICT/SMC Analysis Agent", "Detects order blocks, fair value gaps and liquidity pools for chart overlays.", self._analysis),
             ("sessions", "Trading Session Agent", "Tracks session ranges, overlaps and liquidity conditions.", self._sessions),
-            ("risk", "Risk Management Agent", "Monitors exposure and drawdown against the configured risk limits. Places no orders.", self._risk),
+            ("risk", "Risk Management Agent", "Module 06 risk engine: assesses every trade idea against account, exposure, drawdown and "
+                     "market-condition rules, and holds trading locks. Places no orders.", self._risk),
             ("learning", "Trade Learning Agent", "Learns from closed trades, trials what worked and replicates or terminates itself.", self._learning),
             ("strategy", "Strategy Evaluation Agent", "Backtests the setup templates and gates on stored history.", self._strategy),
             ("decision", "AI Decision Agent", "Combines evidence into trade candidates for human review. Never executes trades.", self._decision),
+            ("approval", "Human Approval Agent", "Module 07: queues risk-checked trade ideas for a person to approve or reject, with an "
+                         "audit trail. Approval never sends an order.", self._approval),
+            ("orchestration", "Workflow Orchestration Agent", "Module 08: schedules and runs the workflows that connect the modules "
+                              "(including n8n), with retries and dead-letter handling.", self._orchestration),
         ]
         out = []
         for id_, name, desc, fn in defs:
@@ -142,7 +160,82 @@ class SystemQueries:
                     "errorCount": sum(STATUS.get(r.status) == "failed" for r in rows),
                     "configuration": {"methodologyVersion": last.methodology_version, "enabled": True}, "logs": logs}
 
+    @staticmethod
+    def _failing(deps: dict[str, Any]) -> list[str]:
+        """Names of dependencies reporting ``ok: False`` (nested per-instrument entries included)."""
+        out = []
+        for name, d in (deps or {}).items():
+            if isinstance(d, dict) and d.get("ok") is False:
+                out.append(f"{name}: {d.get('detail') or 'not ok'}")
+            elif isinstance(d, dict) and all(isinstance(v, dict) for v in d.values()) and d:
+                out += [f"{name} {k}: {v.get('detail') or 'not ok'}" for k, v in d.items() if v.get("ok") is False]
+        return out
+
     def _risk(self, now: datetime) -> dict[str, Any]:
+        getter = getattr(self, "_services", {}).get("risk")
+        if getter is not None:
+            h = getter().health()
+            failing = self._failing(h.get("dependencies") or {})
+            state = {"ok": "completed", "degraded": "warning"}.get(h.get("status"), "unknown")
+            return {"status": state, "lastExecution": _ts(h.get("checked_at")),
+                    "lastResult": ("Risk engine ready: every trade idea is assessed before approval." if not failing
+                                   else f"Degraded ({len(failing)}): " + "; ".join(failing[:3])),
+                    "errorCount": len(failing),
+                    "configuration": {"engineVersion": h.get("engine_version", ""), "canAssess": bool(h.get("can_assess")),
+                                      "enabled": True},
+                    "logs": [{"timestamp": _ts(h.get("checked_at")), "level": "warning", "message": f} for f in failing[:8]]}
+        return self._risk_limits(now)
+
+    def _approval(self, now: datetime) -> dict[str, Any]:
+        getter = getattr(self, "_services", {}).get("approvals")
+        if getter is None:
+            return {"status": "unknown", "lastResult": "Module 07 is not loaded in this process."}
+        svc = getter()
+        h = svc.health()
+        if h.get("status") == "not_ready":
+            return {"status": "idle", "lastResult": h.get("detail"), "configuration": {"enabled": False}}
+        waiting = self._approvals_open()
+        failing = self._failing(h.get("dependencies") or {})
+        problems = [f for f in failing if not f.startswith("module_09")]   # Module 09 (execution) is not built by design
+        if not (h.get("audit_chain") or {}).get("valid", True):
+            problems.append("audit chain verification failed")
+        return {"status": "warning" if problems else "completed",
+                "lastResult": (f"{waiting} trade idea{'s' if waiting != 1 else ''} waiting for a decision."
+                               + (f" Issues: {'; '.join(problems[:2])}" if problems else "")),
+                "errorCount": len(problems) + int((h.get("outbox") or {}).get("dead") or 0),
+                "configuration": {"moduleVersion": h.get("module_version", ""), "waiting": waiting, "enabled": True},
+                "logs": [{"timestamp": _iso(now), "level": "warning", "message": p} for p in problems[:8]]}
+
+    def _approvals_open(self) -> int:
+        from sqlalchemy.exc import SQLAlchemyError
+
+        from aurum.approvals.db_models import ApprovalRequest
+        from aurum.approvals.states import OPEN
+        try:
+            with session_scope(self.engine) as s:
+                return int(s.execute(select(func.count()).select_from(ApprovalRequest)
+                                     .where(ApprovalRequest.status.in_([x.value for x in OPEN]))).scalar_one())
+        except SQLAlchemyError:
+            return 0
+
+    def _orchestration(self, now: datetime) -> dict[str, Any]:
+        getter = getattr(self, "_services", {}).get("orchestration")
+        if getter is None:
+            return {"status": "unknown", "lastResult": "Module 08 is not loaded in this process."}
+        h = getter().health()
+        if h.get("status") == "not_ready":
+            return {"status": "idle", "lastResult": h.get("detail"), "configuration": {"enabled": False}}
+        integ = h.get("integrations") or {}
+        down = sorted(k for k, v in integ.items() if str(v).lower() in ("unhealthy", "down", "failed", "error"))
+        return {"status": "completed" if h.get("status") == "ok" and not down else "warning",
+                "lastResult": (f"{len(integ)} integrations, all reachable." if not down
+                               else f"Unhealthy: {', '.join(down)}."),
+                "errorCount": len(down),
+                "configuration": {"environment": str(h.get("environment", "")), "integrations": len(integ), "enabled": True},
+                "logs": [{"timestamp": _iso(now), "level": "warning", "message": f"{k} is {integ[k]}"} for k in down]}
+
+    def _risk_limits(self, now: datetime) -> dict[str, Any]:
+        """Fallback without Module 06: the simple RISK_MAX_* monitoring limits on the account mirror."""
         from aurum.account.queries import AccountQueries
         aq = AccountQueries(self.engine, self.settings)
         lim = aq.limits()

@@ -9,7 +9,7 @@ from pydantic import SecretStr
 
 from aurum.gateways.mt5_gateway import (MT5ConnectionError, MT5Gateway, NonDemoAccountError, ReadOnlyMT5,
                                         ReadOnlyViolation)
-from conftest import FakeMT5
+from module01_helpers import FakeMT5
 
 PKG = Path(__file__).resolve().parent.parent / "aurum"
 
@@ -111,7 +111,7 @@ def test_no_trading_calls_anywhere_in_source():
 from datetime import datetime, timedelta, timezone  # noqa: E402
 
 from aurum.config import InstrumentConfig, Settings, TradingHours  # noqa: E402
-from conftest import Tick  # noqa: E402
+from module01_helpers import Tick  # noqa: E402
 
 FX = InstrumentConfig("EURUSD", "EURUSD", "forex", "Euro",
                       TradingHours.from_dict({"weekly_close": "FRI 21:00", "weekly_open": "SUN 21:00"}))

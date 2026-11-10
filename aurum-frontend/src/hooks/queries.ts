@@ -320,5 +320,6 @@ export function useNewsImpact(q: { importance: string; hoursAhead: number; curre
     queryKey: ['news-impact', mock, q.importance, q.hoursAhead, q.currency ?? ''],
     queryFn: ({ signal }) => getNewsImpact({ mock, signal }, q),
     refetchInterval: 60_000, // outcomes and measured moves update after a release
+    staleTime: 30_000, // the report is relatively expensive: no immediate refetch on every remount or focus
   });
 }

@@ -546,10 +546,12 @@ class MiRepository:
         return out
 
     def news(self, as_of: datetime | None = None, currencies: list[str] | None = None, limit: int = 50,
-             offset: int = 0) -> tuple[list[dict[str, Any]], int]:
+             offset: int = 0, since: datetime | None = None) -> tuple[list[dict[str, Any]], int]:
         q = select(M.MarketNews).order_by(M.MarketNews.published_at.desc())
         if as_of is not None:
             q = q.where(M.MarketNews.published_at <= as_of)
+        if since is not None:
+            q = q.where(M.MarketNews.published_at >= since)
         with session_scope(self.engine) as s:
             rows = [{c.name: getattr(r, c.name) for c in M.MarketNews.__table__.columns} for r in s.execute(q).scalars()]
         if currencies:

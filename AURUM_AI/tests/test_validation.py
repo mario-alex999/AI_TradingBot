@@ -8,7 +8,7 @@ import pytest
 
 from aurum.config import TradingHours
 from aurum.services.validation_service import ValidationService, is_market_open
-from conftest import TUESDAY, candle_frame
+from module01_helpers import TUESDAY, candle_frame
 
 V = ValidationService()
 
