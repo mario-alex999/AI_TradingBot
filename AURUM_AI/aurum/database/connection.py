@@ -27,6 +27,13 @@ def make_engine(url: str) -> Engine:
         def _fk_on(dbapi_conn, _):  # pragma: no cover - trivial
             dbapi_conn.execute("PRAGMA foreign_keys=ON")
         return engine
+    if serverless():
+        # Serverless (Vercel): each instance is short-lived and the database sits behind a connection pooler
+        # (Supabase Supavisor, PgBouncer) in transaction mode. Keep no idle connections of our own and turn off
+        # server-side prepared statements, which a transaction-mode pooler cannot carry between transactions.
+        from sqlalchemy.pool import NullPool
+        return create_engine(url, poolclass=NullPool, future=True,
+                             connect_args={"connect_timeout": 10, "prepare_threshold": None})
     return create_engine(url, pool_pre_ping=True, future=True, **_pool_options(url))
 
 
@@ -47,6 +54,12 @@ def _pool_options(url: str) -> dict:
     if hosted:
         opts["pool_recycle"] = 300
     return opts
+
+
+def serverless() -> bool:
+    """True on Vercel (it sets VERCEL=1) or when AURUM_SERVERLESS=1 is set explicitly."""
+    import os
+    return os.environ.get("AURUM_SERVERLESS", "").strip() in ("1", "true", "yes") or os.environ.get("VERCEL") == "1"
 
 
 def engine_from_settings(settings: Settings) -> Engine:
@@ -81,6 +94,19 @@ def check_database(engine: Engine) -> dict[str, object]:
             info["schema_ready"] = bool(conn.execute(text(
                 "SELECT name FROM sqlite_master WHERE type='table' AND name='market_candles'")).scalar())
     return info
+
+
+def pending_migrations(engine: Engine) -> list[str]:
+    """PostgreSQL migrations not yet recorded in schema_migrations (all of them, plus the base schema, on an empty
+    database). Cheap: one query. Used to skip init_database() on a serverless cold start when nothing is pending."""
+    if engine.dialect.name != "postgresql":
+        return []
+    wanted = [p.stem for p in sorted(MIGRATIONS_DIR.glob("*.sql"))]
+    with engine.connect() as conn:
+        if not conn.execute(text("SELECT to_regclass('public.schema_migrations')")).scalar():
+            return ["schema.sql", *wanted]
+        applied = {r[0] for r in conn.execute(text("SELECT version FROM schema_migrations"))}
+    return [v for v in wanted if v not in applied]
 
 
 def init_database(engine: Engine) -> list[str]:
