@@ -217,6 +217,12 @@ class Settings(BaseSettings):
             url = self.database_url.get_secret_value()
             if url.startswith("sqlite:///") and not url.startswith("sqlite:////") and ":memory:" not in url:
                 url = "sqlite:///" + str(self.resolve(Path(url.removeprefix("sqlite:///"))))
+            # Hosted databases (Supabase, Neon, Heroku...) hand out postgres:// or postgresql:// URLs;
+            # use the psycopg 3 driver that requirements.txt installs.
+            for prefix in ("postgres://", "postgresql://"):
+                if url.startswith(prefix):
+                    url = "postgresql+psycopg://" + url[len(prefix):]
+                    break
             return url
         pw = quote_plus(self.db_password.get_secret_value())
         return f"postgresql+psycopg://{quote_plus(self.db_user)}:{pw}@{self.db_host}:{self.db_port}/{self.db_name}"
