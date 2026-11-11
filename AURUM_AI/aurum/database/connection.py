@@ -34,7 +34,26 @@ def make_engine(url: str) -> Engine:
         from sqlalchemy.pool import NullPool
         return create_engine(url, poolclass=NullPool, future=True,
                              connect_args={"connect_timeout": 10, "prepare_threshold": None})
-    return create_engine(url, pool_pre_ping=True, future=True, connect_args={"connect_timeout": 10})
+    return create_engine(url, pool_pre_ping=True, future=True, **_pool_options(url))
+
+
+def _pool_options(url: str) -> dict:
+    """Connection pool sizing. A hosted pooler (e.g. Supabase, ~15 client connections shared by every AURUM process
+    and the hosted API) needs small pools, or connections are refused and dropped. DB_POOL_SIZE / DB_MAX_OVERFLOW
+    override; defaults stay SQLAlchemy's (5 + 10) for a local database."""
+    import os
+    from sqlalchemy.engine import make_url
+    host = (make_url(url).host or "").lower()
+    hosted = "pooler.supabase.com" in host or host.endswith(".supabase.co") or host.endswith(".supabase.com")
+    size = int(os.environ.get("DB_POOL_SIZE") or (2 if hosted else 5))
+    overflow = int(os.environ.get("DB_MAX_OVERFLOW") or (3 if hosted else 10))
+    args: dict = {"connect_timeout": 10}
+    if hosted:   # keep idle connections alive through the pooler; recycle before it drops them
+        args.update(keepalives=1, keepalives_idle=30, keepalives_interval=10, keepalives_count=3)
+    opts: dict = {"pool_size": size, "max_overflow": overflow, "pool_timeout": 30, "connect_args": args}
+    if hosted:
+        opts["pool_recycle"] = 300
+    return opts
 
 
 def serverless() -> bool:

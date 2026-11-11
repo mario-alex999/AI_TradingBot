@@ -1,4 +1,4 @@
-"""AURUM AI - collector supervisor (keeps `aurum.cli collect --loop` running).
+"""AURUM AI - collector supervisor (keeps `aurum.cli collect --loop` and `aurum.cli stream-ticks` running).
 
 Started at Windows sign-in by the "AURUM AI Collector" scheduled task (scripts/install_autostart.ps1),
 or by hand:  .\\.venv\\Scripts\\pythonw.exe scripts\\run_collector.py
@@ -6,11 +6,14 @@ or by hand:  .\\.venv\\Scripts\\pythonw.exe scripts\\run_collector.py
 What it does, forever:
   1. Honour the on/off switch: while the file ``COLLECTOR_DISABLED`` exists in the project root, nothing runs
      (a running collector is stopped). Delete the file to resume.
-  2. Make sure Docker Desktop is running and the TimescaleDB container is up (only when the database is
-     PostgreSQL; SQLite needs nothing).
+  2. Make sure Docker Desktop is running and the TimescaleDB container is up (only when the database is a
+     PostgreSQL server on this machine; a hosted database such as Supabase, or SQLite, needs nothing).
   3. Run ``python -m aurum.cli collect --loop``. MT5 is opened via MT5_TERMINAL_PATH and must be logged in to
      a DEMO account; if it is not (or the connection, database or broker clock check fails) the collector
      exits, and this supervisor retries with back-off (30 s doubling to 10 min; reset after a healthy run).
+  4. Run ``python -m aurum.cli stream-ticks`` alongside it (live quotes every second plus the shared DEMO account's
+     balance and positions), restarted the same way. Output: ``logs/stream.out.txt``.
+  5. Run the API (``python -m aurum.api``, port 8000) for the per-person MT5 link. Output: ``logs/api.out.txt``.
 
 Only one supervisor can run at a time (lock file ``logs/supervisor.lock``). Output: ``logs/supervisor.log``
 (supervisor events) and ``logs/collector.out.txt`` (collector console output, rotated at 20 MB).
@@ -62,6 +65,26 @@ def uses_postgres() -> bool:
     return Settings().sqlalchemy_url.startswith("postgresql")
 
 
+def uses_local_postgres() -> bool:
+    """Only a database on this machine needs Docker; a hosted one (e.g. Supabase) must not start Docker Desktop."""
+    from sqlalchemy.engine import make_url
+    from aurum.config import Settings
+    url = make_url(Settings().sqlalchemy_url)
+    return url.drivername.startswith("postgresql") and (url.host or "localhost") in ("localhost", "127.0.0.1", "::1")
+
+
+def database_ready() -> bool:
+    from aurum.config import Settings
+    from aurum.database.connection import check_database, engine_from_settings
+    try:
+        if check_database(engine_from_settings(Settings()))["schema_ready"]:
+            return True
+        log("Database reachable but schema missing - run: python -m aurum.cli init-db")
+    except Exception as exc:  # noqa: BLE001
+        log(f"Database not reachable ({type(exc).__name__})")
+    return False
+
+
 def docker_ready() -> bool:
     try:
         return DOCKER_EXE.exists() and run([str(DOCKER_EXE), "info", "--format", "{{.ServerVersion}}"], 30).returncode == 0
@@ -73,6 +96,8 @@ def ensure_database() -> bool:
     """Start Docker Desktop and the TimescaleDB container if needed. True when the DB is reachable."""
     if not uses_postgres():
         return True
+    if not uses_local_postgres():
+        return database_ready()
     if not docker_ready():
         if DOCKER_DESKTOP.exists():
             log("Docker engine not running - starting Docker Desktop")
@@ -113,53 +138,98 @@ def rotate_output(path: Path) -> None:
         path.rename(old)
 
 
+class Child:
+    """One supervised command, restarted with its own back-off."""
+
+    def __init__(self, name: str, args: list[str]):
+        self.name, self.args = name, args
+        self.proc: subprocess.Popen | None = None
+        self.out = None
+        self.started = 0.0
+        self.backoff = MIN_BACKOFF
+        self.next_start = 0.0
+
+    def start(self, python: Path) -> None:
+        path = LOGS / f"{self.name}.out.txt"
+        rotate_output(path)
+        self.out = open(path, "a", encoding="utf-8", errors="replace")
+        self.out.write(f"\n===== {self.name} start {datetime.now().astimezone().isoformat(timespec='seconds')} =====\n")
+        self.out.flush()
+        env = {**os.environ, "PYTHONIOENCODING": "utf-8", "COLUMNS": "120"}
+        self.proc = subprocess.Popen([str(python), "-m", *self.args], cwd=ROOT, stdout=self.out,
+                                     stderr=subprocess.STDOUT, creationflags=NO_WINDOW, env=env)
+        (LOGS / f"{self.name}.pid").write_text(str(self.proc.pid), encoding="ascii")
+        self.started = time.monotonic()
+        log(f"{self.name.capitalize()} started (pid {self.proc.pid})")
+
+    def stop(self) -> None:
+        if self.proc is not None and self.proc.poll() is None:
+            self.proc.terminate()
+            try:
+                self.proc.wait(30)
+            except subprocess.TimeoutExpired:
+                self.proc.kill()
+        self._close()
+        self.proc = None
+
+    def _close(self) -> None:
+        if self.out is not None:
+            self.out.close()
+            self.out = None
+
+    def check(self) -> None:
+        """Notice an exit and schedule the restart."""
+        if self.proc is None or self.proc.poll() is None:
+            return
+        ran = time.monotonic() - self.started
+        if ran >= HEALTHY_RUN_S:
+            self.backoff = MIN_BACKOFF
+        log(f"{self.name.capitalize()} exited with code {self.proc.returncode} after {int(ran)}s "
+            f"(MT5 not logged in / disconnected, DB or clock problem - see logs/{self.name}.out.txt); "
+            f"restarting in {self.backoff}s")
+        self._close()
+        self.proc = None
+        self.next_start = time.monotonic() + self.backoff
+        self.backoff = min(self.backoff * 2, MAX_BACKOFF)
+
+
 def main() -> int:
     lock = acquire_lock()
     if lock is None:
         return 0                    # another supervisor is already running
     python = Path(sys.executable).with_name("python.exe")
     log(f"Supervisor started (pid {os.getpid()})")
-    backoff = MIN_BACKOFF
+    children = [Child("collector", ["aurum.cli", "collect", "--loop"]), Child("stream", ["aurum.cli", "stream-ticks"]),
+                # The API on this PC serves the per-person MT5 link (/api/v1/mt5, terminal slots live here); the
+                # website reaches it through the Cloudflare tunnel (AURUM_MT5_BACKEND_URL on Vercel).
+                Child("api", ["aurum.api"])]
+    db_backoff = MIN_BACKOFF
+    db_ok = False
     while True:
         if DISABLED_FLAG.exists():
+            if any(c.proc is not None for c in children):
+                log("COLLECTOR_DISABLED found - stopping collector and stream")
+            for c in children:
+                c.stop()
+            db_ok = False
             time.sleep(15)
             continue
-        if not ensure_database():
-            log(f"Database not ready - retrying in {backoff}s")
-            time.sleep(backoff)
-            backoff = min(backoff * 2, MAX_BACKOFF)
-            continue
-        out_path = LOGS / "collector.out.txt"
-        rotate_output(out_path)
-        started = time.monotonic()
-        with open(out_path, "a", encoding="utf-8", errors="replace") as out:
-            out.write(f"\n===== collector start {datetime.now().astimezone().isoformat(timespec='seconds')} =====\n")
-            out.flush()
-            env = {**os.environ, "PYTHONIOENCODING": "utf-8", "COLUMNS": "120"}
-            child = subprocess.Popen([str(python), "-m", "aurum.cli", "collect", "--loop"], cwd=ROOT, stdout=out,
-                                     stderr=subprocess.STDOUT, creationflags=NO_WINDOW, env=env)
-            (LOGS / "collector.pid").write_text(str(child.pid), encoding="ascii")
-            log(f"Collector started (pid {child.pid})")
-            while child.poll() is None:
-                if DISABLED_FLAG.exists():
-                    log("COLLECTOR_DISABLED found - stopping collector")
-                    child.terminate()
-                    try:
-                        child.wait(30)
-                    except subprocess.TimeoutExpired:
-                        child.kill()
-                    break
-                time.sleep(10)
-        ran = time.monotonic() - started
-        if DISABLED_FLAG.exists():
-            continue
-        if ran >= HEALTHY_RUN_S:
-            backoff = MIN_BACKOFF
-        log(f"Collector exited with code {child.returncode} after {int(ran)}s "
-            f"(MT5 not logged in / disconnected, DB or clock problem - see logs/collector.out.txt); "
-            f"restarting in {backoff}s")
-        time.sleep(backoff)
-        backoff = min(backoff * 2, MAX_BACKOFF)
+        for c in children:
+            c.check()
+        idle = [c for c in children if c.proc is None and time.monotonic() >= c.next_start]
+        if idle and not db_ok:
+            db_ok = ensure_database()
+            if not db_ok:
+                log(f"Database not ready - retrying in {db_backoff}s")
+                time.sleep(db_backoff)
+                db_backoff = min(db_backoff * 2, MAX_BACKOFF)
+                continue
+            db_backoff = MIN_BACKOFF
+        for c in idle:
+            c.start(python)
+        if all(c.proc is None for c in children):
+            db_ok = False           # both down: re-check the database before the next start
+        time.sleep(10)
 
 
 if __name__ == "__main__":

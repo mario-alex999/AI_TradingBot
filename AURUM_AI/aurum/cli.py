@@ -277,7 +277,7 @@ def stream_ticks(interval: float = typer.Option(1.0, "--interval", min=0.25, hel
         repo = _repo(s)
     except (SymbolMappingError, FileNotFoundError) as exc:
         _fail(str(exc))
-    run_id = f"stream-{uuid.uuid4()}"
+    run_id = f"stream-{uuid.uuid4().hex[:29]}"  # fits collection_run_id VARCHAR(36)
     stored = 0
     try:
         with _gateway(s) as gw:
