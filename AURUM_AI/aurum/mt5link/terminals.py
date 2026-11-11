@@ -85,6 +85,22 @@ def stop_terminal(exe: Path) -> None:
         log.warning("Could not stop the slot terminal: %s", type(exc).__name__)
 
 
+def start_terminal(exe: Path, settle_seconds: float = 20.0) -> None:
+    """Launch the slot terminal in portable mode and give it time to load before MetaTrader5.initialize() attaches.
+    On a slow or memory-starved PC a fresh terminal can take well over a minute; attaching too early ends in an
+    IPC timeout. initialize() then logs in with the person's credentials."""
+    import time
+    if os.name != "nt" or not Path(exe).is_file():
+        return
+    try:
+        subprocess.Popen([str(exe), "/portable"], cwd=str(Path(exe).parent), close_fds=True,
+                         creationflags=getattr(subprocess, "DETACHED_PROCESS", 0))
+    except OSError as exc:
+        log.warning("Could not start the slot terminal: %s", type(exc).__name__)
+        return
+    time.sleep(settle_seconds)
+
+
 def forget_saved_logins(folder: Path) -> None:
     """Remove the slot terminal's saved-account file, so no broker credential stays on disk after a disconnect."""
     for name in ("accounts.dat",):

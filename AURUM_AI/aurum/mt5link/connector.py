@@ -112,8 +112,11 @@ def run(conn_id: str, slot_folder: Path, login: int, server: str, password: str,
     exe = Path(slot_folder) / terminals.EXE
     if terminal_ops:
         terminals.stop_terminal(exe)      # never attach to a terminal still logged in to someone else's account
+    if terminal_ops:
+        terminals.start_terminal(exe)     # start it ourselves and let it load before the IPC handshake
     gw_settings = settings.model_copy(update={"mt5_terminal_path": str(exe), "mt5_portable": True, "mt5_login": int(login),
-                                              "mt5_password": SecretStr(password), "mt5_server": server})
+                                              "mt5_password": SecretStr(password), "mt5_server": server,
+                                              "mt5_timeout_ms": settings.mt5_link_terminal_timeout_ms})
     del password
     gw = MT5Gateway(gw_settings, mt5_module)
     reason = "stopped"
