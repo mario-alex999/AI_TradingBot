@@ -52,8 +52,9 @@ def build_router(state: Any) -> APIRouter:
     sq = SystemQueries(state.engine, state.settings)
 
     @r.get("/agents/status")
-    def agents_status() -> list[dict[str, Any]]:
-        return sq.agents()
+    def agents_status(request: Request) -> list[dict[str, Any]]:
+        st = request.app.state
+        return sq.agents(services={k: getattr(st, f"{k}_service", None) for k in ("risk", "approvals", "orchestration")})
 
     @r.get("/notifications")
     def notifications(request: Request, limit: int = Query(50, ge=1, le=200)) -> list[dict[str, Any]]:

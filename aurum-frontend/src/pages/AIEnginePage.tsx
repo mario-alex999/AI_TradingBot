@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AdminJobButton } from '@/components/common/AdminJobButton';
 import { Link } from 'react-router-dom';
 import { BrainCircuit, Play, ScanSearch, ShieldAlert } from 'lucide-react';
 import { EvaluationDetails } from '@/components/ai/EvaluationDetails';
@@ -16,7 +17,7 @@ import { Tabs } from '@/components/common/Tabs';
 import { SignalDrawer } from '@/components/signals/SignalDrawer';
 import { DEFAULT_INSTRUMENTS } from '@/config/instruments';
 import { SIGNAL_STATUS } from '@/config/signals';
-import { useAdminGate, useAiHealth, useEvaluation, useEvaluations, useLatestAnalysis, useProviders, useRunAnalysis, useSetups, useStrategies, useTradeIdeas } from '@/hooks/useDecision';
+import { useAdminGate, useAiHealth, useEvaluation, useEvaluations, useLatestAnalysis, useProviders, useRunAnalysis, useSetups, useStrategies, useTradeIdeas, useDecisionStatus } from '@/hooks/useDecision';
 import { demoProfile } from '@/mocks/market';
 import { formatDateTime, formatPercent } from '@/utils/format';
 import { humanize } from '@/utils/labels';
@@ -295,6 +296,49 @@ function Evaluation() {
   );
 }
 
+/** Module 05 engine status: last runs, candidate counts and the AI reviewer state. */
+function EngineStatus() {
+  const s = useDecisionStatus().data?.data;
+  if (!s) return null;
+  const last = s.recentRuns[0];
+  const open = (s.counts.new ?? 0) + (s.counts.under_review ?? 0);
+  const total = Object.values(s.counts).reduce((a, b) => a + b, 0);
+  const ai = s.aiReviewer;
+  return (
+    <Card className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4" data-testid="engine-status">
+      <div>
+        <p className="eyebrow">Decision engine</p>
+        <p className="mt-0.5 text-sm text-ink">{s.schemaReady ? `v${s.engineVersion}` : 'Tables missing: run init-db'}</p>
+      </div>
+      <div>
+        <p className="eyebrow">Last run</p>
+        <p className="mt-0.5 text-sm text-ink">
+          {last ? (
+            <>
+              {last.symbol} · {humanize(last.status)} <span className="text-neutral">· {formatDateTime(last.createdAt)} UTC</span>
+            </>
+          ) : (
+            'No run yet'
+          )}
+        </p>
+      </div>
+      <div>
+        <p className="eyebrow">Candidates</p>
+        <p className="num mt-0.5 text-sm text-ink">
+          {open} open for review <span className="text-neutral">· {total} total</span>
+        </p>
+      </div>
+      <div>
+        <p className="eyebrow">AI reviewer</p>
+        <p className="mt-0.5 text-sm text-ink">
+          {ai.enabled ? `On · ${ai.model ?? 'model unknown'}` : `Off (${humanize(ai.blockedReason ?? 'disabled')})`}
+          {ai.budgetUsd != null && <span className="num text-neutral"> · ${ai.budgetUsedUsd.toFixed(2)} of ${ai.budgetUsd.toFixed(2)}</span>}
+        </p>
+      </div>
+    </Card>
+  );
+}
+
 export default function AIEnginePage() {
   const [tab, setTab] = useState<Tab>('dashboard');
   const [symbol, setSymbol] = useState('EURUSD');
@@ -322,10 +366,14 @@ export default function AIEnginePage() {
       </div>
       <Card className="flex flex-wrap items-end justify-between gap-3 p-3">
         <Select label="Instrument" value={symbol} onChange={setSymbol} options={DEFAULT_INSTRUMENTS.map((i) => ({ value: i.symbol, label: i.symbol }))} />
-        <Button variant="primary" icon={<Play className="h-4 w-4" aria-hidden />} loading={run.isPending} disabled={!gate.allowed} disabledReason={gate.reason} onClick={() => run.mutate(symbol)} title="Uses the AI reviewer when it is enabled, within its budget">
-          Run analysis
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <AdminJobButton action="decisionRunAll" invalidate={['analysis-latest', 'signals', 'trade-ideas', 'decision-status', 'account']} />
+          <Button variant="primary" icon={<Play className="h-4 w-4" aria-hidden />} loading={run.isPending} disabled={!gate.allowed} disabledReason={gate.reason} onClick={() => run.mutate(symbol)} title="Uses the AI reviewer when it is enabled, within its budget">
+            Run analysis
+          </Button>
+        </div>
       </Card>
+      <EngineStatus />
       <Tabs label="AI Engine sections" tabs={[...TABS]} value={tab} onChange={setTab} />
       {tab === 'dashboard' && needsAnalysis((a) => <Dashboard a={a} />)}
       {tab === 'timeframes' && needsAnalysis((a) => <Timeframes a={a} />)}

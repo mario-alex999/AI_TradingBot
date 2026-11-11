@@ -1,0 +1,1351 @@
+{
+  "id": "aurumWF0801MktMon",
+  "name": "AURUM - WF08-01 Market Monitoring Scheduler (Module 08)",
+  "active": false,
+  "nodes": [
+    {
+      "id": "0f080100-0801-4d00-9e01-000000000001",
+      "name": "AURUM trigger (Module 08 schedule)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "aurum-wf08-01-market-monitoring",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "aurum-wf08-01-market-monitoring",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "aurumM08WebhookTok",
+          "name": "AURUM Module 08 - webhook token (X-AURUM-Webhook-Token)"
+        }
+      },
+      "notes": "Node 1 (Schedule Trigger). The schedule lives in AURUM (Module 08 schedules, cron in UTC, editable from the backend); AURUM calls this webhook with executionId, attempt and environment."
+    },
+    {
+      "id": "0f080100-0801-4d00-9e01-000000000002",
+      "name": "Accept (return the n8n execution id)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ accepted: true, executionId: $execution.id }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    },
+    {
+      "id": "0f080100-0801-4d00-9e01-000000000003",
+      "name": "Callback: started",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/v1/orchestration/webhooks/n8n/callback",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-started', executionId: $('AURUM trigger (Module 08 schedule)').first().json.body.executionId, workflowId: $('AURUM trigger (Module 08 schedule)').first().json.body.workflowId, workflowVersion: $('AURUM trigger (Module 08 schedule)').first().json.body.workflowVersion, attempt: $('AURUM trigger (Module 08 schedule)').first().json.body.attempt, environment: $('AURUM trigger (Module 08 schedule)').first().json.body.environment, status: 'started', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO() }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "aurumM08ServiceTok",
+          "name": "AURUM Module 08 - service token (Authorization: Bearer)"
+        }
+      }
+    },
+    {
+      "id": "0f080100-0801-4d00-9e01-000000000004",
+      "name": "Load automation configuration",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        300
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "http://host.docker.internal:8000/api/v1/orchestration/market-monitoring/config",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "aurumM08ServiceTok",
+          "name": "AURUM Module 08 - service token (Authorization: Bearer)"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "notes": "Node 2"
+    },
+    {
+      "id": "0f080100-0801-4d00-9e01-000000000005",
+      "name": "Callback: failed (configuration)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        520
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/v1/orchestration/webhooks/n8n/callback",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-failed', executionId: $('AURUM trigger (Module 08 schedule)').first().json.body.executionId, workflowId: $('AURUM trigger (Module 08 schedule)').first().json.body.workflowId, workflowVersion: $('AURUM trigger (Module 08 schedule)').first().json.body.workflowVersion, attempt: $('AURUM trigger (Module 08 schedule)').first().json.body.attempt, environment: $('AURUM trigger (Module 08 schedule)').first().json.body.environment, status: 'failed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), error: { category: 'DEPENDENCY_UNAVAILABLE', retryable: true, message: 'WF08-01 could not load its configuration: ' + String(($json.error && ($json.error.message || $json.error.description)) || 'request failed').slice(0, 300) } }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "aurumM08ServiceTok",
+          "name": "AURUM Module 08 - service token (Authorization: Bearer)"
+        }
+      }
+    },
+    {
+      "id": "0f080100-0801-4d00-9e01-000000000006",
+      "name": "Check system health",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        300
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "http://host.docker.internal:8000/api/v1/orchestration/market-monitoring/preflight",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "aurumM08ServiceTok",
+          "name": "AURUM Module 08 - service token (Authorization: Bearer)"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "notes": "Node 3"
+    },
+    {
+      "id": "0f080100-0801-4d00-9e01-000000000007",
+      "name": "Callback: failed (health check)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        520
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/v1/orchestration/webhooks/n8n/callback",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-failed', executionId: $('AURUM trigger (Module 08 schedule)').first().json.body.executionId, workflowId: $('AURUM trigger (Module 08 schedule)').first().json.body.workflowId, workflowVersion: $('AURUM trigger (Module 08 schedule)').first().json.body.workflowVersion, attempt: $('AURUM trigger (Module 08 schedule)').first().json.body.attempt, environment: $('AURUM trigger (Module 08 schedule)').first().json.body.environment, status: 'failed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), error: { category: 'DEPENDENCY_UNAVAILABLE', retryable: true, message: 'WF08-01 could not check system health: ' + String(($json.error && ($json.error.message || $json.error.description)) || 'request failed').slice(0, 300) } }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "aurumM08ServiceTok",
+          "name": "AURUM Module 08 - service token (Authorization: Bearer)"
+        }
+      }
+    },
+    {
+      "id": "0f080100-0801-4d00-9e01-000000000009",
+      "name": "Essential services available?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "00000008",
+              "leftValue": "={{ $json.proceed }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "0f080100-0801-4d00-9e01-000000000010",
+      "name": "Callback: completed (skipped)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        520
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/v1/orchestration/webhooks/n8n/callback",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-completed', executionId: $('AURUM trigger (Module 08 schedule)').first().json.body.executionId, workflowId: $('AURUM trigger (Module 08 schedule)').first().json.body.workflowId, workflowVersion: $('AURUM trigger (Module 08 schedule)').first().json.body.workflowVersion, attempt: $('AURUM trigger (Module 08 schedule)').first().json.body.attempt, environment: $('AURUM trigger (Module 08 schedule)').first().json.body.environment, status: 'completed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), output: { status: 'skipped', reason: ($('Check system health').first().json.reasons || []).join(' '), checked: 0, requested: [], skipped: [] } }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "aurumM08ServiceTok",
+          "name": "AURUM Module 08 - service token (Authorization: Bearer)"
+        }
+      }
+    },
+    {
+      "id": "0f080100-0801-4d00-9e01-000000000011",
+      "name": "Get eligible symbols and timeframes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        300
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "http://host.docker.internal:8000/api/v1/orchestration/market-monitoring/eligible",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 10000
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "symbols",
+              "value": "={{ ($('AURUM trigger (Module 08 schedule)').first().json.body.input || {}).symbols ? $('AURUM trigger (Module 08 schedule)').first().json.body.input.symbols.join(',') : '' }}"
+            },
+            {
+              "name": "timeframes",
+              "value": "={{ ($('AURUM trigger (Module 08 schedule)').first().json.body.input || {}).timeframes ? $('AURUM trigger (Module 08 schedule)').first().json.body.input.timeframes.join(',') : '' }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "aurumM08ServiceTok",
+          "name": "AURUM Module 08 - service token (Authorization: Bearer)"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "notes": "Node 5"
+    },
+    {
+      "id": "0f080100-0801-4d00-9e01-000000000012",
+      "name": "Callback: failed (eligible list)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        520
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/v1/orchestration/webhooks/n8n/callback",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-failed', executionId: $('AURUM trigger (Module 08 schedule)').first().json.body.executionId, workflowId: $('AURUM trigger (Module 08 schedule)').first().json.body.workflowId, workflowVersion: $('AURUM trigger (Module 08 schedule)').first().json.body.workflowVersion, attempt: $('AURUM trigger (Module 08 schedule)').first().json.body.attempt, environment: $('AURUM trigger (Module 08 schedule)').first().json.body.environment, status: 'failed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), error: { category: 'DEPENDENCY_UNAVAILABLE', retryable: true, message: 'WF08-01 could not read the eligible instruments: ' + String(($json.error && ($json.error.message || $json.error.description)) || 'request failed').slice(0, 300) } }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "aurumM08ServiceTok",
+          "name": "AURUM Module 08 - service token (Authorization: Bearer)"
+        }
+      }
+    },
+    {
+      "id": "0f080100-0801-4d00-9e01-000000000014",
+      "name": "Anything to check?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "00000013",
+              "leftValue": "={{ $json.count }}",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "rightValue": 0
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "0f080100-0801-4d00-9e01-000000000015",
+      "name": "Callback: completed (nothing to check)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        520
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/v1/orchestration/webhooks/n8n/callback",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-completed', executionId: $('AURUM trigger (Module 08 schedule)').first().json.body.executionId, workflowId: $('AURUM trigger (Module 08 schedule)').first().json.body.workflowId, workflowVersion: $('AURUM trigger (Module 08 schedule)').first().json.body.workflowVersion, attempt: $('AURUM trigger (Module 08 schedule)').first().json.body.attempt, environment: $('AURUM trigger (Module 08 schedule)').first().json.body.environment, status: 'completed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), output: { status: 'skipped', reason: 'No eligible symbol and timeframe pairs.', checked: 0, requested: [], skipped: [] } }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "aurumM08ServiceTok",
+          "name": "AURUM Module 08 - service token (Authorization: Bearer)"
+        }
+      }
+    },
+    {
+      "id": "0f080100-0801-4d00-9e01-000000000016",
+      "name": "Split out instruments",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        300
+      ],
+      "parameters": {
+        "fieldToSplitOut": "items",
+        "options": {}
+      },
+      "notes": "Node 6: one item per symbol x timeframe"
+    },
+    {
+      "id": "0f080100-0801-4d00-9e01-000000000017",
+      "name": "Loop over instruments",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1980,
+        300
+      ],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "notes": "Continue to next instrument: every branch below returns here; 'done' fires once at the end"
+    },
+    {
+      "id": "0f080100-0801-4d00-9e01-000000000018",
+      "name": "Check candle completion",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2200,
+        120
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "http://host.docker.internal:8000/api/v1/orchestration/market-monitoring/candle-status",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 10000
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "symbol",
+              "value": "={{ $json.symbol }}"
+            },
+            {
+              "name": "timeframe",
+              "value": "={{ $json.timeframe }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "aurumM08ServiceTok",
+          "name": "AURUM Module 08 - service token (Authorization: Bearer)"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "notes": "Node 7"
+    },
+    {
+      "id": "0f080100-0801-4d00-9e01-000000000020",
+      "name": "Candle closed and settled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        120
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "00000019",
+              "leftValue": "={{ $json.ready }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "0f080100-0801-4d00-9e01-000000000021",
+      "name": "Check duplicate analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2640,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "http://host.docker.internal:8000/api/v1/orchestration/market-monitoring/dispatch-status",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 10000
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "symbol",
+              "value": "={{ $json.symbol }}"
+            },
+            {
+              "name": "timeframe",
+              "value": "={{ $json.timeframe }}"
+            },
+            {
+              "name": "candleOpen",
+              "value": "={{ $json.latestCandleOpen }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "aurumM08ServiceTok",
+          "name": "AURUM Module 08 - service token (Authorization: Bearer)"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "notes": "Node 9"
+    },
+    {
+      "id": "0f080100-0801-4d00-9e01-000000000023",
+      "name": "Already requested?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "00000022",
+              "leftValue": "={{ $json.alreadyRequested }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "0f080100-0801-4d00-9e01-000000000025",
+      "name": "Dry run?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        -120
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "00000024",
+              "leftValue": "={{ ($('AURUM trigger (Module 08 schedule)').first().json.body.input || {}).dryRun === true }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "0f080100-0801-4d00-9e01-000000000026",
+      "name": "Request analysis (publish event)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3300,
+        -240
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/v1/orchestration/webhooks/n8n/events",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ eventType: $json.requestEvent, eventVersion: '1.0', sourceModule: 'n8n', environment: $('AURUM trigger (Module 08 schedule)').first().json.body.environment, idempotencyKey: $json.idempotencyKey, correlationId: $('AURUM trigger (Module 08 schedule)').first().json.body.executionId, payload: { symbol: $json.symbol, timeframe: $json.timeframe, timeframes: [$json.timeframe], candle_open: $json.candleOpen, reason: 'WF08-01: ' + $json.timeframe + ' candle closed at ' + $('Check candle completion').item.json.latestCandleClose }, metadata: { workflow: 'wf08-01-market-monitoring', aurumExecutionId: $('AURUM trigger (Module 08 schedule)').first().json.body.executionId } }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "aurumM08ServiceTok",
+          "name": "AURUM Module 08 - service token (Authorization: Bearer)"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "notes": "Node 11: ai.analysis.requested (or technical.analysis.requested). The idempotency key makes a repeat a no-op."
+    },
+    {
+      "id": "0f080100-0801-4d00-9e01-000000000033",
+      "name": "Record: analysis requested",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3520,
+        -300
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "options": {},
+        "assignments": {
+          "assignments": [
+            {
+              "id": "00000027",
+              "name": "symbol",
+              "value": "={{ $('Loop over instruments').item.json.symbol }}",
+              "type": "string"
+            },
+            {
+              "id": "00000028",
+              "name": "timeframe",
+              "value": "={{ $('Loop over instruments').item.json.timeframe }}",
+              "type": "string"
+            },
+            {
+              "id": "00000029",
+              "name": "outcome",
+              "value": "={{ $json.duplicate ? 'duplicate' : 'requested' }}",
+              "type": "string"
+            },
+            {
+              "id": "00000030",
+              "name": "reason",
+              "value": "={{ $json.duplicate ? 'Already requested by an earlier run (idempotency key).' : 'Analysis requested.' }}",
+              "type": "string"
+            },
+            {
+              "id": "00000031",
+              "name": "eventId",
+              "value": "={{ $json.eventId }}",
+              "type": "string"
+            },
+            {
+              "id": "00000032",
+              "name": "candleOpen",
+              "value": "={{ $('Check duplicate analysis').item.json.candleOpen }}",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "0f080100-0801-4d00-9e01-000000000038",
+      "name": "Record: request failed",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3520,
+        -120
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "options": {},
+        "assignments": {
+          "assignments": [
+            {
+              "id": "00000034",
+              "name": "symbol",
+              "value": "={{ $('Loop over instruments').item.json.symbol }}",
+              "type": "string"
+            },
+            {
+              "id": "00000035",
+              "name": "timeframe",
+              "value": "={{ $('Loop over instruments').item.json.timeframe }}",
+              "type": "string"
+            },
+            {
+              "id": "00000036",
+              "name": "outcome",
+              "value": "failed",
+              "type": "string"
+            },
+            {
+              "id": "00000037",
+              "name": "reason",
+              "value": "={{ 'Publishing the request failed: ' + String(($json.error && $json.error.message) || 'error').slice(0, 200) }}",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "0f080100-0801-4d00-9e01-000000000044",
+      "name": "Record: dry run",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3300,
+        -60
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "options": {},
+        "assignments": {
+          "assignments": [
+            {
+              "id": "00000039",
+              "name": "symbol",
+              "value": "={{ $('Loop over instruments').item.json.symbol }}",
+              "type": "string"
+            },
+            {
+              "id": "00000040",
+              "name": "timeframe",
+              "value": "={{ $('Loop over instruments').item.json.timeframe }}",
+              "type": "string"
+            },
+            {
+              "id": "00000041",
+              "name": "outcome",
+              "value": "dry_run",
+              "type": "string"
+            },
+            {
+              "id": "00000042",
+              "name": "reason",
+              "value": "Dry run: would request analysis.",
+              "type": "string"
+            },
+            {
+              "id": "00000043",
+              "name": "candleOpen",
+              "value": "={{ $json.candleOpen }}",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "0f080100-0801-4d00-9e01-000000000051",
+      "name": "Record: duplicate",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3080,
+        120
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "options": {},
+        "assignments": {
+          "assignments": [
+            {
+              "id": "00000045",
+              "name": "symbol",
+              "value": "={{ $('Loop over instruments').item.json.symbol }}",
+              "type": "string"
+            },
+            {
+              "id": "00000046",
+              "name": "timeframe",
+              "value": "={{ $('Loop over instruments').item.json.timeframe }}",
+              "type": "string"
+            },
+            {
+              "id": "00000047",
+              "name": "outcome",
+              "value": "duplicate",
+              "type": "string"
+            },
+            {
+              "id": "00000048",
+              "name": "reason",
+              "value": "Analysis for this candle was already requested.",
+              "type": "string"
+            },
+            {
+              "id": "00000049",
+              "name": "eventId",
+              "value": "={{ $json.eventId }}",
+              "type": "string"
+            },
+            {
+              "id": "00000050",
+              "name": "candleOpen",
+              "value": "={{ $json.candleOpen }}",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "0f080100-0801-4d00-9e01-000000000056",
+      "name": "Record: duplicate check failed",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2860,
+        240
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "options": {},
+        "assignments": {
+          "assignments": [
+            {
+              "id": "00000052",
+              "name": "symbol",
+              "value": "={{ $('Loop over instruments').item.json.symbol }}",
+              "type": "string"
+            },
+            {
+              "id": "00000053",
+              "name": "timeframe",
+              "value": "={{ $('Loop over instruments').item.json.timeframe }}",
+              "type": "string"
+            },
+            {
+              "id": "00000054",
+              "name": "outcome",
+              "value": "failed",
+              "type": "string"
+            },
+            {
+              "id": "00000055",
+              "name": "reason",
+              "value": "={{ 'Duplicate check failed: ' + String(($json.error && $json.error.message) || 'error').slice(0, 200) }}",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "0f080100-0801-4d00-9e01-000000000061",
+      "name": "Record: candle not ready",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2640,
+        240
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "options": {},
+        "assignments": {
+          "assignments": [
+            {
+              "id": "00000057",
+              "name": "symbol",
+              "value": "={{ $('Loop over instruments').item.json.symbol }}",
+              "type": "string"
+            },
+            {
+              "id": "00000058",
+              "name": "timeframe",
+              "value": "={{ $('Loop over instruments').item.json.timeframe }}",
+              "type": "string"
+            },
+            {
+              "id": "00000059",
+              "name": "outcome",
+              "value": "not_ready",
+              "type": "string"
+            },
+            {
+              "id": "00000060",
+              "name": "reason",
+              "value": "={{ $json.reason }}",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "0f080100-0801-4d00-9e01-000000000066",
+      "name": "Record: candle check failed",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2420,
+        360
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "options": {},
+        "assignments": {
+          "assignments": [
+            {
+              "id": "00000062",
+              "name": "symbol",
+              "value": "={{ $('Loop over instruments').item.json.symbol }}",
+              "type": "string"
+            },
+            {
+              "id": "00000063",
+              "name": "timeframe",
+              "value": "={{ $('Loop over instruments').item.json.timeframe }}",
+              "type": "string"
+            },
+            {
+              "id": "00000064",
+              "name": "outcome",
+              "value": "failed",
+              "type": "string"
+            },
+            {
+              "id": "00000065",
+              "name": "reason",
+              "value": "={{ 'Candle check failed: ' + String(($json.error && $json.error.message) || 'error').slice(0, 200) }}",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "0f080100-0801-4d00-9e01-000000000067",
+      "name": "Collect results",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        2200,
+        600
+      ],
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "results",
+        "options": {}
+      }
+    },
+    {
+      "id": "0f080100-0801-4d00-9e01-000000000068",
+      "name": "Callback: completed (run recorded)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2420,
+        600
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/v1/orchestration/webhooks/n8n/callback",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-completed', executionId: $('AURUM trigger (Module 08 schedule)').first().json.body.executionId, workflowId: $('AURUM trigger (Module 08 schedule)').first().json.body.workflowId, workflowVersion: $('AURUM trigger (Module 08 schedule)').first().json.body.workflowVersion, attempt: $('AURUM trigger (Module 08 schedule)').first().json.body.attempt, environment: $('AURUM trigger (Module 08 schedule)').first().json.body.environment, status: 'completed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), output: { status: $json.results.some(r => r.outcome === 'failed') ? 'partial' : 'completed', reason: $json.results.filter(r => r.outcome === 'requested').length + ' analysis request(s) published', checked: $json.results.length, requested: $json.results.filter(r => r.outcome === 'requested' || r.outcome === 'dry_run'), skipped: $json.results.filter(r => r.outcome !== 'requested' && r.outcome !== 'dry_run') } }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "aurumM08ServiceTok",
+          "name": "AURUM Module 08 - service token (Authorization: Bearer)"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "AURUM trigger (Module 08 schedule)": {
+      "main": [
+        [
+          {
+            "node": "Accept (return the n8n execution id)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Accept (return the n8n execution id)": {
+      "main": [
+        [
+          {
+            "node": "Callback: started",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Callback: started": {
+      "main": [
+        [
+          {
+            "node": "Load automation configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load automation configuration": {
+      "main": [
+        [
+          {
+            "node": "Check system health",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Callback: failed (configuration)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check system health": {
+      "main": [
+        [
+          {
+            "node": "Essential services available?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Callback: failed (health check)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Essential services available?": {
+      "main": [
+        [
+          {
+            "node": "Get eligible symbols and timeframes",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Callback: completed (skipped)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get eligible symbols and timeframes": {
+      "main": [
+        [
+          {
+            "node": "Anything to check?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Callback: failed (eligible list)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anything to check?": {
+      "main": [
+        [
+          {
+            "node": "Split out instruments",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Callback: completed (nothing to check)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split out instruments": {
+      "main": [
+        [
+          {
+            "node": "Loop over instruments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop over instruments": {
+      "main": [
+        [
+          {
+            "node": "Collect results",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check candle completion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check candle completion": {
+      "main": [
+        [
+          {
+            "node": "Candle closed and settled?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record: candle check failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Candle closed and settled?": {
+      "main": [
+        [
+          {
+            "node": "Check duplicate analysis",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record: candle not ready",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check duplicate analysis": {
+      "main": [
+        [
+          {
+            "node": "Already requested?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record: duplicate check failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Already requested?": {
+      "main": [
+        [
+          {
+            "node": "Record: duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Dry run?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dry run?": {
+      "main": [
+        [
+          {
+            "node": "Record: dry run",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Request analysis (publish event)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Request analysis (publish event)": {
+      "main": [
+        [
+          {
+            "node": "Record: analysis requested",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record: request failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: analysis requested": {
+      "main": [
+        [
+          {
+            "node": "Loop over instruments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: request failed": {
+      "main": [
+        [
+          {
+            "node": "Loop over instruments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: dry run": {
+      "main": [
+        [
+          {
+            "node": "Loop over instruments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: duplicate": {
+      "main": [
+        [
+          {
+            "node": "Loop over instruments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: duplicate check failed": {
+      "main": [
+        [
+          {
+            "node": "Loop over instruments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: candle not ready": {
+      "main": [
+        [
+          {
+            "node": "Loop over instruments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: candle check failed": {
+      "main": [
+        [
+          {
+            "node": "Loop over instruments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect results": {
+      "main": [
+        [
+          {
+            "node": "Callback: completed (run recorded)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "tags": [],
+  "meta": {
+    "aurum": "WF08-01 Market Monitoring Scheduler. Triggered by an AURUM Module 08 schedule; for every configured symbol x timeframe it checks that the latest candle has closed and settled, skips candles already requested, and publishes one analysis request event per new candle (idempotency key wf08-01:<symbol>:<tf>:<candle open>). Every decision is made by the AURUM backend; this workflow only sequences calls. It reads no broker data, holds no MT5 access and cannot place, approve or execute trades. All URLs are fixed to AURUM so the service token can only ever be sent there."
+  }
+}

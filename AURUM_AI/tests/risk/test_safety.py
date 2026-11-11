@@ -8,7 +8,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import pytest
-from conftest import EURUSD_BUY, NOW, Harness, ids
+from risk_helpers import EURUSD_BUY, NOW, Harness, ids
 from sqlalchemy import create_engine, inspect, select, text
 
 from aurum.risk.db_models import RiskAssessment, RiskAuditLog

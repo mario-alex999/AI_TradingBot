@@ -13,7 +13,7 @@ from aurum.database.connection import init_database, make_engine
 from aurum.database.repository import Repository
 from aurum.gateways.mt5_gateway import BrokerClock, MT5Gateway
 from aurum.services.market_data_service import MarketDataService
-from conftest import TUESDAY, FakeMT5, make_rates
+from module01_helpers import TUESDAY, FakeMT5, make_rates
 
 ROOT = Path(__file__).resolve().parent.parent
 

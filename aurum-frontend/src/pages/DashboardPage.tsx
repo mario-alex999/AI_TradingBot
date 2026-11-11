@@ -7,12 +7,14 @@ import { IntelligenceSummary } from '@/components/dashboard/IntelligenceSummary'
 import { RecentAlerts } from '@/components/dashboard/RecentAlerts';
 import { PerformanceChart } from '@/components/dashboard/PerformanceChart';
 import { TopMovers } from '@/components/dashboard/TopMovers';
+import { CommandCentre } from '@/components/dashboard/CommandCentre';
 
 export default function DashboardPage() {
   return (
     <div className="flex flex-col gap-5">
       <WelcomeSection />
       <AccountSummary />
+      <CommandCentre />
       <MarketCards />
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <PerformanceChart />

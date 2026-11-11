@@ -6,7 +6,7 @@ import pytest
 from aurum.database.connection import init_database, make_engine
 from aurum.database.repository import Repository
 from aurum.exporters.market_data_exporter import MarketDataExporter
-from conftest import TUESDAY, candle_frame
+from module01_helpers import TUESDAY, candle_frame
 
 
 @pytest.fixture
