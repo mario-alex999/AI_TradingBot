@@ -36,6 +36,7 @@ try:
     if pending_migrations(engine):
         log.info("Applying database migrations", extra={"steps": init_database(engine)})
 except Exception as exc:  # noqa: BLE001 - the API still starts; /api/v1/health then reports the database problem
-    log.error("Database migration check failed: %s", type(exc).__name__)
+    # The driver's message names the host, user or reason (never the password); setup_logging masks secrets anyway.
+    log.error("Database migration check failed: %s: %s", type(exc).__name__, str(exc).strip()[:400])
 
 app = create_app(settings, engine=engine)
