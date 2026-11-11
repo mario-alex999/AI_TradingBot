@@ -15,6 +15,7 @@ afterEach(() => {
   calls.length = 0;
   vi.unstubAllGlobals();
   delete process.env.AURUM_BACKEND_URL;
+  delete process.env.AURUM_MT5_BACKEND_URL;
 });
 
 describe('Vercel API proxy', () => {
@@ -60,5 +61,26 @@ describe('Vercel API proxy', () => {
     });
     const r = await handler(new Request('https://app.vercel.app/api/proxy?__path=v1/health'));
     expect(r.status).toBe(502);
+  });
+
+  it('sends the MT5 link to the MT5 PC and everything else to the main backend', async () => {
+    process.env.AURUM_BACKEND_URL = 'https://api.example.com';
+    process.env.AURUM_MT5_BACKEND_URL = 'https://mt5-pc.example.com/';
+    stubBackend(new Response('{}'));
+    await handler(new Request('https://app.vercel.app/api/proxy?__path=v1/mt5/connection'));
+    await handler(new Request('https://app.vercel.app/api/proxy?__path=v1/mt5movers'));
+    await handler(new Request('https://app.vercel.app/api/proxy?__path=v1/auth/me'));
+    expect(calls.map((c) => c.url)).toEqual([
+      'https://mt5-pc.example.com/api/v1/mt5/connection',
+      'https://api.example.com/api/v1/mt5movers',
+      'https://api.example.com/api/v1/auth/me',
+    ]);
+  });
+
+  it('falls back to the main backend for the MT5 link when no MT5 PC is set', async () => {
+    process.env.AURUM_BACKEND_URL = 'https://api.example.com';
+    stubBackend(new Response('{}'));
+    await handler(new Request('https://app.vercel.app/api/proxy?__path=v1/mt5/status'));
+    expect(calls[0].url).toBe('https://api.example.com/api/v1/mt5/status');
   });
 });

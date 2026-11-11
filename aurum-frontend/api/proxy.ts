@@ -5,7 +5,10 @@
  * cookie cross-site and the browser would drop it. Through this proxy the browser only ever talks to the Vercel domain.
  *
  * Configure on Vercel (Project → Settings → Environment Variables):
- *   AURUM_BACKEND_URL = https://your-backend.example.com   (server-side only; NOT a VITE_ variable)
+ *   AURUM_BACKEND_URL     = https://your-backend.example.com   (server-side only; NOT a VITE_ variable)
+ *   AURUM_MT5_BACKEND_URL = https://the-mt5-pc.example.com     (optional) where /api/v1/mt5/* goes: the per-person MT5
+ *                           link must run on the Windows PC that holds the MT5 terminal slots. Both backends must use
+ *                           the same database, so a sign-in on one is valid on the other.
  * vercel.json rewrites /api/v1/:path* to /api/proxy?__path=v1/:path*.
  */
 export const config = { runtime: 'edge' };
@@ -22,15 +25,19 @@ function json(status: number, code: string, message: string): Response {
   });
 }
 
-export default async function handler(request: Request): Promise<Response> {
-  const backend = (process.env.AURUM_BACKEND_URL ?? '').trim().replace(/\/+$/, '');
-  if (!/^https?:\/\//.test(backend))
-    return json(503, 'BACKEND_NOT_CONFIGURED', 'The AURUM backend address is not configured for this deployment (AURUM_BACKEND_URL).');
+const clean = (v: string | undefined) => (v ?? '').trim().replace(/\/+$/, '');
 
+export default async function handler(request: Request): Promise<Response> {
   const incoming = new URL(request.url);
   const path = incoming.searchParams.get('__path') ?? '';
   if (!/^v1(\/[A-Za-z0-9._~\-/%]*)?$/.test(path) || path.split('/').some((s) => s === '..' || s === '.'))
     return json(404, 'NOT_FOUND', 'Not found.');
+
+  const mt5 = path === 'v1/mt5' || path.startsWith('v1/mt5/');
+  const backend = (mt5 && clean(process.env.AURUM_MT5_BACKEND_URL)) || clean(process.env.AURUM_BACKEND_URL);
+  if (!/^https?:\/\//.test(backend))
+    return json(503, 'BACKEND_NOT_CONFIGURED', 'The AURUM backend address is not configured for this deployment (AURUM_BACKEND_URL).');
+
   incoming.searchParams.delete('__path');
   const target = `${backend}/api/${path}${incoming.search}`;
 
