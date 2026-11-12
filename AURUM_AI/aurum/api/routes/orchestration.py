@@ -19,6 +19,7 @@ Config      GET|PUT /config
 Schedules   GET|POST /schedules; PUT /schedules/{id}; POST /schedules/{id}/pause|resume; GET /schedules/{id}/runs
 Failures    GET /dead-letters; GET /dead-letters/{id}/export; POST /dead-letters/{id}/retry|resolve
 Leases      GET /locks; POST /locks/acquire|renew|release
+Worker      POST /worker/tick (one worker pass; orchestration:tick service tokens, for hosts without a resident worker)
 Audit       GET /audit-logs
 """
 from __future__ import annotations
@@ -120,6 +121,7 @@ def build_router(state: AppState, svc: Callable[[], Any]) -> APIRouter:
     Trigger = Depends(require(perm.ORCH_TRIGGER))
     Hook = Depends(require(perm.ORCH_CALLBACK))
     Locks = Depends(require(perm.ORCH_LOCKS))
+    Tick = Depends(require(perm.ORCH_TICK))
     Cid = Header(default=None, alias="X-Correlation-ID")
     Idem = Header(default=None, alias="Idempotency-Key")
 
@@ -486,6 +488,18 @@ def build_router(state: AppState, svc: Callable[[], Any]) -> APIRouter:
             return _err(OrchError(404, "NOT_FOUND", "Unknown lock action."), cid or str(uuid.uuid4()))
         return limited(hook_limit, who.id) or run(response, fns[action], cid)
 
+    # ---- worker pass over HTTP ------------------------------------------------------------------------------------------------
+    @r.post("/worker/tick")
+    def worker_tick(response: Response, cid: str | None = Cid, who: Principal = Tick) -> Any:
+        """One Module 08 worker pass (bridge, deliver, schedules, dispatch, time-outs, health when due) for hosts without
+        a long-running worker, such as a serverless deployment. An external timer (Supabase pg_cron, a cron job) calls it
+        about once a minute with a service token scoped to orchestration:tick. Overlapping calls are safe: claims, leases
+        and unique schedule slots prevent duplicate runs."""
+        if (resp := limited(write_limit, who.id)) is not None:
+            return resp
+        from aurum.orchestration.worker import Worker
+        return run(response, lambda: _tick_summary(Worker(svc()).tick()), cid)
+
     # ---- audit --------------------------------------------------------------------------------------------------------------
     @r.get("/audit-logs")
     def audit(response: Response, who: Principal = View, action: str | None = None,
@@ -526,3 +540,10 @@ def build_router(state: AppState, svc: Callable[[], Any]) -> APIRouter:
         return run(response, lambda: monitor().dispatch_status(symbol, timeframe, candle_open))
 
     return r
+
+
+def _tick_summary(result: dict[str, Any]) -> dict[str, Any]:
+    """Worker results are small dicts per step; keep the response bounded and JSON-safe."""
+    return {"steps": {name: (value if isinstance(value, (dict, list, int, float, str, bool)) or value is None else str(value))
+                      for name, value in result.items()},
+            "errors": [name for name, value in result.items() if isinstance(value, dict) and "error" in value]}

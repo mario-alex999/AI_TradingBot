@@ -160,3 +160,20 @@ def test_config_document_round_trips_with_snake_case_keys(world):
     assert r.json()["version"] == got["version"] + 1 and r.json()["config"]["modules"]["module_09"]["base_url"].endswith(":8100")
     r = api.put(f"{P}/config", json={"config": doc, "reason": "again", "version": got["version"]}, headers=csrf)
     assert r.status_code == 409 and r.json()["error"]["code"] == "STALE_VERSION"
+
+
+def test_worker_tick_over_http_needs_a_tick_scoped_service_token(world):
+    h, api = world
+    # Without a token, with a person's session, or with a token lacking orchestration:tick: refused.
+    assert api.post(f"{P}/worker/tick").status_code == 401
+    csrf = login(api, "alice")
+    assert api.post(f"{P}/worker/tick", headers=csrf).status_code == 403
+    api.cookies.clear()
+    assert api.post(f"{P}/worker/tick", headers=service(h, ["orchestration:callback"])).status_code == 403
+    # A queued execution is dispatched by one pass over HTTP, exactly as by the resident worker.
+    x, _ = h.trigger("api-tick")
+    r = api.post(f"{P}/worker/tick", headers=service(h, ["orchestration:tick"]))
+    assert r.status_code == 200, r.text
+    out = r.json()
+    assert set(out["steps"]) >= {"bridge", "deliver", "schedule", "dispatch", "timeouts"} and out["errors"] == []
+    assert h.svc.get_execution(x["execution_id"])["status"] != "QUEUED"
