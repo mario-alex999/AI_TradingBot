@@ -83,4 +83,42 @@ describe('Vercel API proxy', () => {
     await handler(new Request('https://app.vercel.app/api/proxy?__path=v1/mt5/status'));
     expect(calls[0].url).toBe('https://api.example.com/api/v1/mt5/status');
   });
+
+  it('retries the MT5 link when the PC does not answer, then succeeds', async () => {
+    process.env.AURUM_BACKEND_URL = 'https://api.example.com';
+    process.env.AURUM_MT5_BACKEND_URL = 'https://mt5-pc.example.com';
+    let n = 0;
+    vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
+      calls.push({ url, init });
+      n += 1;
+      if (n === 1) throw new TypeError('fetch failed');
+      if (n === 2) return new Response('<html>tunnel down</html>', { status: 502, headers: { 'content-type': 'text/html' } });
+      return new Response('{"connection":null}', { status: 200, headers: { 'content-type': 'application/json' } });
+    });
+    const r = await handler(new Request('https://app.vercel.app/api/proxy?__path=v1/mt5/connect', { method: 'POST', body: '{}' }));
+    expect(r.status).toBe(200);
+    expect(calls).toHaveLength(3);
+  });
+
+  it('never repeats other writes (an approval must not be sent twice)', async () => {
+    process.env.AURUM_BACKEND_URL = 'https://api.example.com';
+    vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
+      calls.push({ url, init });
+      throw new TypeError('fetch failed');
+    });
+    const r = await handler(new Request('https://app.vercel.app/api/proxy?__path=v1/approvals/1/approve', { method: 'POST', body: '{}' }));
+    expect(r.status).toBe(502);
+    expect(calls).toHaveLength(1);
+  });
+
+  it('explains clearly when the trading PC stays unreachable', async () => {
+    process.env.AURUM_BACKEND_URL = 'https://api.example.com';
+    process.env.AURUM_MT5_BACKEND_URL = 'https://mt5-pc.example.com';
+    vi.stubGlobal('fetch', async () => {
+      throw new TypeError('fetch failed');
+    });
+    const r = await handler(new Request('https://app.vercel.app/api/proxy?__path=v1/mt5/connection'));
+    expect(r.status).toBe(502);
+    expect((await r.json()).error.message).toMatch(/trading PC/);
+  });
 });
