@@ -141,6 +141,28 @@ class AccountQueries:
             out.append({"ticket": rec.id, "instrument": rec.symbol, "side": rec.side, "volume": rec.volume,
                         "entryPrice": rec.open_price, "stopLoss": rec.stop_loss, "takeProfit": rec.take_profit,
                         "currentPrice": price, "floatingPnl": floating, "openedAt": _iso(rec.open_time), "kind": "position"})
+        return out + self.pending_orders(quotes)
+
+    def pending_orders(self, quotes: dict[str, dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+        """Limit / stop orders waiting on the account (``kind: "pending"``); ``entryPrice`` is the trigger price."""
+        from sqlalchemy.exc import SQLAlchemyError
+
+        from aurum.account.db_models import AccountOrder
+        try:
+            with session_scope(self.engine) as s:
+                rows = list(s.execute(select(AccountOrder).order_by(AccountOrder.placed_at)).scalars().all())
+                s.expunge_all()
+        except SQLAlchemyError:          # table not migrated yet: no pending orders to show
+            return []
+        quotes = quotes or {}
+        out = []
+        for o in rows:
+            q = quotes.get(o.symbol)
+            price = (q["ask"] if o.side == "buy" else q["bid"]) if q and q["status"] == "open" else None
+            out.append({"ticket": str(o.ticket), "instrument": o.symbol, "side": o.side, "volume": o.volume,
+                        "entryPrice": o.price, "stopLoss": o.stop_loss, "takeProfit": o.take_profit, "currentPrice": price,
+                        "floatingPnl": None, "openedAt": _iso(o.placed_at), "expiresAt": _iso(o.expires_at) if o.expires_at else None,
+                        "orderType": o.order_type, "kind": "pending"})
         return out
 
     def history(self, limit: int = 500) -> list[dict[str, Any]]:

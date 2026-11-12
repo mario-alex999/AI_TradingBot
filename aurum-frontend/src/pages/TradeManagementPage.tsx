@@ -53,7 +53,14 @@ function columns(kind: Tab): Column<Position>[] {
             cell: (r: Position) => <span className={(r.floatingPnl ?? 0) >= 0 ? 'num text-up' : 'num text-down-text'}>{formatCurrency(r.floatingPnl)}</span>,
           },
         ]
-      : []),
+      : [
+          {
+            key: 'type',
+            header: 'Order type',
+            cell: (r: Position) => <span className="text-xs text-ink-muted">{r.orderType ? r.orderType.replace(/_/g, ' ') : PLACEHOLDER}</span>,
+          },
+          { key: 'cur', header: 'Market', align: 'right' as const, cell: (r: Position) => price(r.currentPrice) },
+        ]),
     {
       key: 'dur',
       header: 'Duration',

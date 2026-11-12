@@ -50,6 +50,9 @@ class AccountMT5(FakeMT5):
     def history_deals_get(self, a, b):
         return []
 
+    def orders_get(self):
+        return ()
+
 
 @pytest.fixture
 def env(tmp_path):
@@ -345,3 +348,24 @@ def test_connector_models_load_in_a_fresh_process():
     r = subprocess.run([sys.executable, "-c", code], cwd=root, capture_output=True, text=True, timeout=120)
     assert r.returncode == 0, r.stderr[-2000:]
     assert "users" in r.stdout
+
+
+def test_connector_rides_out_a_database_drop(env, monkeypatch):
+    """Regression: a hosted database dropping a connection mid-link must not end the MT5 link."""
+    from sqlalchemy.exc import OperationalError
+    c = client(env)
+    h = sign_in(c, "alice")
+    conn = c.post("/api/v1/mt5/connect", json={"login": 111, "password": "p", "server": "Broker-Demo"}, headers=h).json()["connection"]
+    real = connector.ConnectionStore._stop_reason_once
+    fails = {"n": 2}
+
+    def flaky(self):
+        if fails["n"]:
+            fails["n"] -= 1
+            raise OperationalError("SELECT 1", {}, Exception("server closed the connection unexpectedly"))
+        return real(self)
+    monkeypatch.setattr(connector.ConnectionStore, "_stop_reason_once", flaky)
+    assert run_connector(env, conn["id"], 111, max_syncs=2) == 0
+    row = env[3].get(conn["id"])
+    assert fails["n"] == 0 and row["status"] == "DISCONNECTED" and row["disconnect_reason"] == "test_limit"
+    assert row["error_code"] is None

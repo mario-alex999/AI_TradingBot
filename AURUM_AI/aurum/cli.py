@@ -261,7 +261,7 @@ def stream_ticks(interval: float = typer.Option(1.0, "--interval", min=0.25, hel
                  symbol: Optional[str] = typer.Option(None, "--symbol", "-s", help="Canonical symbol, e.g. EURUSD"),
                  account_every: float = typer.Option(10.0, "--account-every", min=0,
                                                      help="Seconds between account snapshots (0 = off)"),
-                 deals_every: float = typer.Option(60.0, "--deals-every", min=0,
+                 deals_every: float = typer.Option(15.0, "--deals-every", min=0,
                                                    help="Seconds between deal-history syncs (0 = off)"),
                  lookback_days: int = typer.Option(30, "--lookback-days", min=1, help="Deal history window per sync")) -> None:
     """Record live bid/ask from MT5 every --interval seconds so the dashboard updates in real time (read-only).
@@ -289,6 +289,7 @@ def stream_ticks(interval: float = typer.Option(1.0, "--interval", min=0.25, hel
             last: dict[str, int] = {}
             recorder = AccountRecorder(repo.engine)
             next_snap = next_deals = next_compact = 0.0
+            acct: int | None = None
             while True:
                 for inst in instruments:
                     tick = collect_tick(gw, inst)
@@ -300,10 +301,13 @@ def stream_ticks(interval: float = typer.Option(1.0, "--interval", min=0.25, hel
                 try:
                     if account_every and mono >= next_snap:
                         next_snap = mono + account_every
-                        recorder.record_snapshot(gw.account_snapshot())
+                        acct = recorder.record_snapshot(gw.account_snapshot())["login"]
+                        recorder.sync_orders(gw, login=acct)       # pending orders change at the trader's pace
                     if deals_every and mono >= next_deals:
                         next_deals = mono + deals_every
-                        recorder.sync_deals(gw, lookback_days)
+                        # Always under the account's own login (without it the deals were also stored as login 0).
+                        acct = acct or int(gw.account_snapshot().get("login") or 0) or None
+                        recorder.sync_deals(gw, lookback_days, login=acct)
                     if mono >= next_compact:
                         next_compact = mono + 3600
                         recorder.compact()

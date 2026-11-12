@@ -29,6 +29,7 @@ from aurum.mt5link.db_models import Mt5Connection
 log = logging.getLogger(__name__)
 
 POLL_SECONDS = 2.0          # how quickly a disconnect request or a sign-out is noticed
+DB_RETRY_DELAYS = (1, 2, 4, 8, 15)   # a hosted database can drop connections briefly; ride it out, keep the MT5 link
 
 
 def _now() -> datetime:
@@ -38,10 +39,27 @@ def _now() -> datetime:
 class ConnectionStore:
     """The connector's view of its own ``mt5_connections`` row (and of the sign-in session behind it)."""
 
-    def __init__(self, engine: Engine, conn_id: str, idle_minutes: int, clock: Callable[[], datetime] = _now):
-        self.engine, self.id, self.idle, self.clock = engine, conn_id, timedelta(minutes=idle_minutes), clock
+    def __init__(self, engine: Engine, conn_id: str, idle_minutes: int, clock: Callable[[], datetime] = _now,
+                 sleep: Callable[[float], None] = time.sleep):
+        self.engine, self.id, self.idle, self.clock, self.sleep = engine, conn_id, timedelta(minutes=idle_minutes), clock, sleep
+
+    def _retry(self, fn: Callable[[], Any], what: str, default: Any = None) -> Any:
+        """Run a database step, retrying through short outages. After the last attempt the step is skipped (the link
+        stays up); if the database stays away, the API marks the link LOST once heartbeats stop."""
+        from sqlalchemy.exc import DBAPIError
+        for attempt, delay in enumerate((0, *DB_RETRY_DELAYS), start=1):
+            if delay:
+                self.sleep(delay)
+            try:
+                return fn()
+            except DBAPIError as exc:
+                log.warning("Database unavailable during %s (attempt %d): %s", what, attempt, type(exc).__name__)
+        return default
 
     def _update(self, **values: Any) -> None:
+        self._retry(lambda: self._update_once(**values), "update")
+
+    def _update_once(self, **values: Any) -> None:
         with session_scope(self.engine) as s:
             row = s.get(Mt5Connection, self.id)
             if row is not None:
@@ -69,6 +87,9 @@ class ConnectionStore:
         self._update(heartbeat_at=self.clock())
 
     def disconnected(self, reason: str) -> None:
+        self._retry(lambda: self._disconnected_once(reason), "disconnect")
+
+    def _disconnected_once(self, reason: str) -> None:
         with session_scope(self.engine) as s:
             row = s.get(Mt5Connection, self.id)
             if row is not None and row.status not in ("FAILED", "LOST"):
@@ -76,7 +97,10 @@ class ConnectionStore:
                 row.disconnect_reason = row.disconnect_reason or reason
 
     def stop_reason(self) -> str | None:
-        """Why the connector should stop now, or None to keep going."""
+        """Why the connector should stop now, or None to keep going (also when the database cannot be reached)."""
+        return self._retry(self._stop_reason_once, "status check")
+
+    def _stop_reason_once(self) -> str | None:
         from aurum.auth.db_models import AuthSession, User
         now = self.clock()
         with session_scope(self.engine) as s:
@@ -108,12 +132,15 @@ def run(conn_id: str, slot_folder: Path, login: int, server: str, password: str,
     from aurum.gateways.mt5_gateway import MT5Gateway, MT5Error, NonDemoAccountError
     from aurum.mt5link import terminals
 
-    store = ConnectionStore(engine, conn_id, settings.auth_session_idle_minutes, clock)
+    store = ConnectionStore(engine, conn_id, settings.auth_session_idle_minutes, clock, sleep)
     exe = Path(slot_folder) / terminals.EXE
     if terminal_ops:
         terminals.stop_terminal(exe)      # never attach to a terminal still logged in to someone else's account
+    if terminal_ops:
+        terminals.start_terminal(exe)     # start it ourselves and let it load before the IPC handshake
     gw_settings = settings.model_copy(update={"mt5_terminal_path": str(exe), "mt5_portable": True, "mt5_login": int(login),
-                                              "mt5_password": SecretStr(password), "mt5_server": server})
+                                              "mt5_password": SecretStr(password), "mt5_server": server,
+                                              "mt5_timeout_ms": settings.mt5_link_terminal_timeout_ms})
     del password
     gw = MT5Gateway(gw_settings, mt5_module)
     reason = "stopped"

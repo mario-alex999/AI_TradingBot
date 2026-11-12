@@ -25,6 +25,11 @@ function json(status: number, code: string, message: string): Response {
   });
 }
 
+const MAX_ATTEMPTS = 3;
+const BUDGET_MS = 22_000;        // Vercel needs the first byte within ~25 s
+const RETRY_PAUSE_MS = 700;
+const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 const clean = (v: string | undefined) => (v ?? '').trim().replace(/\/+$/, '');
 
 export default async function handler(request: Request): Promise<Response> {
@@ -48,17 +53,37 @@ export default async function handler(request: Request): Promise<Response> {
   headers.set('x-forwarded-host', incoming.host);
   headers.set('x-forwarded-proto', incoming.protocol.replace(':', ''));
 
-  let upstream: Response;
-  try {
-    upstream = await fetch(target, {
-      method: request.method,
-      headers,
-      body: request.method === 'GET' || request.method === 'HEAD' ? undefined : await request.arrayBuffer(),
-      redirect: 'manual',
-    });
-  } catch {
-    return json(502, 'BACKEND_UNREACHABLE', 'The AURUM backend could not be reached.');
+  // Retry what is safe to repeat: reads, and the MT5 link (connecting twice returns the same link). The backend PC can
+  // be slow (low memory) or restarting for a few seconds; one failed attempt should not reach the person.
+  const repeatable = request.method === 'GET' || request.method === 'HEAD' || mt5;
+  const body = request.method === 'GET' || request.method === 'HEAD' ? undefined : await request.arrayBuffer();
+  const deadline = Date.now() + BUDGET_MS;
+  let upstream: Response | null = null;
+  for (let attempt = 1; attempt <= (repeatable ? MAX_ATTEMPTS : 1); attempt++) {
+    const left = deadline - Date.now();
+    if (left < 1000) break;
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), left);
+    try {
+      const res = await fetch(target, { method: request.method, headers, body, redirect: 'manual', signal: ctl.signal });
+      clearTimeout(timer);   // headers arrived: never cut a streaming body (live quotes) short
+      // 502/503/504 from the tunnel itself mean the PC was not reachable this instant; try again if allowed.
+      if (repeatable && attempt < MAX_ATTEMPTS && [502, 503, 504].includes(res.status) && !res.headers.get('content-type')?.includes('json')) {
+        await res.body?.cancel();
+        await pause(RETRY_PAUSE_MS * attempt);
+        continue;
+      }
+      upstream = res;
+      break;
+    } catch {
+      clearTimeout(timer);
+      if (attempt < MAX_ATTEMPTS) await pause(RETRY_PAUSE_MS * attempt);
+    }
   }
+  if (!upstream)
+    return json(502, 'BACKEND_UNREACHABLE',
+      mt5 ? 'The MT5 server (the trading PC) did not answer. It may be restarting; try again in a minute.'
+          : 'The AURUM backend could not be reached.');
 
   const out = new Headers();
   upstream.headers.forEach((v, k) => {

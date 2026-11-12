@@ -58,7 +58,8 @@ class Settings(BaseSettings):
     mt5_slot_count: int = Field(0, ge=0, le=32)
     mt5_link_sync_seconds: int = Field(30, ge=5, le=3600)
     mt5_link_lookback_days: int = Field(90, ge=1, le=3650)
-    mt5_link_connect_timeout_seconds: int = Field(120, ge=10, le=900)
+    mt5_link_connect_timeout_seconds: int = Field(360, ge=10, le=900)   # a link still CONNECTING after this is LOST
+    mt5_link_terminal_timeout_ms: int = Field(180_000, ge=10_000, le=600_000)  # slot terminal start + login (slow PCs)
 
     # Database
     db_host: str = "localhost"

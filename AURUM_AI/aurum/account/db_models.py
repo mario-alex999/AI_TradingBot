@@ -81,3 +81,24 @@ class TradeRecord(Base):
     __table_args__ = (Index("ix_trade_records_status_close", "status", "close_time"),
                       Index("ix_trade_records_position", "position_id"),
                       Index("ix_trade_records_login_status", "login", "status"))
+
+
+class AccountOrder(Base):
+    """A pending order (limit / stop) currently on the MT5 account. Replaced as a whole on every sync, so an order that
+    was filled, cancelled or expired disappears. Read from ``orders_get``; AURUM never places or changes orders."""
+    __tablename__ = "account_orders"
+    login: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
+    ticket: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
+    symbol: Mapped[str] = mapped_column(String(64), nullable=False)            # canonical when mapped, else broker symbol
+    broker_symbol: Mapped[str] = mapped_column(String(64), nullable=False)
+    order_type: Mapped[str] = mapped_column(String(20), nullable=False)        # buy_limit | sell_stop | ...
+    side: Mapped[str] = mapped_column(String(4), nullable=False)               # buy | sell
+    volume: Mapped[float] = mapped_column(Float, nullable=False)
+    price: Mapped[float] = mapped_column(Float, nullable=False)                # trigger / limit price
+    stop_loss: Mapped[float | None] = mapped_column(Float)
+    take_profit: Mapped[float | None] = mapped_column(Float)
+    placed_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
+    expires_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    magic: Mapped[int | None] = mapped_column(BigInteger)
+    comment: Mapped[str | None] = mapped_column(Text)
+    synced_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False, default=utcnow)

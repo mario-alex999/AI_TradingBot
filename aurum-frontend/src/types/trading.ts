@@ -47,6 +47,9 @@ export interface Position {
   closedAt?: string | null;
   closePrice?: number | null;
   realisedPnl?: number | null;
+  /** Pending orders only: buy_limit | sell_limit | buy_stop | sell_stop | buy_stop_limit | sell_stop_limit. */
+  orderType?: string | null;
+  expiresAt?: string | null;
   kind: 'position' | 'pending' | 'closed';
 }
 
