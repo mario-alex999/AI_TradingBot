@@ -2,7 +2,8 @@
 
 Raw deals are stored once (keyed by account login + deal ticket); every position touched by a sync is then rebuilt from ALL of its
 stored deals, so overlapping windows, partial closes and netting reversals never double-count. Open positions come
-from the deal history, so no position or order query is ever needed.
+from the deal history. Pending orders (not in the deal history until they fill) are listed with ``orders_get``, which
+only reads; nothing here can place, change or cancel an order.
 
 Every row carries the MT5 login it came from, so several people's linked accounts never mix: a recorder built with
 ``login=`` only reads and writes that account; without it, each sync uses the login the terminal reports.
@@ -16,7 +17,7 @@ from typing import Any, Callable
 from sqlalchemy import delete, func, select
 from sqlalchemy.engine import Engine
 
-from aurum.account.db_models import AccountDeal, AccountSnapshot, TradeRecord
+from aurum.account.db_models import AccountDeal, AccountOrder, AccountSnapshot, TradeRecord
 from aurum.account.deals import build_positions, deal_time, num
 from aurum.database.connection import session_scope
 from aurum.database.models import Instrument
@@ -24,6 +25,8 @@ from aurum.database.models import Instrument
 log = logging.getLogger(__name__)
 
 TRADE_MODES = {0: "DEMO", 1: "CONTEST", 2: "REAL"}
+# MT5 ORDER_TYPE_*: 0/1 are market orders (only seen for an instant while they fill), 8 is a close-by request.
+ORDER_TYPES = {2: "buy_limit", 3: "sell_limit", 4: "buy_stop", 5: "sell_stop", 6: "buy_stop_limit", 7: "sell_stop_limit"}
 RAW_SNAPSHOT_DAYS = 7  # older snapshots are thinned to the last one of each UTC hour
 
 
@@ -98,6 +101,41 @@ class AccountRecorder:
         return {"deals": len(rows), "positions": len(legs), "open": sum(p["status"] == "open" for p in legs),
                 "cash_flows": sum(r["type"] not in (0, 1, 13, 14) for r in rows)}
 
+    def store_orders(self, orders: list[dict[str, Any]], to_utc: Callable[[float], datetime],
+                     login: int | None = None, now: datetime | None = None) -> int:
+        """Replace the account's pending orders with ``orders`` (the full current list from ``orders_get``), so a filled,
+        cancelled or expired order disappears. Returns how many are pending."""
+        acct = self._login(login)
+        if acct is None:
+            raise ValueError("Pending orders need the account login.")
+        now = now or datetime.now(timezone.utc)
+        canon = self.canonical_map()
+        rows = []
+        for o in orders:
+            kind = ORDER_TYPES.get(int(o.get("type") or 0))
+            if not o.get("ticket") or kind is None:
+                continue
+            msc = o.get("time_setup_msc")
+            placed = to_utc(msc / 1000.0) if msc else to_utc(float(o.get("time_setup") or 0))
+            exp = int(o.get("time_expiration") or 0)
+            broker = str(o.get("symbol") or "")
+            rows.append(AccountOrder(
+                login=acct, ticket=int(o["ticket"]), symbol=canon.get(broker, broker), broker_symbol=broker,
+                order_type=kind, side=kind.split("_")[0], volume=num(o.get("volume_current") or o.get("volume_initial")),
+                price=num(o.get("price_open")), stop_loss=num(o.get("sl")) or None, take_profit=num(o.get("tp")) or None,
+                placed_at=placed, expires_at=to_utc(float(exp)) if exp else None, magic=int(o.get("magic") or 0) or None,
+                comment=o.get("comment") or None, synced_at=now))
+        with session_scope(self.engine) as s:
+            s.execute(delete(AccountOrder).where(AccountOrder.login == acct))
+            s.add_all(rows)
+        return len(rows)
+
+    def sync_orders(self, gateway: Any, login: int | None = None, now: datetime | None = None) -> int | None:
+        """Mirror the pending orders (read-only ``orders_get``). None when the gateway cannot list orders."""
+        if not hasattr(gateway, "pending_orders"):
+            return None
+        return self.store_orders(gateway.pending_orders(), gateway.clock.to_utc, login, now)
+
     def sync_window_start(self, now: datetime, lookback_days: int, login: int | None = None) -> datetime:
         """Read back to the newest stored deal (minus a day) when that is older than the lookback, so a long pause
         never leaves a close unseen."""
@@ -137,6 +175,9 @@ class AccountRecorder:
         now = now or datetime.now(timezone.utc)
         snap = self.record_snapshot(gateway.account_snapshot(), now)
         counts = self.sync_deals(gateway, lookback_days, now, login=snap["login"])
+        pending = self.sync_orders(gateway, login=snap["login"], now=now)
+        if pending is not None:
+            counts["pending"] = pending
         self.compact(now)
         log.info("Account synced", extra={"equity": snap["equity"], **counts})
         return {"login": snap["login"], "equity": snap["equity"], "currency": snap["currency"], **counts}

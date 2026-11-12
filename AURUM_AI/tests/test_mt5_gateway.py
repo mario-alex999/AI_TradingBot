@@ -95,16 +95,36 @@ def test_read_only_proxy_blocks_trading_functions():
         def order_send(self, request):  # pragma: no cover - must never be reached
             raise AssertionError("order_send reached!")
     proxy = ReadOnlyMT5(WithTrading())
-    for name in ("order_send", "order_check", "positions_get", "orders_get", "Buy", "Sell", "Close"):
+    for name in ("order_send", "order_check", "order_calc_margin", "order_calc_profit", "positions_get", "Buy", "Sell",
+                 "Close", "TRADE_ACTION_DEAL", "TRADE_ACTION_PENDING", "TRADE_ACTION_REMOVE", "TRADE_ACTION_MODIFY"):
         with pytest.raises(ReadOnlyViolation):
             getattr(proxy, name)
     assert proxy.TIMEFRAME_H1 == 16385
 
 
 def test_no_trading_calls_anywhere_in_source():
-    forbidden = re.compile(r"\b(order_send|order_check|order_calc_\w+|positions_get|orders_get|TRADE_ACTION_\w+)\s*\(")
+    forbidden = re.compile(r"\b(order_send|order_check|order_calc_\w+|positions_get|TRADE_ACTION_\w+)\s*\(")
     offenders = [str(p) for p in PKG.rglob("*.py") if forbidden.search(p.read_text(encoding="utf-8"))]
     assert offenders == []
+
+
+def test_pending_orders_are_only_listed_in_one_place():
+    """orders_get only LISTS existing pending orders (it cannot place, change or cancel one). It is allowed solely in
+    MT5Gateway.pending_orders, so no other code path gains even read access to orders."""
+    pattern = re.compile(r"\borders_get\s*\(")
+    callers = [p.relative_to(PKG).as_posix() for p in PKG.rglob("*.py") if pattern.search(p.read_text(encoding="utf-8"))]
+    assert callers == ["gateways/mt5_gateway.py"]
+    assert len(pattern.findall((PKG / "gateways" / "mt5_gateway.py").read_text(encoding="utf-8"))) == 1
+
+
+def test_pending_orders_lists_the_accounts_orders(settings):
+    from types import SimpleNamespace
+
+    class WithOrders(FakeMT5):
+        def orders_get(self):
+            return (SimpleNamespace(_asdict=lambda: {"ticket": 7, "type": 3, "symbol": "XAUUSDm", "price_open": 4088.45}),)
+    with MT5Gateway(settings, WithOrders()) as gw:
+        assert gw.pending_orders() == [{"ticket": 7, "type": 3, "symbol": "XAUUSDm", "price_open": 4088.45}]
 
 
 # --------------------------------------------------------------------------- broker clock / DST verification

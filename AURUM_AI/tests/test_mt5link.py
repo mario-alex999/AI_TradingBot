@@ -50,6 +50,9 @@ class AccountMT5(FakeMT5):
     def history_deals_get(self, a, b):
         return []
 
+    def orders_get(self):
+        return ()
+
 
 @pytest.fixture
 def env(tmp_path):

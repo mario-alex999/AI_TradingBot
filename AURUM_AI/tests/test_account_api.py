@@ -263,3 +263,46 @@ def test_routes_are_served(client):
               "/agents/status", "/notifications"):
         assert f"/api/v1{p}" in paths
     assert client.get("/api/v1/health").json()["modules"]["account"] is True
+
+
+# ---- pending orders (read-only orders_get)
+def order(ticket, typ, price, at, **kw):
+    return {"ticket": ticket, "type": typ, "symbol": kw.get("symbol", "EURUSDm"), "volume_initial": 0.5, "volume_current": 0.5,
+            "price_open": price, "sl": kw.get("sl", 0.0), "tp": kw.get("tp", 0.0), "time_setup": int(at.timestamp()),
+            "time_setup_msc": int(at.timestamp() * 1000), "time_expiration": 0, "magic": 0, "comment": ""}
+
+
+def test_sync_mirrors_pending_orders_and_drops_the_ones_that_are_gone(env):
+    eng, _, now = env
+    orders = [order(900, 3, 1.1200, now - timedelta(minutes=5), sl=1.1250, tp=1.1100), order(901, 4, 1.1300, now),
+              order(902, 0, 1.1011, now)]                                       # a market order mid-fill is not "pending"
+    gw = SimpleNamespace(account_snapshot=lambda: ACCOUNT, deals=lambda a, b: history(now), pending_orders=lambda: orders,
+                         clock=SimpleNamespace(to_utc=to_utc))
+    rec = AccountRecorder(eng)
+    assert rec.sync(gw, lookback_days=30, now=now)["pending"] == 2
+    orders[:] = [order(901, 4, 1.1300, now)]                                   # 900 was filled or cancelled
+    assert rec.sync(gw, lookback_days=30, now=now)["pending"] == 1
+    from aurum.account.db_models import AccountOrder
+    with session_scope(eng) as s:
+        assert [(o.login, o.ticket, o.order_type, o.side, o.symbol) for o in s.query(AccountOrder).all()] == [
+            (123, 901, "buy_stop", "buy", "EURUSD")]
+
+
+def test_pending_orders_of_another_account_are_left_alone(env):
+    eng, _, now = env
+    AccountRecorder(eng, login=1).store_orders([order(1, 2, 1.09, now)], to_utc)
+    AccountRecorder(eng, login=2).store_orders([], to_utc)
+    from aurum.account.db_models import AccountOrder
+    with session_scope(eng) as s:
+        assert [o.login for o in s.query(AccountOrder).all()] == [1]
+
+
+def test_open_trades_lists_pending_orders(client, env):
+    eng, _, now = env
+    AccountRecorder(eng, login=123).store_orders([order(900, 3, 1.1200, now, sl=1.1250, tp=1.1100)], to_utc)
+    rows = client.get("/api/v1/trades/open").json()
+    assert [r["kind"] for r in rows] == ["position", "pending"]
+    p = rows[1]
+    assert p["ticket"] == "900" and p["instrument"] == "EURUSD" and p["side"] == "sell" and p["orderType"] == "sell_limit"
+    assert p["entryPrice"] == 1.12 and p["stopLoss"] == 1.125 and p["takeProfit"] == 1.11 and p["currentPrice"] == 1.1010
+    assert p["floatingPnl"] is None

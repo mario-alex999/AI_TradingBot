@@ -52,9 +52,10 @@ class ReadOnlyMT5:
         "initialize", "shutdown", "last_error", "version", "account_info", "terminal_info",
         "symbols_total", "symbols_get", "symbol_info", "symbol_info_tick", "symbol_select",
         "copy_rates_from_pos", "copy_rates_from", "copy_rates_range",
-        # Account history is read-only (it reports deals that already happened). Order functions
-        # such as order_send / order_check / positions_* stay blocked.
-        "history_deals_get", "history_deals_total",
+        # Account history is read-only (it reports deals that already happened). orders_get only LISTS the pending
+        # orders already on the account (so the Trade Management page can show them); it cannot place, change or
+        # cancel anything. Trading functions such as order_send / order_check stay blocked.
+        "history_deals_get", "history_deals_total", "orders_get", "orders_total",
     })
     ALLOWED_CONSTANT_PREFIXES = ("TIMEFRAME_", "ACCOUNT_TRADE_MODE_", "SYMBOL_TRADE_MODE_")
 
@@ -466,6 +467,16 @@ class MT5Gateway:
             log.warning("history_deals_get returned no data", extra={"mt5_error": self._last_error()})
             return []
         return [_asdict(d) for d in deals]
+
+    def pending_orders(self) -> list[dict[str, Any]]:
+        """Pending orders currently on the account (limit / stop orders not yet filled), as dicts. Read-only:
+        ``orders_get`` lists them; nothing here can place, modify or cancel an order."""
+        self._require()
+        orders = self.mt5.orders_get()
+        if orders is None:
+            log.warning("orders_get returned no data", extra={"mt5_error": self._last_error()})
+            return []
+        return [_asdict(o) for o in orders]
 
     def account_snapshot(self) -> dict[str, Any]:
         """Current ``account_info()`` as a dict (balance, equity, margin...). Read-only."""
