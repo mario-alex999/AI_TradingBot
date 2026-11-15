@@ -58,8 +58,8 @@ ai.analysis.requested (from WF08-01)
 
 ## Install
 
-1. Create the n8n workflow (webhook path `aurum-wf08-02-market-analysis`) and activate it. Like WF08-01's Cloud build,
-   it keeps the API address and the two tokens in its *AURUM settings* node.
+1. Import `n8n/workflows/aurum_wf08_02_market_analysis.json` into n8n (it arrives inactive). In its *AURUM settings*
+   node set `aurumApi` to your API address and replace the two `REPLACE_WITH_...` token placeholders, then activate it.
 2. Link, version, validate, activate and subscribe it in AURUM (safe to re-run):
    ```powershell
    python -m aurum.cli orchestration setup-wf08-02 --n8n-workflow-id <id from the n8n workflow URL>
@@ -76,4 +76,4 @@ forced run, off switch, a failing analysis publishes `ai.analysis.failed`, the A
 stale, blocked), installation with its subscription, one execution per WF08-01 run (and one per event with coalescing
 off), and the HTTP routes including who may start an analysis.
 
-Not in the repository: the n8n workflow definition itself (it was built directly in n8n Cloud).
+The workflow file `n8n/workflows/aurum_wf08_02_market_analysis.json` is checked by `tests/orchestration/test_workflow_files.py`.

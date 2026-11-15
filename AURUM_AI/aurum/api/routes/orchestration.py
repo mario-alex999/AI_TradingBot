@@ -574,6 +574,42 @@ def build_router(state: AppState, svc: Callable[[], Any]) -> APIRouter:
         return run(response, lambda: analyst().run(symbol, dry_run=bool(b.get("dry_run")), force=bool(b.get("force")),
                                                     execution_id=str(b["execution_id"]) if b.get("execution_id") else None), cid)
 
+    # ---- WF08-03 trade opportunities (the n8n workflow sequences these; Module 06 makes the risk decision) ---------------
+    def processor() -> Any:
+        from aurum.orchestration.trade_opportunities import OpportunityProcessor
+        return OpportunityProcessor(svc())
+
+    @r.get("/trade-opportunities/config")
+    def to_config(response: Response, who: Principal = View) -> Any:
+        return run(response, lambda: processor().config_view())
+
+    @r.get("/trade-opportunities/preflight")
+    def to_preflight(response: Response, who: Principal = View) -> Any:
+        return run(response, lambda: processor().preflight())
+
+    @r.get("/trade-opportunities/pending")
+    def to_pending(response: Response, idea_ids: str | None = Query(None, alias="ideaIds", max_length=4000),
+                   who: Principal = View) -> Any:
+        want = [x.strip() for x in idea_ids.split(",") if x.strip()] if idea_ids else None
+        return run(response, lambda: processor().pending(want))
+
+    @r.get("/trade-opportunities/idea-status")
+    def to_status(response: Response, idea_id: str = Query(..., alias="ideaId", min_length=1, max_length=64),
+                  who: Principal = View) -> Any:
+        return run(response, lambda: processor().idea_status(idea_id))
+
+    @r.post("/trade-opportunities/assess")
+    def to_assess(response: Response, body: dict[str, Any] = Body(...), cid: str | None = Cid, who: Principal = Hook) -> Any:
+        """Asks Module 06 to assess one Module 05 idea. Service tokens only (orchestration:callback)."""
+        if (resp := limited(hook_limit, who.id)) is not None:
+            return resp
+        b = snake(body)
+        idea_id = str(b.get("idea_id") or "").strip()
+        if not idea_id or len(idea_id) > 64:
+            return _err(OrchError(422, "INVALID_INPUT", "ideaId is required."), cid or str(uuid.uuid4()))
+        return run(response, lambda: processor().assess(idea_id, dry_run=bool(b.get("dry_run")),
+                                                         execution_id=str(b["execution_id"]) if b.get("execution_id") else None), cid)
+
     return r
 
 

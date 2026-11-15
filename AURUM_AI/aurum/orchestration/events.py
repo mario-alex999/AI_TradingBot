@@ -253,6 +253,13 @@ class EventMixin:
             out[self._record_delivery(did, kind, category, err, http_status, exec_id, latency, sub.max_attempts, retry_after)] += 1
         return out
 
+    def _coalesced(self, workflow_id: str | None) -> bool:
+        from aurum.orchestration.market_analysis import WORKFLOW_ID as ANALYSIS
+        from aurum.orchestration.trade_opportunities import WORKFLOW_ID as OPPORTUNITIES
+        cfg = self.config()
+        return ((workflow_id == ANALYSIS and cfg.market_analysis.coalesce)
+                or (workflow_id == OPPORTUNITIES and cfg.trade_opportunities.coalesce))
+
     def _deliver_one(self, sub: OrchSubscription, ev: dict[str, Any], replay: int) -> tuple[str, str | None, str | None,
                                                                                              int | None, str | None, float | None]:
         if sub.target_kind == "workflow":
@@ -263,11 +270,10 @@ class EventMixin:
                     "symbol": (ev.get("payload") or {}).get("symbol"),
                     "trade_idea_id": (ev.get("payload") or {}).get("idea_id"),
                     "approval_id": (ev.get("payload") or {}).get("approval_id")}
-            from aurum.orchestration.market_analysis import WORKFLOW_ID as ANALYSIS_WORKFLOW
-            if sub.workflow_id == ANALYSIS_WORKFLOW and self.config().market_analysis.coalesce and ev.get("correlation_id"):
-                # WF08-01 publishes one request per closed candle, all with its own execution id as correlation id.
-                # One WF08-02 run answers every pending request, so the events of one WF08-01 run share one trigger:
-                # same idempotency key and the same input, hence one execution.
+            if self._coalesced(sub.workflow_id) and ev.get("correlation_id"):
+                # One upstream run publishes several events with its own execution id as correlation id (WF08-01: one
+                # request per closed candle; WF08-02: one result per symbol). The downstream workflow answers everything
+                # that is pending in one run, so those events share one trigger: same idempotency key, same input.
                 body["input"] = {"batch": {"correlation_id": ev["correlation_id"], "event_type": ev["event_type"]}}
                 body["idempotency_key"] = f"evtc:{ev['correlation_id']}:{sub.subscription_id}:{replay}"
                 body["symbol"] = None
