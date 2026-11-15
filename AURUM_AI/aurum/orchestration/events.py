@@ -242,7 +242,8 @@ class EventMixin:
             for d, sub, ev in rows:
                 d.attempts += 1
                 d.next_attempt_at = now + lease          # lease: a crash re-delivers after it, never sooner
-                s.expunge(sub)
+                if sub in s:                              # several deliveries can share one subscription
+                    s.expunge(sub)
                 work.append((d.id, ev.event_id, d.replay, sub, self.event_view(ev)))
         out = {"delivered": 0, "retrying": 0, "dead": 0}
         for did, event_id, replay, sub, ev in work:
@@ -262,6 +263,14 @@ class EventMixin:
                     "symbol": (ev.get("payload") or {}).get("symbol"),
                     "trade_idea_id": (ev.get("payload") or {}).get("idea_id"),
                     "approval_id": (ev.get("payload") or {}).get("approval_id")}
+            from aurum.orchestration.market_analysis import WORKFLOW_ID as ANALYSIS_WORKFLOW
+            if sub.workflow_id == ANALYSIS_WORKFLOW and self.config().market_analysis.coalesce and ev.get("correlation_id"):
+                # WF08-01 publishes one request per closed candle, all with its own execution id as correlation id.
+                # One WF08-02 run answers every pending request, so the events of one WF08-01 run share one trigger:
+                # same idempotency key and the same input, hence one execution.
+                body["input"] = {"batch": {"correlation_id": ev["correlation_id"], "event_type": ev["event_type"]}}
+                body["idempotency_key"] = f"evtc:{ev['correlation_id']}:{sub.subscription_id}:{replay}"
+                body["symbol"] = None
             try:
                 view, _ = self.trigger(SYSTEM, body, internal=True)
                 return "delivered", None, None, None, view["execution_id"], None

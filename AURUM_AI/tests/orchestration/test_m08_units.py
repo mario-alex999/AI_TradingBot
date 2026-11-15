@@ -232,3 +232,11 @@ def test_backoff_policy():
     assert p.may_retry(2, NOW, NOW) and not p.may_retry(3, NOW, NOW)
     with pytest.raises(ValueError):
         RetryPolicy.from_dict({"max_attempts": 0})
+
+
+def test_event_status_column_fits_every_status_the_router_writes():
+    """PostgreSQL enforces VARCHAR lengths (SQLite does not): 'no_subscribers' once overflowed VARCHAR(12)."""
+    from aurum.orchestration.db_models import OrchEvent
+    width = OrchEvent.__table__.c.status.type.length
+    for status in ("routed", "no_subscribers", "delivered", "partial", "failed"):
+        assert len(status) <= width, status

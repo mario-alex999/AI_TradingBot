@@ -19,6 +19,7 @@ Config      GET|PUT /config
 Schedules   GET|POST /schedules; PUT /schedules/{id}; POST /schedules/{id}/pause|resume; GET /schedules/{id}/runs
 Failures    GET /dead-letters; GET /dead-letters/{id}/export; POST /dead-letters/{id}/retry|resolve
 Leases      GET /locks; POST /locks/acquire|renew|release
+Worker      POST /worker/tick (one worker pass; orchestration:tick service tokens, for hosts without a resident worker)
 Audit       GET /audit-logs
 """
 from __future__ import annotations
@@ -120,6 +121,7 @@ def build_router(state: AppState, svc: Callable[[], Any]) -> APIRouter:
     Trigger = Depends(require(perm.ORCH_TRIGGER))
     Hook = Depends(require(perm.ORCH_CALLBACK))
     Locks = Depends(require(perm.ORCH_LOCKS))
+    Tick = Depends(require(perm.ORCH_TICK))
     Cid = Header(default=None, alias="X-Correlation-ID")
     Idem = Header(default=None, alias="Idempotency-Key")
 
@@ -486,6 +488,18 @@ def build_router(state: AppState, svc: Callable[[], Any]) -> APIRouter:
             return _err(OrchError(404, "NOT_FOUND", "Unknown lock action."), cid or str(uuid.uuid4()))
         return limited(hook_limit, who.id) or run(response, fns[action], cid)
 
+    # ---- worker pass over HTTP ------------------------------------------------------------------------------------------------
+    @r.post("/worker/tick")
+    def worker_tick(response: Response, cid: str | None = Cid, who: Principal = Tick) -> Any:
+        """One Module 08 worker pass (bridge, deliver, schedules, dispatch, time-outs, health when due) for hosts without
+        a long-running worker, such as a serverless deployment. An external timer (Supabase pg_cron, a cron job) calls it
+        about once a minute with a service token scoped to orchestration:tick. Overlapping calls are safe: claims, leases
+        and unique schedule slots prevent duplicate runs."""
+        if (resp := limited(write_limit, who.id)) is not None:
+            return resp
+        from aurum.orchestration.worker import Worker
+        return run(response, lambda: _tick_summary(Worker(svc()).tick()), cid)
+
     # ---- audit --------------------------------------------------------------------------------------------------------------
     @r.get("/audit-logs")
     def audit(response: Response, who: Principal = View, action: str | None = None,
@@ -525,4 +539,46 @@ def build_router(state: AppState, svc: Callable[[], Any]) -> APIRouter:
                     candle_open: datetime = Query(..., alias="candleOpen"), who: Principal = View) -> Any:
         return run(response, lambda: monitor().dispatch_status(symbol, timeframe, candle_open))
 
+    # ---- WF08-02 market analysis (the n8n workflow sequences these; Module 05 does the analysis) ---------------------------
+    def analyst() -> Any:
+        from aurum.orchestration.market_analysis import MarketAnalyst
+        return MarketAnalyst(svc())
+
+    @r.get("/market-analysis/config")
+    def ma_config(response: Response, who: Principal = View) -> Any:
+        return run(response, lambda: analyst().config_view())
+
+    @r.get("/market-analysis/preflight")
+    def ma_preflight(response: Response, who: Principal = View) -> Any:
+        return run(response, lambda: analyst().preflight())
+
+    @r.get("/market-analysis/pending")
+    def ma_pending(response: Response, symbols: str | None = Query(None, max_length=200), force: bool = False,
+                   who: Principal = View) -> Any:
+        want = [x.strip() for x in symbols.split(",") if x.strip()] if symbols else None
+        return run(response, lambda: analyst().pending(want, force))
+
+    @r.get("/market-analysis/data-quality")
+    def ma_quality(response: Response, symbol: str = Query(..., min_length=1, max_length=16), who: Principal = View) -> Any:
+        return run(response, lambda: analyst().data_quality(symbol))
+
+    @r.post("/market-analysis/run")
+    def ma_run(response: Response, body: dict[str, Any] = Body(...), cid: str | None = Cid, who: Principal = Hook) -> Any:
+        """Runs Module 05 for one symbol and publishes the result event. Service tokens only (orchestration:callback)."""
+        if (resp := limited(hook_limit, who.id)) is not None:
+            return resp
+        b = snake(body)
+        symbol = str(b.get("symbol") or "").strip()
+        if not symbol or len(symbol) > 16:
+            return _err(OrchError(422, "INVALID_INPUT", "symbol is required."), cid or str(uuid.uuid4()))
+        return run(response, lambda: analyst().run(symbol, dry_run=bool(b.get("dry_run")), force=bool(b.get("force")),
+                                                    execution_id=str(b["execution_id"]) if b.get("execution_id") else None), cid)
+
     return r
+
+
+def _tick_summary(result: dict[str, Any]) -> dict[str, Any]:
+    """Worker results are small dicts per step; keep the response bounded and JSON-safe."""
+    return {"steps": {name: (value if isinstance(value, (dict, list, int, float, str, bool)) or value is None else str(value))
+                      for name, value in result.items()},
+            "errors": [name for name, value in result.items() if isinstance(value, dict) and "error" in value]}

@@ -173,7 +173,7 @@ class OrchEvent(Base):
     payload: Mapped[dict] = mapped_column(JsonType, nullable=False)
     meta: Mapped[dict | None] = mapped_column("metadata", JsonType)
     ingress: Mapped[str] = mapped_column(String(12), nullable=False)             # internal | api | n8n | bridge | replay
-    status: Mapped[str] = mapped_column(String(12), nullable=False)              # routed | no_subscribers | delivered | partial | failed
+    status: Mapped[str] = mapped_column(String(20), nullable=False)              # routed | no_subscribers | delivered | partial | failed
     deliveries_total: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
 

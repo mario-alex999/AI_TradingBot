@@ -100,6 +100,19 @@ class MarketMonitoringCfg(_M):
         return v
 
 
+class MarketAnalysisCfg(_M):
+    """WF08-02 Market Analysis Orchestrator. ``enabled`` is its backend-enforced off switch. The workflow never analyses
+    anything itself: it asks this backend to run Module 05 for each symbol that has unanswered analysis requests."""
+    enabled: bool = True
+    ai_review: bool = True                                   # let Module 05 use its AI reviewer when one is configured
+    coalesce: bool = True                                    # one WF08-02 run per WF08-01 run, not one per request event
+    lookback_hours: int = Field(72, ge=1, le=720)            # how far back unanswered requests are still honoured
+    max_symbols_per_run: int = Field(8, ge=1, le=50)
+    required_timeframes: list[Literal["D1", "H4", "H1", "M15", "M5"]] = ["H1"]   # closed candles needed before analysing
+    max_data_age_hours: float = Field(120, gt=0, le=2000)    # newest required candle older than this is reported stale
+    block_when_stale: bool = False                           # true = do not analyse a symbol whose data is stale
+
+
 class OrchestrationConfig(_M):
     retry: dict[str, Any] = Field(default_factory=dict)
     dispatch: DispatchCfg = DispatchCfg()
@@ -111,6 +124,7 @@ class OrchestrationConfig(_M):
     alerts: AlertCfg = AlertCfg()
     modules: dict[str, ModuleCfg] = Field(default_factory=dict)
     market_monitoring: MarketMonitoringCfg = MarketMonitoringCfg()
+    market_analysis: MarketAnalysisCfg = MarketAnalysisCfg()
 
     @field_validator("retry")
     @classmethod
