@@ -682,6 +682,43 @@ def build_router(state: AppState, svc: Callable[[], Any]) -> APIRouter:
         return run(response, lambda: responder().record(approval_id, dry_run=bool(b.get("dry_run")),
                                                          execution_id=str(b["execution_id"]) if b.get("execution_id") else None), cid)
 
+    # ---- WF08-06 trade hand-off (Module 07 creates the execution request; this verifies and records it; no order is sent) --
+    def handoff() -> Any:
+        from aurum.orchestration.trade_handoff import TradeHandoff
+        return TradeHandoff(svc())
+
+    @r.get("/trade-handoff/config")
+    def th_config(response: Response, who: Principal = View) -> Any:
+        return run(response, lambda: handoff().config_view())
+
+    @r.get("/trade-handoff/preflight")
+    def th_preflight(response: Response, who: Principal = View) -> Any:
+        return run(response, lambda: handoff().preflight())
+
+    @r.get("/trade-handoff/pending")
+    def th_pending(response: Response, approval_ids: str | None = Query(None, alias="approvalIds", max_length=4000),
+                   who: Principal = View) -> Any:
+        want = [x.strip() for x in approval_ids.split(",") if x.strip()] if approval_ids else None
+        return run(response, lambda: handoff().pending(want))
+
+    @r.get("/trade-handoff/status")
+    def th_status(response: Response, approval_id: str = Query(..., alias="approvalId", min_length=1, max_length=64),
+                  who: Principal = View) -> Any:
+        return run(response, lambda: handoff().status(approval_id))
+
+    @r.post("/trade-handoff/record")
+    def th_record(response: Response, body: dict[str, Any] = Body(...), cid: str | None = Cid, who: Principal = Hook) -> Any:
+        """Verifies one Module 07 execution request and records the hand-off state once. Sends no order, creates no
+        execution request and changes no approval. Service tokens only."""
+        if (resp := limited(hook_limit, who.id)) is not None:
+            return resp
+        b = snake(body)
+        approval_id = str(b.get("approval_id") or "").strip()
+        if not approval_id or len(approval_id) > 64:
+            return _err(OrchError(422, "INVALID_INPUT", "approvalId is required."), cid or str(uuid.uuid4()))
+        return run(response, lambda: handoff().record(approval_id, dry_run=bool(b.get("dry_run")),
+                                                       execution_id=str(b["execution_id"]) if b.get("execution_id") else None), cid)
+
     return r
 
 

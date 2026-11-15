@@ -1,0 +1,1688 @@
+{
+  "name": "AURUM - WF08-06 Approved Trade Handoff (Module 08)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "aurum-wf08-06-trade-handoff",
+        "authentication": "none",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "e9136456-e455-4f4a-acf0-335f6d4dd439",
+      "name": "AURUM trigger (approved trade)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        300
+      ],
+      "notes": "Webhook: Approved Trade. AURUM starts this run when Module 07 publishes trade.approved_for_execution. AURUM refuses every trigger unless Module 07 shows the approval.",
+      "webhookId": "8a47a615-0c69-49c5-a718-c51ba15c5abb"
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "aurum-api",
+              "name": "aurumApi",
+              "value": "https://aurum-api-tan.vercel.app/api/v1/orchestration",
+              "type": "string"
+            },
+            {
+              "id": "aurum-service-token",
+              "name": "serviceToken",
+              "value": "REPLACE_WITH_AURUM_SERVICE_TOKEN",
+              "type": "string"
+            },
+            {
+              "id": "aurum-webhook-token",
+              "name": "webhookToken",
+              "value": "REPLACE_WITH_AURUM_WEBHOOK_TOKEN",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b5b1ce4b-2f20-4fa4-af9f-78c29220ccd9",
+      "name": "AURUM settings",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        300
+      ],
+      "notes": "The only place the AURUM API address and the two tokens are set. Every request in this workflow goes only to this address."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('AURUM trigger (approved trade)').first().json.headers['x-aurum-webhook-token'] || '' }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "={{ $json.webhookToken }}"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "978fb509-e232-4670-a008-0258464c019d",
+      "name": "Webhook token valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ accepted: false, error: 'invalid webhook token' }) }}",
+        "options": {
+          "responseCode": 401
+        }
+      },
+      "id": "f9345ed3-ee41-4bd5-a694-b1e42a94a154",
+      "name": "Reject (wrong webhook token)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        660,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ accepted: true, executionId: $execution.id }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "152770c8-4e87-429d-a607-aaaa87857b9f",
+      "name": "Accept (return the n8n execution id)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/webhooks/n8n/callback",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-started', executionId: $(\"AURUM trigger (approved trade)\").first().json.body.executionId, workflowId: $(\"AURUM trigger (approved trade)\").first().json.body.workflowId, workflowVersion: $(\"AURUM trigger (approved trade)\").first().json.body.workflowVersion, attempt: $(\"AURUM trigger (approved trade)\").first().json.body.attempt, environment: $(\"AURUM trigger (approved trade)\").first().json.body.environment, status: 'started', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO() }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "380b2b1a-9a71-484d-a9f1-63bb24fa0bca",
+      "name": "Callback: started",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/trade-handoff/config",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "600b39a4-55d8-47b0-a5bf-0a820b276ee1",
+      "name": "Load automation configuration",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1100,
+        300
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/webhooks/n8n/callback",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-failed', executionId: $(\"AURUM trigger (approved trade)\").first().json.body.executionId, workflowId: $(\"AURUM trigger (approved trade)\").first().json.body.workflowId, workflowVersion: $(\"AURUM trigger (approved trade)\").first().json.body.workflowVersion, attempt: $(\"AURUM trigger (approved trade)\").first().json.body.attempt, environment: $(\"AURUM trigger (approved trade)\").first().json.body.environment, status: 'failed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), error: { category: 'DEPENDENCY_UNAVAILABLE', retryable: true, message: 'WF08-06 could not load its configuration: ' + String(($json.error && ($json.error.message || $json.error.description)) || 'request failed').slice(0, 300) } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "b53fa102-dc5f-4303-a739-edbe58d47ca0",
+      "name": "Callback: failed (configuration)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1320,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/trade-handoff/preflight",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "2b49f794-b56c-405a-a140-8c5a7c8739d0",
+      "name": "Check system health",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1320,
+        300
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/webhooks/n8n/callback",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-failed', executionId: $(\"AURUM trigger (approved trade)\").first().json.body.executionId, workflowId: $(\"AURUM trigger (approved trade)\").first().json.body.workflowId, workflowVersion: $(\"AURUM trigger (approved trade)\").first().json.body.workflowVersion, attempt: $(\"AURUM trigger (approved trade)\").first().json.body.attempt, environment: $(\"AURUM trigger (approved trade)\").first().json.body.environment, status: 'failed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), error: { category: 'DEPENDENCY_UNAVAILABLE', retryable: true, message: 'WF08-06 could not check system health: ' + String(($json.error && ($json.error.message || $json.error.description)) || 'request failed').slice(0, 300) } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "87c0c7fb-80e8-4029-a625-08bb51326ff7",
+      "name": "Callback: failed (health check)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1540,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.proceed }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "9aa09b3c-7a82-4e85-a348-d8c4246f1ec6",
+      "name": "Hand-off available?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1540,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/webhooks/n8n/callback",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-skipped', executionId: $(\"AURUM trigger (approved trade)\").first().json.body.executionId, workflowId: $(\"AURUM trigger (approved trade)\").first().json.body.workflowId, workflowVersion: $(\"AURUM trigger (approved trade)\").first().json.body.workflowVersion, attempt: $(\"AURUM trigger (approved trade)\").first().json.body.attempt, environment: $(\"AURUM trigger (approved trade)\").first().json.body.environment, status: 'completed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), output: { status: 'skipped', reason: ($('Check system health').first().json.reasons || []).join(' '), recorded: [], skipped: [] } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "c9b7e104-2095-4d4b-a865-900fa2af4a24",
+      "name": "Callback: completed (skipped)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1760,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/trade-handoff/pending",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "approvalIds",
+              "value": "={{ (() => { const i = $(\"AURUM trigger (approved trade)\").first().json.body.input || {}; if (Array.isArray(i.approvalIds) && i.approvalIds.length) return i.approvalIds.join(','); if (i.approvalId) return i.approvalId; const p = (i.event && i.event.payload) || {}; return p.approval_id || p.approvalId || ''; })() }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "604604f9-a4d8-43ba-a99a-8c7ce4c125ac",
+      "name": "Validate approval id (execution request to follow)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1760,
+        300
+      ],
+      "notes": "The approval named by the event. AURUM has already checked with Module 07 that it is approved.",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/webhooks/n8n/callback",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-failed', executionId: $(\"AURUM trigger (approved trade)\").first().json.body.executionId, workflowId: $(\"AURUM trigger (approved trade)\").first().json.body.workflowId, workflowVersion: $(\"AURUM trigger (approved trade)\").first().json.body.workflowVersion, attempt: $(\"AURUM trigger (approved trade)\").first().json.body.attempt, environment: $(\"AURUM trigger (approved trade)\").first().json.body.environment, status: 'failed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), error: { category: 'DEPENDENCY_UNAVAILABLE', retryable: true, message: 'WF08-06 could not read the execution requests: ' + String(($json.error && ($json.error.message || $json.error.description)) || 'request failed').slice(0, 300) } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "4662cc9d-3182-4f08-a896-a44d47239419",
+      "name": "Callback: failed (hand-off list)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1980,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.count }}",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "rightValue": 0
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c93fad9b-4471-42a6-afeb-b788175da41c",
+      "name": "Any hand-off to follow?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1980,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/webhooks/n8n/callback",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-nothing', executionId: $(\"AURUM trigger (approved trade)\").first().json.body.executionId, workflowId: $(\"AURUM trigger (approved trade)\").first().json.body.workflowId, workflowVersion: $(\"AURUM trigger (approved trade)\").first().json.body.workflowVersion, attempt: $(\"AURUM trigger (approved trade)\").first().json.body.attempt, environment: $(\"AURUM trigger (approved trade)\").first().json.body.environment, status: 'completed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), output: { status: 'skipped', reason: 'No execution request is waiting to be followed.', recorded: [], skipped: [] } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "57fbfd83-2508-4287-a0f8-92c83a5d38c6",
+      "name": "Callback: completed (nothing to record)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2200,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "items",
+        "options": {}
+      },
+      "id": "2d0415cd-64ee-41ab-aa3e-b08a48277dfb",
+      "name": "Split out handoffs",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1.1,
+      "position": [
+        2200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "8cef89dd-2f62-4e1d-aaf3-3fee30f6f911",
+      "name": "Loop over handoffs",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        2420,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/trade-handoff/status",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "approvalId",
+              "value": "={{ $json.approvalId }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "ecffe8ea-10f6-4e45-a6b8-374a286f8bda",
+      "name": "Retrieve approved trade and verify approval, risk and expiry",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2640,
+        120
+      ],
+      "notes": "Retrieve Approved Trade + Verify Approval + Verify Risk Approval + Verify Trade Expiry. Module 07 verifies its own approval and its own execution request, and asks Module 06 about the assessment; this workflow only reads the result.",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.ok }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f90527c2-421f-4b13-a093-e16dc08c66f2",
+      "name": "Execution request found and not recorded yet?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2860,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/trade-handoff/record",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ approvalId: $json.approvalId, dryRun: ($(\"AURUM trigger (approved trade)\").first().json.body.input || {}).dryRun === true, executionId: $(\"AURUM trigger (approved trade)\").first().json.body.executionId }) }}",
+        "options": {
+          "timeout": 58000
+        }
+      },
+      "id": "7c43b270-7003-4634-af33-5a4405d61201",
+      "name": "Record execution status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        3080,
+        0
+      ],
+      "notes": "Check Duplicate Execution Request + Record Execution Status. Module 07 created the one execution request; this step creates none and sends nothing. The backend verifies again and records the hand-off state once. Module 09 reads Module 07 queue itself.",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.status === 'recorded' }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "36eb53d3-8351-42b9-a80d-a90dda7911b3",
+      "name": "Recorded?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ String($json.result || '').startsWith('awaiting') }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "53b2db04-d958-42c6-a8de-df1f557654e0",
+      "name": "Status: valid and waiting for Module 09?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3520,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ ['acknowledged', 'executed'].includes($json.result) }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c14ed04c-f42f-44f6-a12f-a42c69914c85",
+      "name": "Status: acknowledged by Module 09?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3740,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.result === 'execution_failed' }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "1bbaf8bd-304c-422e-a222-1b425c6a1b0f",
+      "name": "Status: execution failed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3960,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "approvalId",
+              "name": "approvalId",
+              "value": "={{ $(\"Loop over handoffs\").item.json.approvalId }}",
+              "type": "string"
+            },
+            {
+              "id": "symbol",
+              "name": "symbol",
+              "value": "={{ $json.symbol || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "outcome",
+              "name": "outcome",
+              "value": "queued",
+              "type": "string"
+            },
+            {
+              "id": "result",
+              "name": "result",
+              "value": "={{ $json.result || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "requestStatus",
+              "name": "requestStatus",
+              "value": "={{ $json.requestStatus || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "verified",
+              "name": "verified",
+              "value": "={{ String($json.verified === true) }}",
+              "type": "string"
+            },
+            {
+              "id": "nextStep",
+              "name": "nextStep",
+              "value": "={{ $json.nextStep || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "problems",
+              "name": "problems",
+              "value": "={{ ($json.problems || []).join(' ') }}",
+              "type": "string"
+            },
+            {
+              "id": "reason",
+              "name": "reason",
+              "value": "={{ $json.reason || '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b033f5ce-4dbe-4f56-a512-99954b045b89",
+      "name": "Record: execution request queued (no acknowledgement yet)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3740,
+        -240
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "approvalId",
+              "name": "approvalId",
+              "value": "={{ $(\"Loop over handoffs\").item.json.approvalId }}",
+              "type": "string"
+            },
+            {
+              "id": "symbol",
+              "name": "symbol",
+              "value": "={{ $json.symbol || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "outcome",
+              "name": "outcome",
+              "value": "acknowledged",
+              "type": "string"
+            },
+            {
+              "id": "result",
+              "name": "result",
+              "value": "={{ $json.result || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "requestStatus",
+              "name": "requestStatus",
+              "value": "={{ $json.requestStatus || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "verified",
+              "name": "verified",
+              "value": "={{ String($json.verified === true) }}",
+              "type": "string"
+            },
+            {
+              "id": "nextStep",
+              "name": "nextStep",
+              "value": "={{ $json.nextStep || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "problems",
+              "name": "problems",
+              "value": "={{ ($json.problems || []).join(' ') }}",
+              "type": "string"
+            },
+            {
+              "id": "reason",
+              "name": "reason",
+              "value": "={{ $json.reason || '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "64874f57-11fd-4130-a7cb-1cc9b1391126",
+      "name": "Record: execution acknowledgement",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3960,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "approvalId",
+              "name": "approvalId",
+              "value": "={{ $(\"Loop over handoffs\").item.json.approvalId }}",
+              "type": "string"
+            },
+            {
+              "id": "symbol",
+              "name": "symbol",
+              "value": "={{ $json.symbol || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "outcome",
+              "name": "outcome",
+              "value": "execution_failed",
+              "type": "string"
+            },
+            {
+              "id": "result",
+              "name": "result",
+              "value": "={{ $json.result || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "requestStatus",
+              "name": "requestStatus",
+              "value": "={{ $json.requestStatus || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "verified",
+              "name": "verified",
+              "value": "={{ String($json.verified === true) }}",
+              "type": "string"
+            },
+            {
+              "id": "nextStep",
+              "name": "nextStep",
+              "value": "={{ $json.nextStep || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "problems",
+              "name": "problems",
+              "value": "={{ ($json.problems || []).join(' ') }}",
+              "type": "string"
+            },
+            {
+              "id": "reason",
+              "name": "reason",
+              "value": "={{ $json.reason || '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "733f700f-6da1-497c-a999-1a3a843ea8c9",
+      "name": "Record: execution failed (nothing retried)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        4180,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "approvalId",
+              "name": "approvalId",
+              "value": "={{ $(\"Loop over handoffs\").item.json.approvalId }}",
+              "type": "string"
+            },
+            {
+              "id": "symbol",
+              "name": "symbol",
+              "value": "={{ $json.symbol || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "outcome",
+              "name": "outcome",
+              "value": "={{ $json.result || 'not_valid' }}",
+              "type": "string"
+            },
+            {
+              "id": "result",
+              "name": "result",
+              "value": "={{ $json.result || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "requestStatus",
+              "name": "requestStatus",
+              "value": "={{ $json.requestStatus || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "verified",
+              "name": "verified",
+              "value": "={{ String($json.verified === true) }}",
+              "type": "string"
+            },
+            {
+              "id": "nextStep",
+              "name": "nextStep",
+              "value": "={{ $json.nextStep || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "problems",
+              "name": "problems",
+              "value": "={{ ($json.problems || []).join(' ') }}",
+              "type": "string"
+            },
+            {
+              "id": "reason",
+              "name": "reason",
+              "value": "={{ $json.reason || '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1ce4a029-f163-4652-aab6-2cfa1639b490",
+      "name": "Record: hand-off not valid (must not be executed)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        4180,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "approvalId",
+              "name": "approvalId",
+              "value": "={{ $(\"Loop over handoffs\").item.json.approvalId }}",
+              "type": "string"
+            },
+            {
+              "id": "symbol",
+              "name": "symbol",
+              "value": "={{ $json.symbol || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "outcome",
+              "name": "outcome",
+              "value": "={{ ['dry_run', 'skipped'].includes($json.status) ? $json.status : 'failed' }}",
+              "type": "string"
+            },
+            {
+              "id": "result",
+              "name": "result",
+              "value": "={{ $json.result || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "requestStatus",
+              "name": "requestStatus",
+              "value": "={{ $json.requestStatus || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "verified",
+              "name": "verified",
+              "value": "={{ String($json.verified === true) }}",
+              "type": "string"
+            },
+            {
+              "id": "nextStep",
+              "name": "nextStep",
+              "value": "={{ $json.nextStep || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "problems",
+              "name": "problems",
+              "value": "={{ ($json.problems || []).join(' ') }}",
+              "type": "string"
+            },
+            {
+              "id": "reason",
+              "name": "reason",
+              "value": "={{ $json.reason || '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "02b62753-e816-4b63-a463-d3091cefa37f",
+      "name": "Record: not recorded",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3520,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "approvalId",
+              "name": "approvalId",
+              "value": "={{ $(\"Loop over handoffs\").item.json.approvalId }}",
+              "type": "string"
+            },
+            {
+              "id": "symbol",
+              "name": "symbol",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "outcome",
+              "name": "outcome",
+              "value": "failed",
+              "type": "string"
+            },
+            {
+              "id": "reason",
+              "name": "reason",
+              "value": "={{ 'The record call failed: ' + String(($json.error && $json.error.message) || 'error').slice(0, 200) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "39b26519-1abb-4243-a2a4-ee10fc994a39",
+      "name": "Record: record request failed",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3300,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "approvalId",
+              "name": "approvalId",
+              "value": "={{ $(\"Loop over handoffs\").item.json.approvalId }}",
+              "type": "string"
+            },
+            {
+              "id": "symbol",
+              "name": "symbol",
+              "value": "={{ $json.symbol || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "outcome",
+              "name": "outcome",
+              "value": "skipped",
+              "type": "string"
+            },
+            {
+              "id": "reason",
+              "name": "reason",
+              "value": "={{ ($json.reasons || []).join(' ') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f3b232f0-c98f-40f2-adee-a7aad3eec226",
+      "name": "Record: nothing to follow",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3080,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "approvalId",
+              "name": "approvalId",
+              "value": "={{ $(\"Loop over handoffs\").item.json.approvalId }}",
+              "type": "string"
+            },
+            {
+              "id": "symbol",
+              "name": "symbol",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "outcome",
+              "name": "outcome",
+              "value": "failed",
+              "type": "string"
+            },
+            {
+              "id": "reason",
+              "name": "reason",
+              "value": "={{ 'Status check failed: ' + String(($json.error && $json.error.message) || 'error').slice(0, 200) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6ced4841-e44b-4741-a12c-8df7df699b7f",
+      "name": "Record: status check failed",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2860,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "results",
+        "options": {}
+      },
+      "id": "816fb7e1-0453-4e68-a520-baca72256846",
+      "name": "Collect results",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        2640,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/webhooks/n8n/callback",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-completed', executionId: $(\"AURUM trigger (approved trade)\").first().json.body.executionId, workflowId: $(\"AURUM trigger (approved trade)\").first().json.body.workflowId, workflowVersion: $(\"AURUM trigger (approved trade)\").first().json.body.workflowVersion, attempt: $(\"AURUM trigger (approved trade)\").first().json.body.attempt, environment: $(\"AURUM trigger (approved trade)\").first().json.body.environment, status: 'completed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), output: { status: $json.results.some(r => r.outcome === 'failed') ? 'partial' : 'completed', reason: $json.results.filter(r => !['failed', 'skipped', 'dry_run'].includes(r.outcome)).length + ' hand-off(s) recorded', recorded: $json.results.filter(r => !['failed', 'skipped', 'dry_run'].includes(r.outcome)), skipped: $json.results.filter(r => !(!['failed', 'skipped', 'dry_run'].includes(r.outcome))) } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "4737c8de-aa6a-47a2-af94-b8efd2cce1df",
+      "name": "Callback: completed (run recorded)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2860,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## WF08-06 Approved Trade Handoff\nModule 07 authorises a trade and creates the execution request. This workflow follows it: it reads Module 07's verification of the approval and of the request, records the hand-off state once and reports whether Module 09 has acknowledged it. Module 09 is not built, so a valid hand-off ends as waiting. This workflow sends no order, has no MT5 or broker node and creates no execution request.",
+        "height": 220,
+        "width": 620,
+        "color": 3
+      },
+      "id": "3e0fd166-d494-4e5f-a57f-d5dcf18c0593",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        20
+      ]
+    }
+  ],
+  "connections": {
+    "AURUM trigger (approved trade)": {
+      "main": [
+        [
+          {
+            "node": "AURUM settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook token valid?": {
+      "main": [
+        [
+          {
+            "node": "Accept (return the n8n execution id)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reject (wrong webhook token)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Accept (return the n8n execution id)": {
+      "main": [
+        [
+          {
+            "node": "Callback: started",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load automation configuration": {
+      "main": [
+        [
+          {
+            "node": "Check system health",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Callback: failed (configuration)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Callback: started": {
+      "main": [
+        [
+          {
+            "node": "Load automation configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check system health": {
+      "main": [
+        [
+          {
+            "node": "Hand-off available?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Callback: failed (health check)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hand-off available?": {
+      "main": [
+        [
+          {
+            "node": "Validate approval id (execution request to follow)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Callback: completed (skipped)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate approval id (execution request to follow)": {
+      "main": [
+        [
+          {
+            "node": "Any hand-off to follow?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Callback: failed (hand-off list)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any hand-off to follow?": {
+      "main": [
+        [
+          {
+            "node": "Split out handoffs",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Callback: completed (nothing to record)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect results": {
+      "main": [
+        [
+          {
+            "node": "Callback: completed (run recorded)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop over handoffs": {
+      "main": [
+        [
+          {
+            "node": "Collect results",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Retrieve approved trade and verify approval, risk and expiry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: status check failed": {
+      "main": [
+        [
+          {
+            "node": "Loop over handoffs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retrieve approved trade and verify approval, risk and expiry": {
+      "main": [
+        [
+          {
+            "node": "Execution request found and not recorded yet?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record: status check failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: nothing to follow": {
+      "main": [
+        [
+          {
+            "node": "Loop over handoffs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execution request found and not recorded yet?": {
+      "main": [
+        [
+          {
+            "node": "Record execution status",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record: nothing to follow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: record request failed": {
+      "main": [
+        [
+          {
+            "node": "Loop over handoffs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record execution status": {
+      "main": [
+        [
+          {
+            "node": "Recorded?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record: record request failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: not recorded": {
+      "main": [
+        [
+          {
+            "node": "Loop over handoffs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recorded?": {
+      "main": [
+        [
+          {
+            "node": "Status: valid and waiting for Module 09?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record: not recorded",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: execution request queued (no acknowledgement yet)": {
+      "main": [
+        [
+          {
+            "node": "Loop over handoffs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Status: valid and waiting for Module 09?": {
+      "main": [
+        [
+          {
+            "node": "Record: execution request queued (no acknowledgement yet)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Status: acknowledged by Module 09?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: execution acknowledgement": {
+      "main": [
+        [
+          {
+            "node": "Loop over handoffs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Status: acknowledged by Module 09?": {
+      "main": [
+        [
+          {
+            "node": "Record: execution acknowledgement",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Status: execution failed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: execution failed (nothing retried)": {
+      "main": [
+        [
+          {
+            "node": "Loop over handoffs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Status: execution failed?": {
+      "main": [
+        [
+          {
+            "node": "Record: execution failed (nothing retried)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record: hand-off not valid (must not be executed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: hand-off not valid (must not be executed)": {
+      "main": [
+        [
+          {
+            "node": "Loop over handoffs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split out handoffs": {
+      "main": [
+        [
+          {
+            "node": "Loop over handoffs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AURUM settings": {
+      "main": [
+        [
+          {
+            "node": "Webhook token valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

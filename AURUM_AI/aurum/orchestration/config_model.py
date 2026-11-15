@@ -140,6 +140,14 @@ class ApprovalResponseCfg(_M):
     expire_overdue_requests: bool = False
 
 
+class TradeHandoffCfg(_M):
+    """WF08-06 Approved Trade Handoff. ``enabled`` is its backend-enforced off switch. The workflow verifies and records
+    the execution requests Module 07 creates; it sends no order and creates no request."""
+    enabled: bool = True
+    max_handoffs_per_run: int = Field(20, ge=1, le=200)
+    lookback_hours: int = Field(72, ge=1, le=24 * 90)
+
+
 class OrchestrationConfig(_M):
     retry: dict[str, Any] = Field(default_factory=dict)
     dispatch: DispatchCfg = DispatchCfg()
@@ -155,6 +163,7 @@ class OrchestrationConfig(_M):
     trade_opportunities: TradeOpportunityCfg = TradeOpportunityCfg()
     approval_notifications: ApprovalNotificationCfg = ApprovalNotificationCfg()
     approval_responses: ApprovalResponseCfg = ApprovalResponseCfg()
+    trade_handoff: TradeHandoffCfg = TradeHandoffCfg()
 
     @field_validator("retry")
     @classmethod

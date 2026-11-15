@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from aurum.orchestration import approval_notifications, approval_responses, market_analysis, market_monitoring, trade_opportunities
+from aurum.orchestration import approval_notifications, approval_responses, market_analysis, market_monitoring, trade_handoff, trade_opportunities
 
 DIR = Path(__file__).resolve().parents[2] / "n8n" / "workflows"
 API = '={{ $("AURUM settings").first().json.aurumApi }}'
@@ -38,6 +38,13 @@ FILES = {
          "Decided and not recorded yet?", "Record the response", "Status: approved and verified?", "Status: rejected?",
          "Status: expired?", "Record: approval (Module 07 hands it to WF08-06)", "Record: rejection (dashboard notified)",
          "Record: expiry (dashboard notified)", "Record: no valid approval (nothing passed on)"]),
+    "aurum_wf08_06_trade_handoff.json": (trade_handoff.WEBHOOK_PATH, "Loop over handoffs",
+        {"/webhooks/n8n/callback", "/trade-handoff/record"},
+        ["Validate approval id (execution request to follow)", "Retrieve approved trade and verify approval, risk and expiry",
+         "Execution request found and not recorded yet?", "Record execution status", "Status: valid and waiting for Module 09?",
+         "Status: acknowledged by Module 09?", "Status: execution failed?",
+         "Record: execution request queued (no acknowledgement yet)", "Record: execution acknowledgement",
+         "Record: execution failed (nothing retried)", "Record: hand-off not valid (must not be executed)"]),
 }
 
 
@@ -80,6 +87,10 @@ def test_only_calls_the_configured_aurum_api_and_only_safe_endpoints(wf):
         assert auth == [{"name": "Authorization", "value": '=Bearer {{ $("AURUM settings").first().json.serviceToken }}'}]
     assert not re.search(r"(?i)/(approve|reject|execute|orders?|trade-management)\b", text)
     assert "host.docker.internal" not in text and "localhost" not in text
+    kinds = {n["type"] for n in w["nodes"]}                               # no broker, MT5, code or shell node anywhere
+    assert kinds <= {"n8n-nodes-base.webhook", "n8n-nodes-base.set", "n8n-nodes-base.if", "n8n-nodes-base.respondToWebhook",
+                     "n8n-nodes-base.httpRequest", "n8n-nodes-base.splitOut", "n8n-nodes-base.splitInBatches",
+                     "n8n-nodes-base.aggregate", "n8n-nodes-base.stickyNote"}, kinds
 
 
 def test_no_secrets_only_placeholders(wf):

@@ -84,8 +84,8 @@ Who is notified and on which channels is Module 07's configuration, not WF08-04'
 4. Dry run once: trigger WF08-04 with input `{"dryRun": true}`.
 
 The Module 08 registration id is `wf08-04-approval-notification`, which this install creates. The id
-`wf08-04-execution-handoff` reserved by the Module 08 core is a different workflow (the document's WF08-06) and stays a
-placeholder. The service token needs `orchestration:view` and `orchestration:callback`.
+`wf08-04-execution-handoff` reserved by the Module 08 core is a different workflow: the document's WF08-06
+([MODULE_08_WF08_06.md](MODULE_08_WF08_06.md)). The service token needs `orchestration:view` and `orchestration:callback`.
 
 ## Tests
 
