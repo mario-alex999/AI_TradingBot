@@ -53,7 +53,8 @@ ai.analysis.completed (from WF08-02)
 
 ## Install
 
-1. Create the n8n workflow (webhook path `aurum-wf08-03-trade-opportunity`) and activate it.
+1. Import `n8n/workflows/aurum_wf08_03_trade_opportunity.json` into n8n (it arrives inactive). In its *AURUM settings*
+   node set `aurumApi` to your API address and replace the two `REPLACE_WITH_...` token placeholders, then activate it.
 2. `python -m aurum.cli orchestration setup-wf08-03 --n8n-workflow-id <id from the n8n workflow URL>` (safe to re-run).
 3. Dry run once: trigger WF08-03 with input `{"dryRun": true}`.
 
@@ -68,4 +69,5 @@ Module 06 failure; the assessment key changes when an idea is re-priced; install
 execution per WF08-02 run; the HTTP routes and who may request an assessment; and one test against the real Module 06
 service.
 
-Not in the repository: the n8n workflow definition (built directly in n8n Cloud).
+The workflow file `n8n/workflows/aurum_wf08_03_trade_opportunity.json` is checked by
+`tests/orchestration/test_workflow_files.py`.

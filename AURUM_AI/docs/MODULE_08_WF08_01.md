@@ -82,7 +82,9 @@ reports what it *would* request without publishing.
 ### n8n Cloud
 
 The JSON file above targets self-hosted n8n in Docker (`host.docker.internal`). n8n Cloud cannot reach your machine, so
-the Cloud build of WF08-01 differs in three ways:
+the Cloud build is a separate file, `n8n/workflows/aurum_wf08_01_market_monitoring.cloud.json`. Import it, fill in its
+*AURUM settings* node (`aurumApi` and the two `REPLACE_WITH_...` token placeholders) and activate it. It differs from the
+Docker build in three ways:
 
 * **API address.** The address lives in one node, *AURUM settings* (`aurumApi`). Set it to a public HTTPS URL of the
   AURUM API ending in `/api/v1/orchestration`, for example a reverse proxy or tunnel. Every request in the workflow goes

@@ -1,0 +1,1227 @@
+{
+  "name": "AURUM - WF08-02 Market Analysis Orchestrator (Module 08)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "aurum-wf08-02-market-analysis",
+        "authentication": "none",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "fcacf227-836e-4dd3-aee8-386208f365a4",
+      "name": "AURUM trigger (analysis request)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        300
+      ],
+      "notes": "AURUM starts this run when WF08-01 has published analysis requests (one run per WF08-01 run), or on a manual trigger. The token is checked two nodes on.",
+      "webhookId": "bd23a3ed-577e-4411-a9e7-b0b4e3b611f9"
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "aurum-api",
+              "name": "aurumApi",
+              "value": "https://aurum-api-tan.vercel.app/api/v1/orchestration",
+              "type": "string"
+            },
+            {
+              "id": "aurum-service-token",
+              "name": "serviceToken",
+              "value": "REPLACE_WITH_AURUM_SERVICE_TOKEN",
+              "type": "string"
+            },
+            {
+              "id": "aurum-webhook-token",
+              "name": "webhookToken",
+              "value": "REPLACE_WITH_AURUM_WEBHOOK_TOKEN",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b5b1ce4b-2f20-4fa4-af9f-78c29220ccd9",
+      "name": "AURUM settings",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        300
+      ],
+      "notes": "The only place the AURUM API address and the two tokens are set. Every request in this workflow goes only to this address."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('AURUM trigger (analysis request)').first().json.headers['x-aurum-webhook-token'] || '' }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "={{ $json.webhookToken }}"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "978fb509-e232-4670-a008-0258464c019d",
+      "name": "Webhook token valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ accepted: false, error: 'invalid webhook token' }) }}",
+        "options": {
+          "responseCode": 401
+        }
+      },
+      "id": "f9345ed3-ee41-4bd5-a694-b1e42a94a154",
+      "name": "Reject (wrong webhook token)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        660,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ accepted: true, executionId: $execution.id }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "152770c8-4e87-429d-a607-aaaa87857b9f",
+      "name": "Accept (return the n8n execution id)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/webhooks/n8n/callback",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-started', executionId: $(\"AURUM trigger (analysis request)\").first().json.body.executionId, workflowId: $(\"AURUM trigger (analysis request)\").first().json.body.workflowId, workflowVersion: $(\"AURUM trigger (analysis request)\").first().json.body.workflowVersion, attempt: $(\"AURUM trigger (analysis request)\").first().json.body.attempt, environment: $(\"AURUM trigger (analysis request)\").first().json.body.environment, status: 'started', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO() }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "380b2b1a-9a71-484d-a9f1-63bb24fa0bca",
+      "name": "Callback: started",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/market-analysis/config",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "600b39a4-55d8-47b0-a5bf-0a820b276ee1",
+      "name": "Load automation configuration",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1100,
+        300
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/webhooks/n8n/callback",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-failed', executionId: $(\"AURUM trigger (analysis request)\").first().json.body.executionId, workflowId: $(\"AURUM trigger (analysis request)\").first().json.body.workflowId, workflowVersion: $(\"AURUM trigger (analysis request)\").first().json.body.workflowVersion, attempt: $(\"AURUM trigger (analysis request)\").first().json.body.attempt, environment: $(\"AURUM trigger (analysis request)\").first().json.body.environment, status: 'failed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), error: { category: 'DEPENDENCY_UNAVAILABLE', retryable: true, message: 'WF08-02 could not load its configuration: ' + String(($json.error && ($json.error.message || $json.error.description)) || 'request failed').slice(0, 300) } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "b53fa102-dc5f-4303-a739-edbe58d47ca0",
+      "name": "Callback: failed (configuration)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1320,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/market-analysis/preflight",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "2b49f794-b56c-405a-a140-8c5a7c8739d0",
+      "name": "Check system health",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1320,
+        300
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/webhooks/n8n/callback",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-failed', executionId: $(\"AURUM trigger (analysis request)\").first().json.body.executionId, workflowId: $(\"AURUM trigger (analysis request)\").first().json.body.workflowId, workflowVersion: $(\"AURUM trigger (analysis request)\").first().json.body.workflowVersion, attempt: $(\"AURUM trigger (analysis request)\").first().json.body.attempt, environment: $(\"AURUM trigger (analysis request)\").first().json.body.environment, status: 'failed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), error: { category: 'DEPENDENCY_UNAVAILABLE', retryable: true, message: 'WF08-02 could not check system health: ' + String(($json.error && ($json.error.message || $json.error.description)) || 'request failed').slice(0, 300) } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "87c0c7fb-80e8-4029-a625-08bb51326ff7",
+      "name": "Callback: failed (health check)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1540,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.proceed }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "6a39dfe5-0026-4eca-a4d8-56f4444f2598",
+      "name": "Analysis available?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1540,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/webhooks/n8n/callback",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-skipped', executionId: $(\"AURUM trigger (analysis request)\").first().json.body.executionId, workflowId: $(\"AURUM trigger (analysis request)\").first().json.body.workflowId, workflowVersion: $(\"AURUM trigger (analysis request)\").first().json.body.workflowVersion, attempt: $(\"AURUM trigger (analysis request)\").first().json.body.attempt, environment: $(\"AURUM trigger (analysis request)\").first().json.body.environment, status: 'completed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), output: { status: 'skipped', reason: ($('Check system health').first().json.reasons || []).join(' '), analysed: [], skipped: [] } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "c9b7e104-2095-4d4b-a865-900fa2af4a24",
+      "name": "Callback: completed (skipped)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1760,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/market-analysis/pending",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "symbols",
+              "value": "={{ ($(\"AURUM trigger (analysis request)\").first().json.body.input || {}).symbols ? $(\"AURUM trigger (analysis request)\").first().json.body.input.symbols.join(',') : '' }}"
+            },
+            {
+              "name": "force",
+              "value": "={{ ($(\"AURUM trigger (analysis request)\").first().json.body.input || {}).force === true }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "03f3239c-ccbc-406b-a41b-95b7fa7e0c2d",
+      "name": "Validate analysis requests (pending symbols)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1760,
+        300
+      ],
+      "notes": "Validate Analysis Request: the backend lists the symbols with requests no analysis has answered yet.",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/webhooks/n8n/callback",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-failed', executionId: $(\"AURUM trigger (analysis request)\").first().json.body.executionId, workflowId: $(\"AURUM trigger (analysis request)\").first().json.body.workflowId, workflowVersion: $(\"AURUM trigger (analysis request)\").first().json.body.workflowVersion, attempt: $(\"AURUM trigger (analysis request)\").first().json.body.attempt, environment: $(\"AURUM trigger (analysis request)\").first().json.body.environment, status: 'failed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), error: { category: 'DEPENDENCY_UNAVAILABLE', retryable: true, message: 'WF08-02 could not read the pending analysis requests: ' + String(($json.error && ($json.error.message || $json.error.description)) || 'request failed').slice(0, 300) } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "5ff06554-280c-4e4c-ac61-a7f680614f97",
+      "name": "Callback: failed (pending requests)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1980,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.count }}",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "rightValue": 0
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ef17e8dc-3849-4899-a206-b3a62d699fb6",
+      "name": "Anything to analyse?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1980,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/webhooks/n8n/callback",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-nothing', executionId: $(\"AURUM trigger (analysis request)\").first().json.body.executionId, workflowId: $(\"AURUM trigger (analysis request)\").first().json.body.workflowId, workflowVersion: $(\"AURUM trigger (analysis request)\").first().json.body.workflowVersion, attempt: $(\"AURUM trigger (analysis request)\").first().json.body.attempt, environment: $(\"AURUM trigger (analysis request)\").first().json.body.environment, status: 'completed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), output: { status: 'skipped', reason: 'No unanswered analysis request.', analysed: [], skipped: [] } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "146306c9-3168-4259-a766-f622f9704a9c",
+      "name": "Callback: completed (nothing to analyse)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2200,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "items",
+        "options": {}
+      },
+      "id": "91b020c4-062e-4b09-a855-ce92f1a539de",
+      "name": "Split out symbols",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1.1,
+      "position": [
+        2200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "738be7a1-768f-442d-a093-b01333d30eee",
+      "name": "Loop over symbols",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        2420,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/market-analysis/data-quality",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "symbol",
+              "value": "={{ $json.symbol }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "5aa5e698-2282-4e6a-ab22-2b2a20dbdc7a",
+      "name": "Check data quality",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2640,
+        120
+      ],
+      "notes": "Retrieve Market Data + Check Data Quality: Module 01 must hold the closed candles Module 05 needs.",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.ok }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "0b87e9d9-bd48-4e92-af23-8c7bce19d2cf",
+      "name": "Data good enough?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2860,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/market-analysis/run",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ symbol: $json.symbol, dryRun: ($(\"AURUM trigger (analysis request)\").first().json.body.input || {}).dryRun === true, force: ($(\"AURUM trigger (analysis request)\").first().json.body.input || {}).force === true, executionId: $(\"AURUM trigger (analysis request)\").first().json.body.executionId }) }}",
+        "options": {
+          "timeout": 58000
+        }
+      },
+      "id": "8a7c72ea-f984-47b5-a4b5-3a3be5f4a6ba",
+      "name": "Run Module 05 analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        3080,
+        0
+      ],
+      "notes": "One backend operation: Module 05 builds the context from Modules 01-04 (COT, technical analysis, market intelligence), analyses, stores the result and publishes ai.analysis.completed or ai.analysis.failed.",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ ['completed', 'dry_run', 'skipped'].includes($json.status) }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e2c8657d-73dd-43b7-ad51-6f95131f8433",
+      "name": "Analysis response valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "recDone-symbol",
+              "name": "symbol",
+              "value": "={{ $(\"Loop over symbols\").item.json.symbol }}",
+              "type": "string"
+            },
+            {
+              "id": "recDone-outcome",
+              "name": "outcome",
+              "value": "={{ $json.status }}",
+              "type": "string"
+            },
+            {
+              "id": "recDone-reason",
+              "name": "reason",
+              "value": "={{ $json.reason }}",
+              "type": "string"
+            },
+            {
+              "id": "recDone-runId",
+              "name": "runId",
+              "value": "={{ $json.runId || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "recDone-candidates",
+              "name": "candidates",
+              "value": "={{ String($json.candidates ?? '') }}",
+              "type": "string"
+            },
+            {
+              "id": "recDone-decision",
+              "name": "decision",
+              "value": "={{ $json.decision || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "recDone-eventId",
+              "name": "eventId",
+              "value": "={{ $json.eventId || '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d4464aee-2311-441a-aa5e-cf81e395c674",
+      "name": "Record: analysis result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3520,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "recFailed-symbol",
+              "name": "symbol",
+              "value": "={{ $(\"Loop over symbols\").item.json.symbol }}",
+              "type": "string"
+            },
+            {
+              "id": "recFailed-outcome",
+              "name": "outcome",
+              "value": "failed",
+              "type": "string"
+            },
+            {
+              "id": "recFailed-reason",
+              "name": "reason",
+              "value": "={{ $json.reason || 'Module 05 reported a failure.' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6d9888f1-a770-4847-afd1-6fce79781185",
+      "name": "Record: analysis failed",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3520,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "recRunError-symbol",
+              "name": "symbol",
+              "value": "={{ $(\"Loop over symbols\").item.json.symbol }}",
+              "type": "string"
+            },
+            {
+              "id": "recRunError-outcome",
+              "name": "outcome",
+              "value": "failed",
+              "type": "string"
+            },
+            {
+              "id": "recRunError-reason",
+              "name": "reason",
+              "value": "={{ 'The analysis call failed: ' + String(($json.error && $json.error.message) || 'error').slice(0, 200) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a633e11c-a0ef-4091-a810-ba99441cea67",
+      "name": "Record: analysis request failed",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3300,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "recBadData-symbol",
+              "name": "symbol",
+              "value": "={{ $(\"Loop over symbols\").item.json.symbol }}",
+              "type": "string"
+            },
+            {
+              "id": "recBadData-outcome",
+              "name": "outcome",
+              "value": "skipped",
+              "type": "string"
+            },
+            {
+              "id": "recBadData-reason",
+              "name": "reason",
+              "value": "={{ ($json.reasons || []).join(' ') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6fb7c1d4-8c1c-45e5-a040-be817eda54d7",
+      "name": "Record: data not good enough",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3080,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "recDataError-symbol",
+              "name": "symbol",
+              "value": "={{ $(\"Loop over symbols\").item.json.symbol }}",
+              "type": "string"
+            },
+            {
+              "id": "recDataError-outcome",
+              "name": "outcome",
+              "value": "failed",
+              "type": "string"
+            },
+            {
+              "id": "recDataError-reason",
+              "name": "reason",
+              "value": "={{ 'Data quality check failed: ' + String(($json.error && $json.error.message) || 'error').slice(0, 200) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1598c40c-c6c4-456f-aebf-a5e15d7483d2",
+      "name": "Record: data check failed",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2860,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "results",
+        "options": {}
+      },
+      "id": "816fb7e1-0453-4e68-a520-baca72256846",
+      "name": "Collect results",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        2640,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/webhooks/n8n/callback",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-completed', executionId: $(\"AURUM trigger (analysis request)\").first().json.body.executionId, workflowId: $(\"AURUM trigger (analysis request)\").first().json.body.workflowId, workflowVersion: $(\"AURUM trigger (analysis request)\").first().json.body.workflowVersion, attempt: $(\"AURUM trigger (analysis request)\").first().json.body.attempt, environment: $(\"AURUM trigger (analysis request)\").first().json.body.environment, status: 'completed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), output: { status: $json.results.some(r => r.outcome === 'failed') ? 'partial' : 'completed', reason: $json.results.filter(r => r.outcome === 'completed').length + ' symbol(s) analysed', analysed: $json.results.filter(r => r.outcome === 'completed' || r.outcome === 'dry_run'), skipped: $json.results.filter(r => r.outcome !== 'completed' && r.outcome !== 'dry_run') } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "4737c8de-aa6a-47a2-af94-b8efd2cce1df",
+      "name": "Callback: completed (run recorded)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2860,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## WF08-02 Market Analysis Orchestrator\nAnswers the analysis requests WF08-01 publishes. For each symbol with unanswered requests: check the data, then ask the AURUM backend to run Module 05 once. The backend does the analysis, stores it and publishes the result event; this workflow only sequences calls. No MT5, no trading, no approvals.",
+        "height": 220,
+        "width": 620,
+        "color": 4
+      },
+      "id": "3e0fd166-d494-4e5f-a57f-d5dcf18c0593",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        20
+      ]
+    }
+  ],
+  "connections": {
+    "AURUM trigger (analysis request)": {
+      "main": [
+        [
+          {
+            "node": "AURUM settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook token valid?": {
+      "main": [
+        [
+          {
+            "node": "Accept (return the n8n execution id)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reject (wrong webhook token)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Accept (return the n8n execution id)": {
+      "main": [
+        [
+          {
+            "node": "Callback: started",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load automation configuration": {
+      "main": [
+        [
+          {
+            "node": "Check system health",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Callback: failed (configuration)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Callback: started": {
+      "main": [
+        [
+          {
+            "node": "Load automation configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check system health": {
+      "main": [
+        [
+          {
+            "node": "Analysis available?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Callback: failed (health check)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analysis available?": {
+      "main": [
+        [
+          {
+            "node": "Validate analysis requests (pending symbols)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Callback: completed (skipped)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate analysis requests (pending symbols)": {
+      "main": [
+        [
+          {
+            "node": "Anything to analyse?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Callback: failed (pending requests)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anything to analyse?": {
+      "main": [
+        [
+          {
+            "node": "Split out symbols",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Callback: completed (nothing to analyse)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect results": {
+      "main": [
+        [
+          {
+            "node": "Callback: completed (run recorded)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop over symbols": {
+      "main": [
+        [
+          {
+            "node": "Collect results",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check data quality",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: data check failed": {
+      "main": [
+        [
+          {
+            "node": "Loop over symbols",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check data quality": {
+      "main": [
+        [
+          {
+            "node": "Data good enough?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record: data check failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: data not good enough": {
+      "main": [
+        [
+          {
+            "node": "Loop over symbols",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Data good enough?": {
+      "main": [
+        [
+          {
+            "node": "Run Module 05 analysis",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record: data not good enough",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: analysis request failed": {
+      "main": [
+        [
+          {
+            "node": "Loop over symbols",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Module 05 analysis": {
+      "main": [
+        [
+          {
+            "node": "Analysis response valid?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record: analysis request failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: analysis result": {
+      "main": [
+        [
+          {
+            "node": "Loop over symbols",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analysis response valid?": {
+      "main": [
+        [
+          {
+            "node": "Record: analysis result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record: analysis failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: analysis failed": {
+      "main": [
+        [
+          {
+            "node": "Loop over symbols",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split out symbols": {
+      "main": [
+        [
+          {
+            "node": "Loop over symbols",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AURUM settings": {
+      "main": [
+        [
+          {
+            "node": "Webhook token valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}
