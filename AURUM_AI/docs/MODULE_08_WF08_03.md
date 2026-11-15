@@ -30,7 +30,7 @@ ai.analysis.completed (from WF08-02)
 | HTTP Request: Module 06 Risk Assessment | `assess` calls Module 06 (`RiskService.assess` with the idea id) |
 | Validate Risk Response | the workflow accepts only a completed assessment with PASS, REVIEW or BLOCK |
 | REJECTED → Record reason, Notify dashboard | recorded in the execution output with Module 06's reasons; Module 06 stores the assessment the dashboard shows |
-| APPROVED → Store risk result, Send to WF08-04 | Module 06 stores it and publishes its own `risk.assessment.*` event, which WF08-04 will follow |
+| APPROVED → Store risk result, Send to WF08-04 | Module 06 stores it and publishes its own `risk.assessment.*` event, which starts WF08-04 ([MODULE_08_WF08_04.md](MODULE_08_WF08_04.md)) |
 
 * **Decisions are reported unchanged.** PASS → `approved`, REVIEW → `review` (passed, with points for the human
   reviewer), BLOCK → `rejected`, ERROR → `error`.
