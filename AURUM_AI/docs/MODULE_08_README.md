@@ -37,6 +37,7 @@ and activated by an administrator.
 | --- | --- | --- | --- |
 | WF08-01 Market Monitoring Scheduler | `n8n/workflows/aurum_wf08_01_market_monitoring.json` | `python -m aurum.cli orchestration setup-wf08-01 --n8n-workflow-id <id>` | [MODULE_08_WF08_01.md](MODULE_08_WF08_01.md) |
 | WF08-02 Market Analysis Orchestrator | built in n8n Cloud (not exported to the repository) | `python -m aurum.cli orchestration setup-wf08-02 --n8n-workflow-id <id>` | [MODULE_08_WF08_02.md](MODULE_08_WF08_02.md) |
+| WF08-03 Trade Opportunity Processor | built in n8n Cloud (not exported to the repository) | `python -m aurum.cli orchestration setup-wf08-03 --n8n-workflow-id <id>` | [MODULE_08_WF08_03.md](MODULE_08_WF08_03.md) |
 
 ## Quick start
 
