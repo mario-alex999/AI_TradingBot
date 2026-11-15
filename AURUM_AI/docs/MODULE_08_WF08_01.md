@@ -87,12 +87,31 @@ the Cloud build of WF08-01 differs in three ways:
 * **API address.** The address lives in one node, *AURUM settings* (`aurumApi`). Set it to a public HTTPS URL of the
   AURUM API ending in `/api/v1/orchestration`, for example a reverse proxy or tunnel. Every request in the workflow goes
   only to this address.
-* **Service token credential.** Its type is *Custom Auth* (`httpTemplatedCustomAuth`), with headers
-  `{"Authorization": "Bearer <service token>"}`. The webhook token stays *Header Auth* with `X-AURUM-Webhook-Token`.
-  Select the credentials on the webhook node and on all 13 HTTP nodes.
+* **Tokens.** Either n8n credentials (*Header Auth* `X-AURUM-Webhook-Token` on the webhook, *Custom Auth*
+  `{"Authorization": "Bearer <service token>"}` on the 13 HTTP nodes), or, as deployed, both tokens in the *AURUM
+  settings* node (`webhookToken`, `serviceToken`): the *Webhook token valid?* node answers 401 to any trigger without
+  the right `X-AURUM-Webhook-Token`, and every HTTP node sends `Authorization: Bearer <serviceToken>`. Tokens in the
+  settings node are readable by anyone who can open the workflow; move them to credentials when the instance is shared.
 * **AURUM calls the Cloud webhook.** Set `n8n_webhook_base_url` (or `N8N_WEBHOOK_BASE_URL`) to
   `https://<your-instance>.app.n8n.cloud/webhook`. Then run step 3 with the Cloud workflow id, which is the last part of
   the workflow URL.
+
+### Fully hosted (Vercel + Supabase + n8n Cloud)
+
+The deployed demo runs without a resident Module 08 worker:
+
+* **API**: Vercel project `aurum-api` (`AURUM_AI/api/index.py`), database on Supabase.
+* **Worker pass over HTTP**: `POST /api/v1/orchestration/worker/tick` runs one worker pass (bridge, deliver, schedules,
+  dispatch, time-outs, health when due). It accepts only service tokens with the `orchestration:tick` scope.
+* **Timer**: Supabase `pg_cron` job `aurum-worker-tick` calls that endpoint every minute through `pg_net`. Its token is
+  read from the Supabase vault (`aurum_tick_token`) at run time. Overlapping passes are safe (claims, leases and unique
+  schedule slots).
+* **Service tokens**: `n8n-wf08-01` (`orchestration:view`, `orchestration:callback`) for the workflow, and
+  `supabase-cron-tick` (`orchestration:tick`) for the timer. Rotate with `python -m aurum.cli users token-revoke <name>`
+  and `token-create`, then update the n8n settings node or the vault secret.
+* **Schedule**: `1-59/15 * * * 1-5` UTC (every 15 minutes on weekdays), chosen to stay inside a small n8n Cloud
+  execution quota: about 2,100 runs a month. `1-59/5 * * * *` (the document's cadence) is about 8,900 a month. Change it
+  on the Orchestration page or with `PUT /orchestration/schedules/{id}`.
 
 ## Tests
 
