@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from aurum.orchestration import market_analysis, market_monitoring, trade_opportunities
+from aurum.orchestration import approval_notifications, market_analysis, market_monitoring, trade_opportunities
 
 DIR = Path(__file__).resolve().parents[2] / "n8n" / "workflows"
 API = '={{ $("AURUM settings").first().json.aurumApi }}'
@@ -27,6 +27,11 @@ FILES = {
         {"/webhooks/n8n/callback", "/trade-opportunities/assess"},
         ["Validate trade idea ids (new ideas)", "Retrieve trade idea and check status", "Idea open and not expired?",
          "Module 06 risk assessment", "Risk response valid?", "Decision?"]),
+    "aurum_wf08_04_approval_notification.json": (approval_notifications.WEBHOOK_PATH, "Loop over ideas",
+        {"/webhooks/n8n/callback", "/approval-notifications/notify"},
+        ["List risk-approved ideas", "Retrieve trade idea and risk assessment", "Still valid?",
+         "Prepare and send notification (Module 07)", "Notification recorded?",
+         "Record: notification status (waiting for Module 07 approval)"]),
 }
 
 

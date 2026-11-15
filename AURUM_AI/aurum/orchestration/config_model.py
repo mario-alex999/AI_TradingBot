@@ -121,6 +121,14 @@ class TradeOpportunityCfg(_M):
     max_ideas_per_run: int = Field(20, ge=1, le=200)
 
 
+class ApprovalNotificationCfg(_M):
+    """WF08-04 Human Approval Notification. ``enabled`` is its backend-enforced off switch. The workflow hands each idea
+    that passed Module 06 to Module 07, which opens the approval request and notifies the reviewers."""
+    enabled: bool = True
+    coalesce: bool = True                                    # one WF08-04 run per WF08-03 run, not one per risk event
+    max_ideas_per_run: int = Field(20, ge=1, le=200)
+
+
 class OrchestrationConfig(_M):
     retry: dict[str, Any] = Field(default_factory=dict)
     dispatch: DispatchCfg = DispatchCfg()
@@ -134,6 +142,7 @@ class OrchestrationConfig(_M):
     market_monitoring: MarketMonitoringCfg = MarketMonitoringCfg()
     market_analysis: MarketAnalysisCfg = MarketAnalysisCfg()
     trade_opportunities: TradeOpportunityCfg = TradeOpportunityCfg()
+    approval_notifications: ApprovalNotificationCfg = ApprovalNotificationCfg()
 
     @field_validator("retry")
     @classmethod

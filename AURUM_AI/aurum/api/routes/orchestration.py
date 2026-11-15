@@ -610,6 +610,42 @@ def build_router(state: AppState, svc: Callable[[], Any]) -> APIRouter:
         return run(response, lambda: processor().assess(idea_id, dry_run=bool(b.get("dry_run")),
                                                          execution_id=str(b["execution_id"]) if b.get("execution_id") else None), cid)
 
+    # ---- WF08-04 approval notifications (Module 07 opens the request and notifies; a person decides in the frontend) ------
+    def notifier() -> Any:
+        from aurum.orchestration.approval_notifications import ApprovalNotifier
+        return ApprovalNotifier(svc())
+
+    @r.get("/approval-notifications/config")
+    def an_config(response: Response, who: Principal = View) -> Any:
+        return run(response, lambda: notifier().config_view())
+
+    @r.get("/approval-notifications/preflight")
+    def an_preflight(response: Response, who: Principal = View) -> Any:
+        return run(response, lambda: notifier().preflight())
+
+    @r.get("/approval-notifications/pending")
+    def an_pending(response: Response, idea_ids: str | None = Query(None, alias="ideaIds", max_length=4000),
+                   who: Principal = View) -> Any:
+        want = [x.strip() for x in idea_ids.split(",") if x.strip()] if idea_ids else None
+        return run(response, lambda: notifier().pending(want))
+
+    @r.get("/approval-notifications/status")
+    def an_status(response: Response, idea_id: str = Query(..., alias="ideaId", min_length=1, max_length=64),
+                  who: Principal = View) -> Any:
+        return run(response, lambda: notifier().status(idea_id))
+
+    @r.post("/approval-notifications/notify")
+    def an_notify(response: Response, body: dict[str, Any] = Body(...), cid: str | None = Cid, who: Principal = Hook) -> Any:
+        """Hands one risk-passed idea to Module 07 (request opened, reviewers notified). Service tokens only."""
+        if (resp := limited(hook_limit, who.id)) is not None:
+            return resp
+        b = snake(body)
+        idea_id = str(b.get("idea_id") or "").strip()
+        if not idea_id or len(idea_id) > 64:
+            return _err(OrchError(422, "INVALID_INPUT", "ideaId is required."), cid or str(uuid.uuid4()))
+        return run(response, lambda: notifier().notify(idea_id, dry_run=bool(b.get("dry_run")),
+                                                        execution_id=str(b["execution_id"]) if b.get("execution_id") else None), cid)
+
     return r
 
 

@@ -1,0 +1,1253 @@
+{
+  "name": "AURUM - WF08-04 Human Approval Notification (Module 08)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "aurum-wf08-04-approval-notification",
+        "authentication": "none",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "2e900856-719a-41a6-aaf4-8c935d6814be",
+      "name": "AURUM trigger (risk approved)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        300
+      ],
+      "notes": "Webhook: Risk Approved. AURUM starts this run when Module 06 has passed an idea (one run per WF08-03 run), or on a manual trigger.",
+      "webhookId": "02e6b0e5-db0d-4e4a-a467-e71ca75da2e8"
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "aurum-api",
+              "name": "aurumApi",
+              "value": "https://aurum-api-tan.vercel.app/api/v1/orchestration",
+              "type": "string"
+            },
+            {
+              "id": "aurum-service-token",
+              "name": "serviceToken",
+              "value": "REPLACE_WITH_AURUM_SERVICE_TOKEN",
+              "type": "string"
+            },
+            {
+              "id": "aurum-webhook-token",
+              "name": "webhookToken",
+              "value": "REPLACE_WITH_AURUM_WEBHOOK_TOKEN",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b5b1ce4b-2f20-4fa4-af9f-78c29220ccd9",
+      "name": "AURUM settings",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        300
+      ],
+      "notes": "The only place the AURUM API address and the two tokens are set. Every request in this workflow goes only to this address."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('AURUM trigger (risk approved)').first().json.headers['x-aurum-webhook-token'] || '' }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "={{ $json.webhookToken }}"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "978fb509-e232-4670-a008-0258464c019d",
+      "name": "Webhook token valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ accepted: false, error: 'invalid webhook token' }) }}",
+        "options": {
+          "responseCode": 401
+        }
+      },
+      "id": "f9345ed3-ee41-4bd5-a694-b1e42a94a154",
+      "name": "Reject (wrong webhook token)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        660,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ accepted: true, executionId: $execution.id }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "152770c8-4e87-429d-a607-aaaa87857b9f",
+      "name": "Accept (return the n8n execution id)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/webhooks/n8n/callback",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-started', executionId: $(\"AURUM trigger (risk approved)\").first().json.body.executionId, workflowId: $(\"AURUM trigger (risk approved)\").first().json.body.workflowId, workflowVersion: $(\"AURUM trigger (risk approved)\").first().json.body.workflowVersion, attempt: $(\"AURUM trigger (risk approved)\").first().json.body.attempt, environment: $(\"AURUM trigger (risk approved)\").first().json.body.environment, status: 'started', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO() }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "380b2b1a-9a71-484d-a9f1-63bb24fa0bca",
+      "name": "Callback: started",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/approval-notifications/config",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "600b39a4-55d8-47b0-a5bf-0a820b276ee1",
+      "name": "Load automation configuration",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1100,
+        300
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/webhooks/n8n/callback",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-failed', executionId: $(\"AURUM trigger (risk approved)\").first().json.body.executionId, workflowId: $(\"AURUM trigger (risk approved)\").first().json.body.workflowId, workflowVersion: $(\"AURUM trigger (risk approved)\").first().json.body.workflowVersion, attempt: $(\"AURUM trigger (risk approved)\").first().json.body.attempt, environment: $(\"AURUM trigger (risk approved)\").first().json.body.environment, status: 'failed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), error: { category: 'DEPENDENCY_UNAVAILABLE', retryable: true, message: 'WF08-04 could not load its configuration: ' + String(($json.error && ($json.error.message || $json.error.description)) || 'request failed').slice(0, 300) } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "b53fa102-dc5f-4303-a739-edbe58d47ca0",
+      "name": "Callback: failed (configuration)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1320,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/approval-notifications/preflight",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "2b49f794-b56c-405a-a140-8c5a7c8739d0",
+      "name": "Check system health",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1320,
+        300
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/webhooks/n8n/callback",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-failed', executionId: $(\"AURUM trigger (risk approved)\").first().json.body.executionId, workflowId: $(\"AURUM trigger (risk approved)\").first().json.body.workflowId, workflowVersion: $(\"AURUM trigger (risk approved)\").first().json.body.workflowVersion, attempt: $(\"AURUM trigger (risk approved)\").first().json.body.attempt, environment: $(\"AURUM trigger (risk approved)\").first().json.body.environment, status: 'failed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), error: { category: 'DEPENDENCY_UNAVAILABLE', retryable: true, message: 'WF08-04 could not check system health: ' + String(($json.error && ($json.error.message || $json.error.description)) || 'request failed').slice(0, 300) } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "87c0c7fb-80e8-4029-a625-08bb51326ff7",
+      "name": "Callback: failed (health check)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1540,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.proceed }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "56eae547-5798-4a4d-ac05-9d36107a629c",
+      "name": "Notifications available?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1540,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/webhooks/n8n/callback",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-skipped', executionId: $(\"AURUM trigger (risk approved)\").first().json.body.executionId, workflowId: $(\"AURUM trigger (risk approved)\").first().json.body.workflowId, workflowVersion: $(\"AURUM trigger (risk approved)\").first().json.body.workflowVersion, attempt: $(\"AURUM trigger (risk approved)\").first().json.body.attempt, environment: $(\"AURUM trigger (risk approved)\").first().json.body.environment, status: 'completed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), output: { status: 'skipped', reason: ($('Check system health').first().json.reasons || []).join(' '), notified: [], skipped: [], waitingFor: 'nothing' } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "c9b7e104-2095-4d4b-a865-900fa2af4a24",
+      "name": "Callback: completed (skipped)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1760,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/approval-notifications/pending",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "ideaIds",
+              "value": "={{ ($(\"AURUM trigger (risk approved)\").first().json.body.input || {}).ideaIds ? $(\"AURUM trigger (risk approved)\").first().json.body.input.ideaIds.join(',') : '' }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "d8d3f5b4-a855-46d1-aee1-a0e90641825a",
+      "name": "List risk-approved ideas",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1760,
+        300
+      ],
+      "notes": "The backend lists the ideas Module 06 passed that Module 07 has not been given yet.",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/webhooks/n8n/callback",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-failed', executionId: $(\"AURUM trigger (risk approved)\").first().json.body.executionId, workflowId: $(\"AURUM trigger (risk approved)\").first().json.body.workflowId, workflowVersion: $(\"AURUM trigger (risk approved)\").first().json.body.workflowVersion, attempt: $(\"AURUM trigger (risk approved)\").first().json.body.attempt, environment: $(\"AURUM trigger (risk approved)\").first().json.body.environment, status: 'failed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), error: { category: 'DEPENDENCY_UNAVAILABLE', retryable: true, message: 'WF08-04 could not read the risk-approved ideas: ' + String(($json.error && ($json.error.message || $json.error.description)) || 'request failed').slice(0, 300) } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "d4af408d-051c-4383-a21b-e7db53bb2209",
+      "name": "Callback: failed (idea list)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1980,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.count }}",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "rightValue": 0
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b39d629d-a9aa-443c-a4c0-db2f2409ac12",
+      "name": "Anyone to notify?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1980,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/webhooks/n8n/callback",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-nothing', executionId: $(\"AURUM trigger (risk approved)\").first().json.body.executionId, workflowId: $(\"AURUM trigger (risk approved)\").first().json.body.workflowId, workflowVersion: $(\"AURUM trigger (risk approved)\").first().json.body.workflowVersion, attempt: $(\"AURUM trigger (risk approved)\").first().json.body.attempt, environment: $(\"AURUM trigger (risk approved)\").first().json.body.environment, status: 'completed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), output: { status: 'skipped', reason: 'No risk-approved idea is waiting for a notification.', notified: [], skipped: [], waitingFor: 'nothing' } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "ae2f10b8-22a5-49a2-a06a-fb1c33b1e1de",
+      "name": "Callback: completed (nothing to notify)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2200,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "items",
+        "options": {}
+      },
+      "id": "5d0d939a-81b5-4ffa-a4e3-aedbd451c290",
+      "name": "Split out ideas",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1.1,
+      "position": [
+        2200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "6eebb5ed-cae0-4eb2-a121-ef5f1423d3bb",
+      "name": "Loop over ideas",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        2420,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/approval-notifications/status",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "ideaId",
+              "value": "={{ $json.ideaId }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "bacb47f6-4e58-4a30-ad85-63ba8c7fd231",
+      "name": "Retrieve trade idea and risk assessment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2640,
+        120
+      ],
+      "notes": "Retrieve Trade Idea + Retrieve Risk Assessment + Check Still Valid: the idea must still be open and unexpired, and Module 06 must confirm its assessment is still valid.",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.ok }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e331d6e9-9e04-45ac-a6e5-ee7e10321bd0",
+      "name": "Still valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2860,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/approval-notifications/notify",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ ideaId: $json.ideaId, dryRun: ($(\"AURUM trigger (risk approved)\").first().json.body.input || {}).dryRun === true, executionId: $(\"AURUM trigger (risk approved)\").first().json.body.executionId }) }}",
+        "options": {
+          "timeout": 58000
+        }
+      },
+      "id": "095fa3da-7b5a-4446-a666-6b274863796a",
+      "name": "Prepare and send notification (Module 07)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        3080,
+        0
+      ],
+      "notes": "Prepare Notification + Send Notification: Module 07 opens the approval request and notifies the reviewers (in the dashboard, and by email or Telegram when configured). The notification links to the signed-in review page; it cannot approve anything.",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.status === 'notified' && !!$json.approvalId }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "2019986a-6737-4a7d-a732-62386bd0d259",
+      "name": "Notification recorded?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "recNotified-ideaId",
+              "name": "ideaId",
+              "value": "={{ $(\"Loop over ideas\").item.json.ideaId }}",
+              "type": "string"
+            },
+            {
+              "id": "recNotified-symbol",
+              "name": "symbol",
+              "value": "={{ $(\"Loop over ideas\").item.json.symbol || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "recNotified-outcome",
+              "name": "outcome",
+              "value": "notified",
+              "type": "string"
+            },
+            {
+              "id": "recNotified-approvalId",
+              "name": "approvalId",
+              "value": "={{ $json.approvalId }}",
+              "type": "string"
+            },
+            {
+              "id": "recNotified-reviewUrl",
+              "name": "reviewUrl",
+              "value": "={{ $json.reviewUrl || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "recNotified-riskDecision",
+              "name": "riskDecision",
+              "value": "={{ $json.riskDecision || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "recNotified-deliveries",
+              "name": "deliveries",
+              "value": "={{ JSON.stringify($json.deliveries || {}) }}",
+              "type": "string"
+            },
+            {
+              "id": "recNotified-reason",
+              "name": "reason",
+              "value": "={{ $json.reason || '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "df3561d3-ca11-45fc-aa9a-bbd0b53ce553",
+      "name": "Record: notification status (waiting for Module 07 approval)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3520,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "recOther-ideaId",
+              "name": "ideaId",
+              "value": "={{ $(\"Loop over ideas\").item.json.ideaId }}",
+              "type": "string"
+            },
+            {
+              "id": "recOther-symbol",
+              "name": "symbol",
+              "value": "={{ $(\"Loop over ideas\").item.json.symbol || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "recOther-outcome",
+              "name": "outcome",
+              "value": "={{ ['dry_run', 'skipped'].includes($json.status) ? $json.status : 'failed' }}",
+              "type": "string"
+            },
+            {
+              "id": "recOther-reason",
+              "name": "reason",
+              "value": "={{ $json.reason || '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "eacc3c87-8658-4cb3-a0fd-dfe9b29da7fb",
+      "name": "Record: not notified",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3520,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "recCallError-ideaId",
+              "name": "ideaId",
+              "value": "={{ $(\"Loop over ideas\").item.json.ideaId }}",
+              "type": "string"
+            },
+            {
+              "id": "recCallError-symbol",
+              "name": "symbol",
+              "value": "={{ $(\"Loop over ideas\").item.json.symbol || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "recCallError-outcome",
+              "name": "outcome",
+              "value": "failed",
+              "type": "string"
+            },
+            {
+              "id": "recCallError-reason",
+              "name": "reason",
+              "value": "={{ 'The notification call failed: ' + String(($json.error && $json.error.message) || 'error').slice(0, 200) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7c412529-67f4-4aff-a667-59ff43701fd2",
+      "name": "Record: notification request failed",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3300,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "recInvalid-ideaId",
+              "name": "ideaId",
+              "value": "={{ $(\"Loop over ideas\").item.json.ideaId }}",
+              "type": "string"
+            },
+            {
+              "id": "recInvalid-symbol",
+              "name": "symbol",
+              "value": "={{ $(\"Loop over ideas\").item.json.symbol || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "recInvalid-outcome",
+              "name": "outcome",
+              "value": "skipped",
+              "type": "string"
+            },
+            {
+              "id": "recInvalid-reason",
+              "name": "reason",
+              "value": "={{ ($json.reasons || []).join(' ') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "160e9649-1779-4c39-a767-6737c7659ddc",
+      "name": "Record: no longer valid",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3080,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "recIdeaError-ideaId",
+              "name": "ideaId",
+              "value": "={{ $(\"Loop over ideas\").item.json.ideaId }}",
+              "type": "string"
+            },
+            {
+              "id": "recIdeaError-symbol",
+              "name": "symbol",
+              "value": "={{ $(\"Loop over ideas\").item.json.symbol || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "recIdeaError-outcome",
+              "name": "outcome",
+              "value": "failed",
+              "type": "string"
+            },
+            {
+              "id": "recIdeaError-reason",
+              "name": "reason",
+              "value": "={{ 'Validity check failed: ' + String(($json.error && $json.error.message) || 'error').slice(0, 200) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0fbe656a-b2fa-402c-afc8-0453459a9943",
+      "name": "Record: validity check failed",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2860,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "results",
+        "options": {}
+      },
+      "id": "816fb7e1-0453-4e68-a520-baca72256846",
+      "name": "Collect results",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        2640,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/webhooks/n8n/callback",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-completed', executionId: $(\"AURUM trigger (risk approved)\").first().json.body.executionId, workflowId: $(\"AURUM trigger (risk approved)\").first().json.body.workflowId, workflowVersion: $(\"AURUM trigger (risk approved)\").first().json.body.workflowVersion, attempt: $(\"AURUM trigger (risk approved)\").first().json.body.attempt, environment: $(\"AURUM trigger (risk approved)\").first().json.body.environment, status: 'completed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), output: { status: $json.results.some(r => r.outcome === 'failed') ? 'partial' : 'completed', reason: $json.results.filter(r => r.outcome === 'notified').length + ' approval request(s) opened and notified', notified: $json.results.filter(r => r.outcome === 'notified'), skipped: $json.results.filter(r => r.outcome !== 'notified'), waitingFor: $json.results.some(r => r.outcome === 'notified') ? 'Module 07 approval decision' : 'nothing' } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "4737c8de-aa6a-47a2-af94-b8efd2cce1df",
+      "name": "Callback: completed (run recorded)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2860,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## WF08-04 Human Approval Notification\nWhen Module 06 passes an idea, ask a person to decide. Module 07 opens the approval request and notifies the reviewers; this workflow checks the idea is still valid and records what was sent. Approval controls are only in the signed-in AURUM dashboard. The run ends waiting for the Module 07 approval event (WF08-05). No MT5, no trading, no approvals.",
+        "height": 220,
+        "width": 620,
+        "color": 3
+      },
+      "id": "3e0fd166-d494-4e5f-a57f-d5dcf18c0593",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        20
+      ]
+    }
+  ],
+  "connections": {
+    "AURUM trigger (risk approved)": {
+      "main": [
+        [
+          {
+            "node": "AURUM settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook token valid?": {
+      "main": [
+        [
+          {
+            "node": "Accept (return the n8n execution id)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reject (wrong webhook token)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Accept (return the n8n execution id)": {
+      "main": [
+        [
+          {
+            "node": "Callback: started",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load automation configuration": {
+      "main": [
+        [
+          {
+            "node": "Check system health",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Callback: failed (configuration)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Callback: started": {
+      "main": [
+        [
+          {
+            "node": "Load automation configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check system health": {
+      "main": [
+        [
+          {
+            "node": "Notifications available?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Callback: failed (health check)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notifications available?": {
+      "main": [
+        [
+          {
+            "node": "List risk-approved ideas",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Callback: completed (skipped)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List risk-approved ideas": {
+      "main": [
+        [
+          {
+            "node": "Anyone to notify?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Callback: failed (idea list)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anyone to notify?": {
+      "main": [
+        [
+          {
+            "node": "Split out ideas",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Callback: completed (nothing to notify)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect results": {
+      "main": [
+        [
+          {
+            "node": "Callback: completed (run recorded)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop over ideas": {
+      "main": [
+        [
+          {
+            "node": "Collect results",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Retrieve trade idea and risk assessment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: validity check failed": {
+      "main": [
+        [
+          {
+            "node": "Loop over ideas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retrieve trade idea and risk assessment": {
+      "main": [
+        [
+          {
+            "node": "Still valid?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record: validity check failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: no longer valid": {
+      "main": [
+        [
+          {
+            "node": "Loop over ideas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Still valid?": {
+      "main": [
+        [
+          {
+            "node": "Prepare and send notification (Module 07)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record: no longer valid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: notification request failed": {
+      "main": [
+        [
+          {
+            "node": "Loop over ideas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare and send notification (Module 07)": {
+      "main": [
+        [
+          {
+            "node": "Notification recorded?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record: notification request failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: notification status (waiting for Module 07 approval)": {
+      "main": [
+        [
+          {
+            "node": "Loop over ideas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notification recorded?": {
+      "main": [
+        [
+          {
+            "node": "Record: notification status (waiting for Module 07 approval)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record: not notified",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: not notified": {
+      "main": [
+        [
+          {
+            "node": "Loop over ideas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split out ideas": {
+      "main": [
+        [
+          {
+            "node": "Loop over ideas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AURUM settings": {
+      "main": [
+        [
+          {
+            "node": "Webhook token valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}
