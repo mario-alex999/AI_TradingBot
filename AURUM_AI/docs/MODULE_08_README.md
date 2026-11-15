@@ -27,10 +27,10 @@ execution decision, and nothing in Module 08 turns AI output into a trade.
 
 ## What is deliberately NOT built
 
-The execution handoff workflow (registration id `wf08-04-execution-handoff`, the document's WF08-06) exists only as a
-**reserved registration** (`placeholder = true`). It cannot be activated or triggered until it is built, versioned,
-validated and activated by an administrator; the document builds it only after Module 09 has its secure execution
-API. WF08-07 to WF08-10 are not built. WF08-01 to WF08-05 are built (see the table below).
+**Module 09 (trade execution) is not built**, and nothing in AURUM sends an order. WF08-06 is built up to that
+boundary: it verifies and records the execution request Module 07 creates and reports that it is waiting for Module 09
+(see [MODULE_08_WF08_06.md](MODULE_08_WF08_06.md), *What is left for Module 09*). WF08-07 to WF08-10 are not built.
+WF08-01 to WF08-06 are built (see the table below).
 
 ## Built workflows
 
@@ -41,6 +41,7 @@ API. WF08-07 to WF08-10 are not built. WF08-01 to WF08-05 are built (see the tab
 | WF08-03 Trade Opportunity Processor | `n8n/workflows/aurum_wf08_03_trade_opportunity.json` | `python -m aurum.cli orchestration setup-wf08-03 --n8n-workflow-id <id>` | [MODULE_08_WF08_03.md](MODULE_08_WF08_03.md) |
 | WF08-04 Human Approval Notification | `n8n/workflows/aurum_wf08_04_approval_notification.json` | `python -m aurum.cli orchestration setup-wf08-04 --n8n-workflow-id <id>` | [MODULE_08_WF08_04.md](MODULE_08_WF08_04.md) |
 | WF08-05 Approval Response Handler | `n8n/workflows/aurum_wf08_05_approval_response.json` | `python -m aurum.cli orchestration setup-wf08-05 --n8n-workflow-id <id>` | [MODULE_08_WF08_05.md](MODULE_08_WF08_05.md) |
+| WF08-06 Approved Trade Handoff | `n8n/workflows/aurum_wf08_06_trade_handoff.json` | `python -m aurum.cli orchestration setup-wf08-06 --n8n-workflow-id <id>` | [MODULE_08_WF08_06.md](MODULE_08_WF08_06.md) |
 
 ## Quick start
 

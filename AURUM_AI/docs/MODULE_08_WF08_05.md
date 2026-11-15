@@ -37,7 +37,7 @@ approval.approved / rejected / expired / invalidated / cancelled / modification_
 | Check Risk Assessment Is Still Valid | Module 07 asks Module 06 to validate the assessment the approval was given on |
 | IF Status? | the workflow branches on the recorded result |
 | Record approval / rejection / expiry | `record`: one entry in the Module 08 audit log (`wf08-05.response_recorded`), written once per request and outcome |
-| Send WF08-06 | Module 07's final validation creates the execution request and publishes `trade.approved_for_execution`, which WF08-06 will follow. WF08-05 publishes nothing itself |
+| Send WF08-06 | Module 07's final validation creates the execution request and publishes `trade.approved_for_execution`, which starts WF08-06 ([MODULE_08_WF08_06.md](MODULE_08_WF08_06.md)). WF08-05 publishes nothing itself |
 | Notify dashboard | Module 07 notifies the dashboard when it records the outcome; `record` reports those notifications and delivers due email or Telegram ones |
 
 * **The critical rule.** An approval is tied to one trade idea, its version and its risk assessment. While a request
