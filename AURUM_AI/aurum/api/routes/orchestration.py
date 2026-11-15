@@ -756,6 +756,53 @@ def build_router(state: AppState, svc: Callable[[], Any]) -> APIRouter:
         return run(response, lambda: trade_monitor().record(position_id, dry_run=bool(b.get("dry_run")),
                                                        execution_id=str(b["execution_id"]) if b.get("execution_id") else None), cid)
 
+    # ---- WF08-08 error handling (the core retries within its limits; this records, classifies and escalates) ------------
+    def recovery() -> Any:
+        from aurum.orchestration.error_recovery import ErrorRecovery
+        return ErrorRecovery(svc())
+
+    @r.get("/error-recovery/config")
+    def er_config(response: Response, who: Principal = View) -> Any:
+        return run(response, lambda: recovery().config_view())
+
+    @r.get("/error-recovery/preflight")
+    def er_preflight(response: Response, who: Principal = View) -> Any:
+        return run(response, lambda: recovery().preflight())
+
+    @r.get("/error-recovery/pending")
+    def er_pending(response: Response, execution_ids: str | None = Query(None, alias="executionIds", max_length=4000),
+                   who: Principal = View) -> Any:
+        want = [x.strip() for x in execution_ids.split(",") if x.strip()] if execution_ids else None
+        return run(response, lambda: recovery().pending(want))
+
+    @r.get("/error-recovery/status")
+    def er_status(response: Response, execution_id: str = Query(..., alias="executionId", min_length=1, max_length=64),
+                  who: Principal = View) -> Any:
+        return run(response, lambda: recovery().status(execution_id))
+
+    @r.post("/error-recovery/record")
+    def er_record(response: Response, body: dict[str, Any] = Body(...), cid: str | None = Cid, who: Principal = Hook) -> Any:
+        """Records one failed run's state once and escalates it when it is not being retried. Starts no retry."""
+        if (resp := limited(hook_limit, who.id)) is not None:
+            return resp
+        b = snake(body)
+        target = str(b.get("target_execution_id") or "").strip()
+        if not target or len(target) > 64:
+            return _err(OrchError(422, "INVALID_INPUT", "targetExecutionId is required."), cid or str(uuid.uuid4()))
+        return run(response, lambda: recovery().record(target, dry_run=bool(b.get("dry_run")),
+                                                        run_id=str(b["execution_id"]) if b.get("execution_id") else None), cid)
+
+    @r.post("/error-recovery/report")
+    def er_report(response: Response, body: dict[str, Any] = Body(...), cid: str | None = Cid, who: Principal = Hook) -> Any:
+        """A crash reported by n8n's Error Trigger. It is classified and the core applies its usual retry rules to the
+        run it belongs to. Service tokens only."""
+        if (resp := limited(hook_limit, who.id)) is not None:
+            return resp
+        b = snake(body)
+        if not (b.get("n8n_execution_id") or b.get("n8n_workflow_id")):
+            return _err(OrchError(422, "INVALID_INPUT", "n8nExecutionId or n8nWorkflowId is required."), cid or str(uuid.uuid4()))
+        return run(response, lambda: recovery().report(b), cid)
+
     return r
 
 

@@ -158,6 +158,15 @@ class TradeMonitoringCfg(_M):
     notify_dashboard: bool = True                             # false = record only
 
 
+class ErrorRecoveryCfg(_M):
+    """WF08-08 Error Handling and Recovery. ``enabled`` is its backend-enforced off switch. The workflow records failed
+    runs and escalates those that are not being retried; retries themselves stay with the core's retry policy."""
+    enabled: bool = True
+    max_errors_per_run: int = Field(20, ge=1, le=200)
+    lookback_hours: int = Field(72, ge=1, le=24 * 90)
+    notify_dashboard: bool = True                             # false = record only
+
+
 class OrchestrationConfig(_M):
     retry: dict[str, Any] = Field(default_factory=dict)
     dispatch: DispatchCfg = DispatchCfg()
@@ -175,6 +184,7 @@ class OrchestrationConfig(_M):
     approval_responses: ApprovalResponseCfg = ApprovalResponseCfg()
     trade_handoff: TradeHandoffCfg = TradeHandoffCfg()
     trade_monitoring: TradeMonitoringCfg = TradeMonitoringCfg()
+    error_recovery: ErrorRecoveryCfg = ErrorRecoveryCfg()
 
     @field_validator("retry")
     @classmethod

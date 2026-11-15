@@ -97,3 +97,9 @@ trade_monitoring:           # WF08-07 Trade Monitoring Orchestrator (records pos
   stale_after_seconds: 300  # a position record older than this is reported as stale
   closed_lookback_hours: 72
   notify_dashboard: true    # false = record only
+
+error_recovery:             # WF08-08 Error Handling and Recovery (records failed runs, escalates what is not retried)
+  enabled: true             # backend off switch: false = WF08-08 stops before recording anything
+  max_errors_per_run: 20
+  lookback_hours: 72
+  notify_dashboard: true    # false = record only

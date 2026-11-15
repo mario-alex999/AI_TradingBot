@@ -505,6 +505,37 @@ class ExecutionMixin:
                         entity_id=code[:64], at=self.now(), outcome="refused", details={"code": code})
 
     # ---- time-outs and reconciliation ---------------------------------------------------------------------------------------
+    def report_engine_failure(self, execution_id: str, category: str, message: str, retryable: bool | None = None,
+                              by: str = "n8n:error-workflow") -> dict[str, Any]:
+        """A failure the workflow could not report itself (it crashed before its own callback), reported by the engine's
+        error workflow. Applied with exactly the rules of a failed callback: retried within the workflow's retry policy,
+        dead-lettered when it is not retryable or the retries are used up. An execution that already finished is left
+        alone."""
+        self.ensure_ready()
+        msg = str(message or "The engine reported a failure")[:2000]
+        category = str(category or "WORKFLOW_ERROR").upper()[:32]
+        with self.repo.write() as s:
+            e = self._exec(s, execution_id)
+            prev = e.status
+            if prev not in ("ACCEPTED", "RUNNING"):         # only an attempt the engine is running can crash in it;
+                return {"applied": False, "status": prev, "previous_status": prev}     # a repeat must not burn a retry
+            try:
+                check_execution(prev, "FAILED")
+            except IllegalTransition:
+                return {"applied": False, "status": prev, "previous_status": prev}
+            w = self._wf(s, e.workflow_id)
+            self._move(s, e, "FAILED", by=by, reason=msg)
+            e.error_category, e.error_message, e.deadline_at = category, msg, None
+            self._emit(s, "failed", e, error_category=category)
+            kind = kind_of(category, retryable)
+            policy = self.policy_for(w)
+            if kind == TRANSIENT and (category != "WORKFLOW_ERROR" or policy.retry_on_workflow_failure):
+                self._retry_or_dead(s, e, w, category, msg)
+            elif kind == PERMANENT and category not in _business():
+                self._dead_letter(s, e, category, msg)
+            return {"applied": True, "status": e.status, "previous_status": prev, "attempt": e.attempt,
+                    "next_attempt_at": utc(e.next_attempt_at)}
+
     def sweep_timeouts(self, limit: int = 100) -> dict[str, int]:
         """In-flight executions past their deadline. If n8n can be asked, its answer wins (success, failure, still
         running); otherwise the execution is TIMED_OUT - which records that we stopped waiting, not that it did not run."""

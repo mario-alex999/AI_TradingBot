@@ -279,6 +279,11 @@ class EventMixin:
                 body["input"] = {"batch": {"correlation_id": ev["correlation_id"]}}
                 body["idempotency_key"] = f"evtc:{ev['correlation_id']}:{sub.workflow_id}:{replay}"
                 body["symbol"] = None
+            if str(ev.get("event_type") or "").startswith("orchestration.workflow.") and \
+                    (ev.get("payload") or {}).get("workflow_id") == sub.workflow_id:
+                # A workflow that follows execution events (WF08-08) must not be started by its own runs: a failing
+                # run would start the next one for ever. The delivery is closed without a trigger.
+                return "delivered", None, None, None, None, None
             try:
                 view, _ = self.trigger(SYSTEM, body, internal=True)
                 return "delivered", None, None, None, view["execution_id"], None
