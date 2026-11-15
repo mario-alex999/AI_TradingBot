@@ -1594,6 +1594,105 @@ class ApprovalService:
                     pass
         return {"ingested": ingested, "closed": closed, "errors": errors}
 
+    def verify_decision(self, approval_id: str) -> dict[str, Any]:
+        """Read-only check of a request's outcome, for whoever acts on it next (Module 08's WF08-05). Changes nothing.
+
+        Confirms who decided and that they could (*authority*), and - while the request is still APPROVED and not yet
+        handed to execution - that the approval is still tied to the idea version, evidence and risk assessment that
+        were approved, that the idea has not expired, and that Module 06 still stands by its assessment. Once Module 07
+        has handed a request on, its own final validation has already confirmed those links."""
+        approved_family = (S.APPROVED.value, S.EXECUTION_PENDING.value, S.EXECUTION_SUBMITTED.value, S.EXECUTED.value,
+                           S.EXECUTION_FAILED.value)
+        with self.repo.read() as s:
+            req = s.get(ApprovalRequest, approval_id)
+            if req is None:
+                return {"approval_id": approval_id, "exists": False, "decided": False, "outcome": "unknown", "verified": False,
+                        "checks": {}, "problems": ["Module 07 has no such approval request."]}
+            decisions = s.execute(select(ApprovalDecision).where(ApprovalDecision.approval_id == approval_id)
+                                  .order_by(ApprovalDecision.decided_at)).scalars().all()
+            idea = s.get(TradeIdea, req.idea_id)
+            users = {u.id: u for u in s.execute(select(User).where(User.id.in_([d.user_id for d in decisions]))).scalars()} \
+                if decisions else {}
+            handoff = s.execute(select(ExecutionHandoff.execution_request_id, ExecutionHandoff.status)
+                                .where(ExecutionHandoff.approval_id == approval_id, ExecutionHandoff.kind == "trade")).first()
+            s.expunge_all()
+        status = req.status
+        outcome = ("approved" if status in approved_family else "undecided" if status in (S.PENDING.value, S.UNDER_REVIEW.value)
+                   else status.lower())
+        out: dict[str, Any] = {
+            "approval_id": approval_id, "exists": True, "decided": outcome != "undecided", "outcome": outcome, "status": status,
+            "idea_id": req.idea_id, "idea_version": req.idea_version, "symbol": req.symbol, "direction": req.direction,
+            "timeframe": req.timeframe, "strategy": req.strategy, "risk_assessment_id": req.risk_assessment_id,
+            "risk_decision": req.risk_decision, "decided_at": req.decided_at, "status_changed_at": req.status_changed_at,
+            "expires_at": req.expires_at, "status_reason": req.status_reason, "correlation_id": req.correlation_id,
+            "execution_request_id": handoff[0] if handoff else None, "execution_status": handoff[1] if handoff else None,
+            "decided_by": [d.username for d in decisions if d.decision == ("APPROVED" if outcome == "approved" else status)]}
+        checks: dict[str, str] = {}
+        problems: list[str] = []
+        now = self.now()
+
+        def authority(expected: str, needed: int) -> None:
+            mine = [d for d in decisions if d.decision == expected]
+            bad: list[str] = []
+            if len(mine) < needed or not any(d.is_final for d in mine):
+                bad.append(f"Module 07 holds {len(mine)} {expected} decision(s); {needed} with a final one are required.")
+            for d in mine:
+                try:
+                    allowed = perm.DECIDE in perm.permissions_for(perm.Role(d.role))
+                except ValueError:
+                    allowed = False
+                if not allowed:
+                    bad.append(f"{d.username} decided as '{d.role}', a role without approval permission.")
+                u = users.get(d.user_id)
+                if u is None:
+                    bad.append(f"The account of {d.username} no longer exists.")
+                elif status == S.APPROVED.value and not u.is_active:
+                    bad.append(f"The account of {d.username} was deactivated before the hand-off.")
+            checks["authority"] = "failed" if bad else "ok"
+            problems.extend(bad)
+
+        if outcome == "approved":
+            authority("APPROVED", req.approvals_required)
+            if status != S.APPROVED.value:
+                # Module 07's final validation ran when it handed the request on; the assessment is consumed by then.
+                checks.update(binding="ok", idea_valid="ok", risk_valid="ok", final_validation="passed")
+            else:
+                checks["final_validation"] = "pending"
+                bound: list[str] = []
+                if idea is None or idea.current_version != req.idea_version:
+                    bound.append("The trade idea changed after approval.")
+                for d in decisions:
+                    if d.decision == "APPROVED" and (d.risk_assessment_id != req.risk_assessment_id
+                                                     or d.evidence_hash != req.evidence_hash):
+                        bound.append(f"The decision by {d.username} was made on a different risk assessment or evidence.")
+                checks["binding"] = "failed" if bound else "ok"
+                problems.extend(bound)
+                idea_ok, idea_reason = self._idea_still_valid(idea) if idea is not None else (False, "The trade idea is missing.")
+                checks["idea_valid"] = "ok" if idea_ok else "failed"
+                if not idea_ok:
+                    problems.append(idea_reason or "The trade idea is no longer valid.")
+                try:
+                    rc = self.risk.validate(req.risk_assessment_id) if req.risk_assessment_id else {"valid": False,
+                                                                                                    "reasons": ["No assessment."]}
+                    checks["risk_valid"] = "ok" if rc.get("valid") else "failed"
+                    if not rc.get("valid"):
+                        problems += ["Module 06: " + str(r) for r in rc.get("reasons") or ["the assessment is no longer valid."]]
+                except GatewayUnavailable:
+                    checks["risk_valid"] = "unavailable"
+                    problems.append("Module 06 is unavailable, so the risk assessment cannot be confirmed.")
+        elif status in (S.REJECTED.value, S.MODIFICATION_REQUESTED.value):
+            authority(status, 1)
+        elif status == S.EXPIRED.value:
+            bad = []
+            if any(d.is_final for d in decisions):
+                bad.append("The request is EXPIRED but holds a final decision.")
+            if req.expires_at > now:
+                bad.append("The request is EXPIRED before its expiry time.")
+            checks["authority"] = "failed" if bad else "ok"          # expiry is a system outcome: nobody decided
+            problems.extend(bad)
+        out.update(checks=checks, problems=problems, verified=out["decided"] and not problems)
+        return out
+
     def close_for_source(self, approval_id: str, status: str, reason: str) -> None:
         now = self.now()
         with self.repo.write() as s:

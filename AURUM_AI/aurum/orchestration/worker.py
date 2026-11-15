@@ -8,6 +8,9 @@ Each tick (default every 10 s):
 5. timeouts - reconcile or time out executions that passed their deadline;
 6. health   - integration checks and workflow health, every ``health.interval_seconds``.
 
+Optional step 0, ``approval_expiry``: Module 07's own expiry pass, only when ``approval_responses.expire_overdue_requests``
+is on (hosts that run no Module 07 worker).
+
 Recovery after a restart needs no special step: queued work is picked up by its status and due time; an execution that
 was claimed but whose dispatch result was never recorded reaches its deadline and is reconciled or timed out - never
 silently re-sent unless the workflow deduplicates by execution id.
@@ -34,6 +37,8 @@ class Worker:
         steps = [("bridge", self.svc.bridge_sources), ("deliver", self.svc.deliver_due),
                  ("schedule", self.svc.run_due_schedules), ("dispatch", self.svc.dispatch_due),
                  ("timeouts", self.svc.sweep_timeouts)]
+        if self.svc.config().approval_responses.expire_overdue_requests:
+            steps.insert(0, ("approval_expiry", self._approval_expiry))      # before the bridge, so its events go out now
         interval = self.svc.config().health.interval_seconds
         if force_health or time.monotonic() - self._last_health >= interval:
             steps += [("health", self.svc.check_all), ("workflow_health", self.svc.evaluate_workflow_health)]
@@ -45,6 +50,10 @@ class Worker:
                 log.exception("Module 08 worker step failed", extra={"step": name})
                 out[name] = {"error": f"{type(exc).__name__}: {exc}"[:300]}
         return out
+
+    def _approval_expiry(self) -> dict[str, Any]:
+        from aurum.orchestration.approval_responses import ApprovalResponseHandler
+        return ApprovalResponseHandler(self.svc).expire_overdue()
 
     def run_forever(self, interval: float, stop: Any = None) -> None:
         log.info("Module 08 worker started", extra={"interval": interval, "environment": self.svc.env})

@@ -129,6 +129,17 @@ class ApprovalNotificationCfg(_M):
     max_ideas_per_run: int = Field(20, ge=1, le=200)
 
 
+class ApprovalResponseCfg(_M):
+    """WF08-05 Approval Response Handler. ``enabled`` is its backend-enforced off switch. The workflow verifies and
+    records each Module 07 outcome (approved, rejected, expired, ...); it changes no approval."""
+    enabled: bool = True
+    max_responses_per_run: int = Field(20, ge=1, le=200)
+    lookback_hours: int = Field(72, ge=1, le=24 * 90)        # outcomes older than this are not picked up by a sweep
+    # Give Module 07's expiry pass a turn on every Module 08 worker tick. Only for hosts that run no Module 07 worker
+    # (a serverless deployment); Module 07 still decides what expires.
+    expire_overdue_requests: bool = False
+
+
 class OrchestrationConfig(_M):
     retry: dict[str, Any] = Field(default_factory=dict)
     dispatch: DispatchCfg = DispatchCfg()
@@ -143,6 +154,7 @@ class OrchestrationConfig(_M):
     market_analysis: MarketAnalysisCfg = MarketAnalysisCfg()
     trade_opportunities: TradeOpportunityCfg = TradeOpportunityCfg()
     approval_notifications: ApprovalNotificationCfg = ApprovalNotificationCfg()
+    approval_responses: ApprovalResponseCfg = ApprovalResponseCfg()
 
     @field_validator("retry")
     @classmethod

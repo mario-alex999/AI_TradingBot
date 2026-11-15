@@ -646,6 +646,42 @@ def build_router(state: AppState, svc: Callable[[], Any]) -> APIRouter:
         return run(response, lambda: notifier().notify(idea_id, dry_run=bool(b.get("dry_run")),
                                                         execution_id=str(b["execution_id"]) if b.get("execution_id") else None), cid)
 
+    # ---- WF08-05 approval responses (Module 07 decides and verifies; this records the outcome) ----------------------------
+    def responder() -> Any:
+        from aurum.orchestration.approval_responses import ApprovalResponseHandler
+        return ApprovalResponseHandler(svc())
+
+    @r.get("/approval-responses/config")
+    def ar_config(response: Response, who: Principal = View) -> Any:
+        return run(response, lambda: responder().config_view())
+
+    @r.get("/approval-responses/preflight")
+    def ar_preflight(response: Response, who: Principal = View) -> Any:
+        return run(response, lambda: responder().preflight())
+
+    @r.get("/approval-responses/pending")
+    def ar_pending(response: Response, approval_ids: str | None = Query(None, alias="approvalIds", max_length=4000),
+                   who: Principal = View) -> Any:
+        want = [x.strip() for x in approval_ids.split(",") if x.strip()] if approval_ids else None
+        return run(response, lambda: responder().pending(want))
+
+    @r.get("/approval-responses/status")
+    def ar_status(response: Response, approval_id: str = Query(..., alias="approvalId", min_length=1, max_length=64),
+                  who: Principal = View) -> Any:
+        return run(response, lambda: responder().status(approval_id))
+
+    @r.post("/approval-responses/record")
+    def ar_record(response: Response, body: dict[str, Any] = Body(...), cid: str | None = Cid, who: Principal = Hook) -> Any:
+        """Verifies one Module 07 outcome and records it once. Changes no approval. Service tokens only."""
+        if (resp := limited(hook_limit, who.id)) is not None:
+            return resp
+        b = snake(body)
+        approval_id = str(b.get("approval_id") or "").strip()
+        if not approval_id or len(approval_id) > 64:
+            return _err(OrchError(422, "INVALID_INPUT", "approvalId is required."), cid or str(uuid.uuid4()))
+        return run(response, lambda: responder().record(approval_id, dry_run=bool(b.get("dry_run")),
+                                                         execution_id=str(b["execution_id"]) if b.get("execution_id") else None), cid)
+
     return r
 
 
