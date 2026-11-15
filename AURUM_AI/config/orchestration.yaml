@@ -79,3 +79,9 @@ approval_notifications:     # WF08-04 Human Approval Notification (opens the Mod
   enabled: true             # backend off switch: false = WF08-04 stops before notifying anyone
   coalesce: true            # one WF08-04 run per WF08-03 run instead of one per risk event
   max_ideas_per_run: 20
+
+approval_responses:         # WF08-05 Approval Response Handler (verifies and records each Module 07 outcome)
+  enabled: true             # backend off switch: false = WF08-05 stops before recording anything
+  max_responses_per_run: 20
+  lookback_hours: 72        # a sweep without an event only looks this far back
+  expire_overdue_requests: false   # true only where no Module 07 worker runs: lets Module 07 expire overdue requests on each tick

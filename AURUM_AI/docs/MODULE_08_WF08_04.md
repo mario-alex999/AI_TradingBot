@@ -32,7 +32,7 @@ risk.assessment.completed / risk.assessment.requires_review (Module 06, for a WF
 | Prepare Notification | `notify`: Module 07 opens the approval request from the idea; the response carries the notification content |
 | Send Notification | `notify`: Module 07 delivers to its reviewers on its configured channels (dashboard always; email and Telegram when set up in Module 07) |
 | Record Notification Status | the execution output lists every idea with its approval id, review link and deliveries |
-| Wait for Module 07 Approval Event | the run ends with `waitingFor: "Module 07 approval decision"`; the decision arrives later as a Module 07 event (WF08-05) |
+| Wait for Module 07 Approval Event | the run ends with `waitingFor: "Module 07 approval decision"`; the decision arrives later as a Module 07 event, which starts WF08-05 ([MODULE_08_WF08_05.md](MODULE_08_WF08_05.md)) |
 
 * **What the notification contains.** Symbol, direction, strategy, entry zone, stop loss, take profit, risk/reward,
   evidence score, supporting reasons, conflicting evidence, Module 06's risk assessment, expiry time, and a link to the
