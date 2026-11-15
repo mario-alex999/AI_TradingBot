@@ -539,6 +539,41 @@ def build_router(state: AppState, svc: Callable[[], Any]) -> APIRouter:
                     candle_open: datetime = Query(..., alias="candleOpen"), who: Principal = View) -> Any:
         return run(response, lambda: monitor().dispatch_status(symbol, timeframe, candle_open))
 
+    # ---- WF08-02 market analysis (the n8n workflow sequences these; Module 05 does the analysis) ---------------------------
+    def analyst() -> Any:
+        from aurum.orchestration.market_analysis import MarketAnalyst
+        return MarketAnalyst(svc())
+
+    @r.get("/market-analysis/config")
+    def ma_config(response: Response, who: Principal = View) -> Any:
+        return run(response, lambda: analyst().config_view())
+
+    @r.get("/market-analysis/preflight")
+    def ma_preflight(response: Response, who: Principal = View) -> Any:
+        return run(response, lambda: analyst().preflight())
+
+    @r.get("/market-analysis/pending")
+    def ma_pending(response: Response, symbols: str | None = Query(None, max_length=200), force: bool = False,
+                   who: Principal = View) -> Any:
+        want = [x.strip() for x in symbols.split(",") if x.strip()] if symbols else None
+        return run(response, lambda: analyst().pending(want, force))
+
+    @r.get("/market-analysis/data-quality")
+    def ma_quality(response: Response, symbol: str = Query(..., min_length=1, max_length=16), who: Principal = View) -> Any:
+        return run(response, lambda: analyst().data_quality(symbol))
+
+    @r.post("/market-analysis/run")
+    def ma_run(response: Response, body: dict[str, Any] = Body(...), cid: str | None = Cid, who: Principal = Hook) -> Any:
+        """Runs Module 05 for one symbol and publishes the result event. Service tokens only (orchestration:callback)."""
+        if (resp := limited(hook_limit, who.id)) is not None:
+            return resp
+        b = snake(body)
+        symbol = str(b.get("symbol") or "").strip()
+        if not symbol or len(symbol) > 16:
+            return _err(OrchError(422, "INVALID_INPUT", "symbol is required."), cid or str(uuid.uuid4()))
+        return run(response, lambda: analyst().run(symbol, dry_run=bool(b.get("dry_run")), force=bool(b.get("force")),
+                                                    execution_id=str(b["execution_id"]) if b.get("execution_id") else None), cid)
+
     return r
 
 
