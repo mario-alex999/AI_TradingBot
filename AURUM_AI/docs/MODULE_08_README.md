@@ -27,10 +27,11 @@ execution decision, and nothing in Module 08 turns AI output into a trade.
 
 ## What is deliberately NOT built
 
-**Module 09 (trade execution) is not built**, and nothing in AURUM sends an order. WF08-06 is built up to that
-boundary: it verifies and records the execution request Module 07 creates and reports that it is waiting for Module 09
-(see [MODULE_08_WF08_06.md](MODULE_08_WF08_06.md), *What is left for Module 09*). WF08-07 to WF08-10 are not built.
-WF08-01 to WF08-06 are built (see the table below).
+**Module 09 (trade execution) is not built**, and nothing in AURUM sends an order. WF08-06 and WF08-07 are built up to
+that boundary: WF08-06 verifies and records the execution request Module 07 creates and reports that it is waiting for
+Module 09 (see [MODULE_08_WF08_06.md](MODULE_08_WF08_06.md), *What is left for Module 09*); WF08-07 watches the
+positions Module 07 holds, which come from the read-only account mirror until Module 09 reports them. WF08-08 to
+WF08-10 are not built. WF08-01 to WF08-07 are built (see the table below).
 
 ## Built workflows
 
@@ -42,6 +43,7 @@ WF08-01 to WF08-06 are built (see the table below).
 | WF08-04 Human Approval Notification | `n8n/workflows/aurum_wf08_04_approval_notification.json` | `python -m aurum.cli orchestration setup-wf08-04 --n8n-workflow-id <id>` | [MODULE_08_WF08_04.md](MODULE_08_WF08_04.md) |
 | WF08-05 Approval Response Handler | `n8n/workflows/aurum_wf08_05_approval_response.json` | `python -m aurum.cli orchestration setup-wf08-05 --n8n-workflow-id <id>` | [MODULE_08_WF08_05.md](MODULE_08_WF08_05.md) |
 | WF08-06 Approved Trade Handoff | `n8n/workflows/aurum_wf08_06_trade_handoff.json` | `python -m aurum.cli orchestration setup-wf08-06 --n8n-workflow-id <id>` | [MODULE_08_WF08_06.md](MODULE_08_WF08_06.md) |
+| WF08-07 Trade Monitoring Orchestrator | `n8n/workflows/aurum_wf08_07_trade_monitoring.json` | `python -m aurum.cli orchestration setup-wf08-07 --n8n-workflow-id <id>` | [MODULE_08_WF08_07.md](MODULE_08_WF08_07.md) |
 
 ## Quick start
 
