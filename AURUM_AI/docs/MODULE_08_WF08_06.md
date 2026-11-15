@@ -77,7 +77,7 @@ trade.approved_for_execution (Module 07)
 * Module 09 itself: reading the queue, verifying the approval and the risk assessment
   (`POST /risk/assessments/{id}/validate`) immediately before any order, idempotent order handling, status
   reconciliation and reporting results.
-* Following the outcome after the hand-off (`execution.completed`, `execution.failed`, positions) belongs to WF08-07.
+* Following the outcome after the hand-off (`execution.completed`, `execution.failed`, positions) belongs to WF08-07 ([MODULE_08_WF08_07.md](MODULE_08_WF08_07.md)).
   The approval guard refuses WF08-06 for approvals that are already executed or failed.
 * Module 07's retry of a deferred hand-off (`handoff_due`) runs in the Module 07 worker, which the hosted demo does not
   run.

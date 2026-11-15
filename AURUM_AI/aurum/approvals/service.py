@@ -1858,6 +1858,18 @@ class ApprovalService:
                          recipients=self._recipients(s, req.account_login), channels=policy.notifications.channels,
                          approval_id=req.approval_id)
 
+    def notify_position_event(self, position_id: str, event_type: str, priority: str, title: str, message: str,
+                              dedupe_key: str, account_login: str | None = None) -> str | None:
+        """Stores one dashboard notification about a position (used by Module 08's WF08-07). Changes no position and no
+        request; deduplicated by key, so a repeated call adds nothing. Returns the notification id, or None for a repeat."""
+        now = self.now()
+        with self.repo.write() as s:
+            policy, _ = self._policy(s)
+            return self.repo.notify(s, dedupe_key=dedupe_key[:160], event_type=event_type[:48], priority=priority,
+                                    title=title[:160], message=message[:2000], at=now,
+                                    recipients=self._recipients(s, account_login), channels=policy.notifications.channels,
+                                    position_id=position_id[:32])
+
     def notifications(self, who: Principal, unread_only: bool = False, limit: int = 100) -> list[dict[str, Any]]:
         if not who.is_human:
             return []

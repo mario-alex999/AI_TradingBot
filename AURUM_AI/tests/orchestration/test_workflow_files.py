@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from aurum.orchestration import approval_notifications, approval_responses, market_analysis, market_monitoring, trade_handoff, trade_opportunities
+from aurum.orchestration import approval_notifications, approval_responses, market_analysis, market_monitoring, trade_handoff, trade_monitoring, trade_opportunities
 
 DIR = Path(__file__).resolve().parents[2] / "n8n" / "workflows"
 API = '={{ $("AURUM settings").first().json.aurumApi }}'
@@ -45,6 +45,11 @@ FILES = {
          "Status: acknowledged by Module 09?", "Status: execution failed?",
          "Record: execution request queued (no acknowledgement yet)", "Record: execution acknowledgement",
          "Record: execution failed (nothing retried)", "Record: hand-off not valid (must not be executed)"]),
+    "aurum_wf08_07_trade_monitoring.json": (trade_monitoring.WEBHOOK_PATH, "Loop over trades",
+        {"/webhooks/n8n/callback", "/trade-monitoring/record"},
+        ["Retrieve open trade records", "Split out trades", "Request trade status and check for risk and lifecycle events",
+         "Anything changed since the last record?", "Record status update", "Needs attention?",
+         "Record: status update (dashboard alerted)", "Record: status update", "Record: unchanged"]),
 }
 
 

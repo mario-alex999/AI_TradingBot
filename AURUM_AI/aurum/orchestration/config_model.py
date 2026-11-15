@@ -148,6 +148,16 @@ class TradeHandoffCfg(_M):
     lookback_hours: int = Field(72, ge=1, le=24 * 90)
 
 
+class TradeMonitoringCfg(_M):
+    """WF08-07 Trade Monitoring Orchestrator. ``enabled`` is its backend-enforced off switch. The workflow records each
+    change of a position Module 07 holds and notifies the dashboard; it takes no trade-management action."""
+    enabled: bool = True
+    max_trades_per_run: int = Field(50, ge=1, le=500)
+    stale_after_seconds: int = Field(300, ge=30, le=86400)   # a position record older than this is reported as stale
+    closed_lookback_hours: int = Field(72, ge=1, le=24 * 90) # how long a close may wait to be recorded
+    notify_dashboard: bool = True                             # false = record only
+
+
 class OrchestrationConfig(_M):
     retry: dict[str, Any] = Field(default_factory=dict)
     dispatch: DispatchCfg = DispatchCfg()
@@ -164,6 +174,7 @@ class OrchestrationConfig(_M):
     approval_notifications: ApprovalNotificationCfg = ApprovalNotificationCfg()
     approval_responses: ApprovalResponseCfg = ApprovalResponseCfg()
     trade_handoff: TradeHandoffCfg = TradeHandoffCfg()
+    trade_monitoring: TradeMonitoringCfg = TradeMonitoringCfg()
 
     @field_validator("retry")
     @classmethod
