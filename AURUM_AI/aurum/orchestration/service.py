@@ -43,8 +43,9 @@ PLACEHOLDERS = (
      "Run Module 03, 04 and 05 analysis when new data arrives, and collect the results into trade ideas."),
     ("wf08-03-risk-approval", "WF08-03 Risk and Human Approval Orchestrator", "risk_approval", ["event", "manual", "admin"],
      "Request Module 06 assessments for new ideas and follow Module 07 approval requests. Never approves anything."),
-    ("wf08-04-execution-handoff", "WF08-04 Execution Handoff Orchestrator", "execution_handoff", ["event", "admin"],
-     "Hand trades that Module 07 approved to Module 09. Triggers are refused unless Module 07 shows the approval."),
+    # The id was reserved before the workflows were numbered; this is the document's WF08-06 (see trade_handoff.py).
+    ("wf08-04-execution-handoff", "WF08-06 Approved Trade Handoff", "execution_handoff", ["event", "admin"],
+     "Follow the execution requests Module 07 creates for approved trades. Triggers are refused unless Module 07 shows the approval."),
 )
 TEST_INPUT_SCHEMA = {"type": "object", "additionalProperties": False,
                      "properties": {"message": {"type": "string", "maxLength": 500},

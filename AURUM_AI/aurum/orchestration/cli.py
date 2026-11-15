@@ -253,6 +253,22 @@ def setup_wf08_05(n8n_workflow_id: str = typer.Option(..., help="Id of the 'AURU
                            title="WF08-05 Approval Response Handler"))
 
 
+@orchestration_app.command("setup-wf08-06")
+def setup_wf08_06(n8n_workflow_id: str = typer.Option(..., help="Id of the 'AURUM - WF08-06 Approved Trade Handoff' "
+                                                                 "workflow in n8n (from its URL)."),
+                  no_subscribe: bool = typer.Option(False, "--no-subscribe", help="Do not subscribe it to trade.approved_for_execution."),
+                  activate: bool = typer.Option(True, help="Activate WF08-06 in AURUM after validation.")) -> None:
+    """Installs WF08-06 on the reserved execution-handoff registration: names it, links it to n8n, adds and validates
+    version 1.0.0, activates it and subscribes it to trade.approved_for_execution. It sends no order. Safe to re-run."""
+    from aurum.orchestration.trade_handoff import install
+    svc = _svc()
+    out = _guard(lambda: install(svc, _console_actor(), n8n_workflow_id, activate=activate, subscribe=not no_subscribe))
+    for step in out["steps"]:
+        console.print(f"  - {step}")
+    console.print(kv_table({"Workflow": out["workflow_id"], "State": out["state"], "Version": out["version"]},
+                           title="WF08-06 Approved Trade Handoff"))
+
+
 @orchestration_app.command("test-run")
 def test_run(wait: int = typer.Option(60, help="Seconds to wait for the callback."),
              message: str = typer.Option("hello from AURUM", help="Echoed back by the test workflow."),

@@ -1693,6 +1693,90 @@ class ApprovalService:
         out.update(checks=checks, problems=problems, verified=out["decided"] and not problems)
         return out
 
+    def verify_handoff(self, approval_id: str) -> dict[str, Any]:
+        """Read-only check of the execution request Module 07 created for an approved trade, for whoever follows the
+        hand-off (Module 08's WF08-06). Changes nothing and creates nothing.
+
+        Confirms the request exists exactly as Module 07 wrote it (hash), that it carries the approved parameters, idea
+        version and risk assessment, that the idea is still valid and Module 06 still stands by the assessment, and
+        reports whether Module 09 has picked it up or reported on it."""
+        with self.repo.read() as s:
+            req = s.get(ApprovalRequest, approval_id)
+            if req is None:
+                return {"approval_id": approval_id, "exists": False, "has_request": False, "verified": False, "checks": {},
+                        "problems": ["Module 07 has no such approval request."]}
+            h = s.execute(select(ExecutionHandoff).where(ExecutionHandoff.approval_id == approval_id,
+                                                         ExecutionHandoff.kind == "trade")).scalar_one_or_none()
+            idea = s.get(TradeIdea, req.idea_id)
+            results = s.execute(select(ExecutionResult.status, ExecutionResult.reported_at).where(
+                ExecutionResult.execution_request_id == h.execution_request_id).order_by(ExecutionResult.reported_at)).all() \
+                if h is not None else []
+            s.expunge_all()
+        out: dict[str, Any] = {
+            "approval_id": approval_id, "exists": True, "status": req.status, "idea_id": req.idea_id,
+            "idea_version": req.idea_version, "symbol": req.symbol, "direction": req.direction,
+            "risk_assessment_id": req.risk_assessment_id, "risk_decision": req.risk_decision,
+            "risk_expires_at": req.risk_expires_at, "decided_at": req.decided_at, "correlation_id": req.correlation_id,
+            "has_request": h is not None, "execution_request_id": h.execution_request_id if h else None,
+            "request_status": h.status if h else None, "request_created_at": h.created_at if h else None,
+            "picked_up_at": h.picked_up_at if h else None, "results": [st for st, _ in results],
+            "acknowledged": bool(h and (h.picked_up_at is not None or h.status != "pending" or results))}
+        checks: dict[str, str] = {}
+        problems: list[str] = []
+        if h is None:
+            problems.append(f"Module 07 has created no execution request for this approval (it is {req.status}).")
+            out.update(checks=checks, problems=problems, verified=False)
+            return out
+        p = h.payload or {}
+        bad: list[str] = []
+        if stable_hash(p) != h.payload_hash:
+            bad.append("The execution request no longer matches the hash Module 07 stored for it.")
+        expected = {"approval_id": req.approval_id, "trade_idea_id": req.idea_id, "idea_version": req.idea_version,
+                    "symbol": req.symbol, "direction": req.direction, "stop_loss": str(req.stop_loss),
+                    "take_profit": str(req.take_profit), "approved_volume": _s(req.position_size),
+                    "risk_assessment_id": req.risk_assessment_id, "execution_request_id": h.execution_request_id}
+        for k, v in expected.items():
+            same = (D(p.get(k)) == D(v)) if k in ("stop_loss", "take_profit", "approved_volume") else str(p.get(k)) == str(v)
+            if not same:
+                bad.append(f"The execution request's {k} differs from the approved request.")
+        if D((p.get("entry") or {}).get("price")) != req.entry:
+            bad.append("The execution request's entry differs from the approved request.")
+        if not p.get("stop_loss"):
+            bad.append("The execution request has no stop-loss.")
+        checks["request_intact"] = "failed" if bad else "ok"
+        problems.extend(bad)
+        if req.status not in (S.EXECUTION_PENDING.value, S.EXECUTION_SUBMITTED.value, S.EXECUTED.value, S.EXECUTION_FAILED.value):
+            checks["approval_status"] = "failed"
+            problems.append(f"The approval is {req.status}, not handed to execution.")
+        else:
+            checks["approval_status"] = "ok"
+        if req.risk_decision not in ("PASS", "REVIEW"):
+            checks["risk_decision"] = "failed"
+            problems.append(f"Module 06's decision on the request is {req.risk_decision}.")
+        else:
+            checks["risk_decision"] = "ok"
+        if h.status == "pending":                       # nothing sent to the broker yet: the trade must still be valid now
+            if idea is None or idea.current_version != req.idea_version:
+                checks["idea_version"] = "failed"
+                problems.append("The trade idea changed after approval.")
+            else:
+                checks["idea_version"] = "ok"
+            idea_ok, idea_reason = self._idea_still_valid(idea) if idea is not None else (False, "The trade idea is missing.")
+            checks["idea_valid"] = "ok" if idea_ok else "failed"
+            if not idea_ok:
+                problems.append(idea_reason or "The trade idea is no longer valid.")
+            try:
+                rc = self.risk.validate(req.risk_assessment_id) if req.risk_assessment_id else {"valid": False,
+                                                                                                "reasons": ["No assessment."]}
+                checks["risk_valid"] = "ok" if rc.get("valid") else "failed"
+                if not rc.get("valid"):
+                    problems += ["Module 06: " + str(r) for r in rc.get("reasons") or ["the assessment is no longer valid."]]
+            except GatewayUnavailable:
+                checks["risk_valid"] = "unavailable"
+                problems.append("Module 06 is unavailable, so the risk assessment cannot be confirmed.")
+        out.update(checks=checks, problems=problems, verified=not problems)
+        return out
+
     def close_for_source(self, approval_id: str, status: str, reason: str) -> None:
         now = self.now()
         with self.repo.write() as s:

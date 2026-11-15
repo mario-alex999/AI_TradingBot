@@ -85,3 +85,8 @@ approval_responses:         # WF08-05 Approval Response Handler (verifies and re
   max_responses_per_run: 20
   lookback_hours: 72        # a sweep without an event only looks this far back
   expire_overdue_requests: false   # true only where no Module 07 worker runs: lets Module 07 expire overdue requests on each tick
+
+trade_handoff:              # WF08-06 Approved Trade Handoff (verifies and records Module 07's execution requests; sends no order)
+  enabled: true             # backend off switch: false = WF08-06 stops before recording anything
+  max_handoffs_per_run: 20
+  lookback_hours: 72
