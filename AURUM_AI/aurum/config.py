@@ -125,6 +125,7 @@ class Settings(BaseSettings):
     orchestration_service_token: SecretStr | None = None
     n8n_base_url: str = "http://localhost:5678"
     n8n_public_url: str | None = None                  # editor URL shown in the UI (defaults to N8N_BASE_URL)
+    aurum_dashboard_url: str | None = None             # public address of the AURUM frontend, used in notification links
     n8n_webhook_base_url: str | None = None            # defaults to N8N_BASE_URL/webhook
     n8n_environment: Literal["development", "test", "demo", "production"] | None = None   # must match when set
     n8n_api_key: SecretStr | None = None
@@ -182,7 +183,7 @@ class Settings(BaseSettings):
                      "risk_max_open_positions", "risk_max_total_exposure_pct", "risk_max_correlated_exposure_pct", "anthropic_api_key", "openai_api_key", "ai_provider_model", "ai_provider_base_url",
                      "ai_review_monthly_budget_usd", "approvals_events_webhook_url", "smtp_host", "smtp_username",
                      "smtp_password", "smtp_from", "telegram_bot_token", "telegram_chat_id", "orchestration_service_token",
-                     "n8n_public_url", "n8n_webhook_base_url", "n8n_environment", "n8n_api_key", "n8n_webhook_shared_secret",
+                     "n8n_public_url", "aurum_dashboard_url", "n8n_webhook_base_url", "n8n_environment", "n8n_api_key", "n8n_webhook_shared_secret",
                      "n8n_webhook_shared_secret_previous", "n8n_webhook_auth_token", mode="before")
     @classmethod
     def _blank_is_none(cls, v: Any) -> Any:

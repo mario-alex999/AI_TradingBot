@@ -1541,6 +1541,15 @@ class ApprovalService:
                 "reason": r.reason, "position_snapshot": r.position_snapshot}
 
     # ==== Module 05 sync and inbound events ======================================================================================
+    def ingest_candidate(self, c: dict[str, Any], symbols: dict[str, str] | None = None) -> dict[str, Any]:
+        """Takes one Module 05 candidate in and opens its approval request (which notifies the reviewers). Used by the
+        worker's sync and by WF08-04. Raises intake.IntakeError or ApprovalError when the candidate cannot be accepted."""
+        symbols = symbols if symbols is not None else self._symbols()
+        uid = c["candidate_uid"]
+        raw = intake.from_module05(c, self.ideas.evidence(uid), self.ideas.ai_review(uid),
+                                   symbols.get(c["symbol"], "unknown"), self.risk.normalised_entry(uid))
+        return self.ingest(raw, source="module05", who=SYSTEM, source_ref=uid)
+
     def sync_module05(self) -> dict[str, int]:
         """Takes new Module 05 candidates in, and closes Module 07 requests whose candidate Module 05 has since rejected or
         expired. Errors on one candidate do not stop the others."""
@@ -1557,9 +1566,7 @@ class ApprovalService:
                                                                 ApprovalAuditLog.entity_id == c["candidate_uid"]).limit(1)).first():
                     continue
             try:
-                raw = intake.from_module05(c, self.ideas.evidence(c["candidate_uid"]), self.ideas.ai_review(c["candidate_uid"]),
-                                           symbols.get(c["symbol"], "unknown"), self.risk.normalised_entry(c["candidate_uid"]))
-                self.ingest(raw, source="module05", who=SYSTEM, source_ref=c["candidate_uid"])
+                self.ingest_candidate(c, symbols)
                 ingested += 1
             except (intake.IntakeError, ApprovalError) as exc:
                 errors += 1

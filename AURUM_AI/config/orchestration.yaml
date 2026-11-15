@@ -74,3 +74,8 @@ trade_opportunities:        # WF08-03 Trade Opportunity Processor (hands new Mod
   enabled: true             # backend off switch: false = WF08-03 stops before assessing anything
   coalesce: true            # one WF08-03 run per WF08-02 run instead of one per analysis event
   max_ideas_per_run: 20
+
+approval_notifications:     # WF08-04 Human Approval Notification (opens the Module 07 request and notifies reviewers)
+  enabled: true             # backend off switch: false = WF08-04 stops before notifying anyone
+  coalesce: true            # one WF08-04 run per WF08-03 run instead of one per risk event
+  max_ideas_per_run: 20
