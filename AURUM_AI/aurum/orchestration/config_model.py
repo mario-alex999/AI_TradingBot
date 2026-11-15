@@ -113,6 +113,14 @@ class MarketAnalysisCfg(_M):
     block_when_stale: bool = False                           # true = do not analyse a symbol whose data is stale
 
 
+class TradeOpportunityCfg(_M):
+    """WF08-03 Trade Opportunity Processor. ``enabled`` is its backend-enforced off switch. The workflow never judges a
+    trade: it hands each new Module 05 idea to Module 06, which alone makes the risk decision."""
+    enabled: bool = True
+    coalesce: bool = True                                    # one WF08-03 run per WF08-02 run, not one per analysis event
+    max_ideas_per_run: int = Field(20, ge=1, le=200)
+
+
 class OrchestrationConfig(_M):
     retry: dict[str, Any] = Field(default_factory=dict)
     dispatch: DispatchCfg = DispatchCfg()
@@ -125,6 +133,7 @@ class OrchestrationConfig(_M):
     modules: dict[str, ModuleCfg] = Field(default_factory=dict)
     market_monitoring: MarketMonitoringCfg = MarketMonitoringCfg()
     market_analysis: MarketAnalysisCfg = MarketAnalysisCfg()
+    trade_opportunities: TradeOpportunityCfg = TradeOpportunityCfg()
 
     @field_validator("retry")
     @classmethod

@@ -69,3 +69,8 @@ market_analysis:            # WF08-02 Market Analysis Orchestrator (answers ai.a
   required_timeframes: [H1] # closed candles that must exist before a symbol is analysed
   max_data_age_hours: 120   # newest required candle older than this -> reported stale
   block_when_stale: false   # true = skip symbols whose data is stale
+
+trade_opportunities:        # WF08-03 Trade Opportunity Processor (hands new Module 05 ideas to Module 06)
+  enabled: true             # backend off switch: false = WF08-03 stops before assessing anything
+  coalesce: true            # one WF08-03 run per WF08-02 run instead of one per analysis event
+  max_ideas_per_run: 20
