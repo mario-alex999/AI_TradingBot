@@ -90,3 +90,10 @@ trade_handoff:              # WF08-06 Approved Trade Handoff (verifies and recor
   enabled: true             # backend off switch: false = WF08-06 stops before recording anything
   max_handoffs_per_run: 20
   lookback_hours: 72
+
+trade_monitoring:           # WF08-07 Trade Monitoring Orchestrator (records position changes, notifies; takes no trade action)
+  enabled: true             # backend off switch: false = WF08-07 stops before recording anything
+  max_trades_per_run: 50
+  stale_after_seconds: 300  # a position record older than this is reported as stale
+  closed_lookback_hours: 72
+  notify_dashboard: true    # false = record only

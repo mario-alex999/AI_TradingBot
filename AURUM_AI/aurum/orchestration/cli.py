@@ -269,6 +269,27 @@ def setup_wf08_06(n8n_workflow_id: str = typer.Option(..., help="Id of the 'AURU
                            title="WF08-06 Approved Trade Handoff"))
 
 
+@orchestration_app.command("setup-wf08-07")
+def setup_wf08_07(n8n_workflow_id: str = typer.Option(..., help="Id of the 'AURUM - WF08-07 Trade Monitoring Orchestrator' "
+                                                                 "workflow in n8n (from its URL)."),
+                  schedule: str = typer.Option("3-59/5 * * * *", help="Cron (UTC by default): how often positions are checked."),
+                  timezone: str = typer.Option("UTC", help="Time zone of the schedule."),
+                  no_schedule: bool = typer.Option(False, "--no-schedule", help="Do not create the schedule."),
+                  no_subscribe: bool = typer.Option(False, "--no-subscribe", help="Do not subscribe it to the execution events."),
+                  activate: bool = typer.Option(True, help="Activate WF08-07 in AURUM after validation.")) -> None:
+    """Installs WF08-07: registers it, links it to n8n, adds and validates version 1.0.0, activates it, subscribes it to
+    execution.completed and position.closed, and creates its schedule. It takes no trade action. Safe to re-run."""
+    from aurum.orchestration.trade_monitoring import install
+    svc = _svc()
+    out = _guard(lambda: install(svc, _console_actor(), n8n_workflow_id, schedule=None if no_schedule else schedule,
+                                 schedule_timezone=timezone, activate=activate, subscribe=not no_subscribe))
+    for step in out["steps"]:
+        console.print(f"  - {step}")
+    console.print(kv_table({"Workflow": out["workflow_id"], "State": out["state"], "Version": out["version"],
+                            "Schedule": (out["schedule"] or {}).get("expression") or "-"},
+                           title="WF08-07 Trade Monitoring Orchestrator"))
+
+
 @orchestration_app.command("test-run")
 def test_run(wait: int = typer.Option(60, help="Seconds to wait for the callback."),
              message: str = typer.Option("hello from AURUM", help="Echoed back by the test workflow."),
