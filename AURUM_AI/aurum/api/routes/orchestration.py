@@ -720,28 +720,28 @@ def build_router(state: AppState, svc: Callable[[], Any]) -> APIRouter:
                                                        execution_id=str(b["execution_id"]) if b.get("execution_id") else None), cid)
 
     # ---- WF08-07 trade monitoring (reads Module 07's position records; records changes; takes no trade action) ----------
-    def monitor() -> Any:
+    def trade_monitor() -> Any:
         from aurum.orchestration.trade_monitoring import TradeMonitor
         return TradeMonitor(svc())
 
     @r.get("/trade-monitoring/config")
     def tm_config(response: Response, who: Principal = View) -> Any:
-        return run(response, lambda: monitor().config_view())
+        return run(response, lambda: trade_monitor().config_view())
 
     @r.get("/trade-monitoring/preflight")
     def tm_preflight(response: Response, who: Principal = View) -> Any:
-        return run(response, lambda: monitor().preflight())
+        return run(response, lambda: trade_monitor().preflight())
 
     @r.get("/trade-monitoring/open-trades")
     def tm_open(response: Response, position_ids: str | None = Query(None, alias="positionIds", max_length=4000),
                 who: Principal = View) -> Any:
         want = [x.strip() for x in position_ids.split(",") if x.strip()] if position_ids else None
-        return run(response, lambda: monitor().open_trades(want))
+        return run(response, lambda: trade_monitor().open_trades(want))
 
     @r.get("/trade-monitoring/status")
     def tm_status(response: Response, position_id: str = Query(..., alias="positionId", min_length=1, max_length=32),
                   who: Principal = View) -> Any:
-        return run(response, lambda: monitor().status(position_id))
+        return run(response, lambda: trade_monitor().status(position_id))
 
     @r.post("/trade-monitoring/record")
     def tm_record(response: Response, body: dict[str, Any] = Body(...), cid: str | None = Cid, who: Principal = Hook) -> Any:
@@ -753,7 +753,7 @@ def build_router(state: AppState, svc: Callable[[], Any]) -> APIRouter:
         position_id = str(b.get("position_id") or "").strip()
         if not position_id or len(position_id) > 32:
             return _err(OrchError(422, "INVALID_INPUT", "positionId is required."), cid or str(uuid.uuid4()))
-        return run(response, lambda: monitor().record(position_id, dry_run=bool(b.get("dry_run")),
+        return run(response, lambda: trade_monitor().record(position_id, dry_run=bool(b.get("dry_run")),
                                                        execution_id=str(b["execution_id"]) if b.get("execution_id") else None), cid)
 
     return r
