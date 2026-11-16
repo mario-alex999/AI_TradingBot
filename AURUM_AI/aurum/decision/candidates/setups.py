@@ -6,7 +6,7 @@ Only findings confirmed by ``as_of`` are used: Module 03 is point-in-time, and e
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from typing import Any, Callable, Iterable
 
@@ -87,13 +87,16 @@ def _build(ctx: DecisionContext, cfg: DecisionConfig, a: Any, template: str, dir
            targets: list[lv.Target] | None = None) -> Candidate | str:
     """A candidate, or the reason there is none."""
     buffer = lv.stop_buffer(ctx, a.atr, cfg)
-    stop = lv.stop_beyond(stop_level, direction, buffer)
+    tick = (ctx.spec or {}).get("tick_size")
+    stop = lv.stop_on_tick(lv.stop_beyond(stop_level, direction, buffer), direction, tick)
     entry = (low + high) / 2
     if (direction == "long" and stop >= entry) or (direction == "short" and stop <= entry):
         return "Stop is on the wrong side of the entry."
     if abs(entry - stop) > cfg.levels["max_stop_atr"] * a.atr:
         return f"Stop is wider than {cfg.levels['max_stop_atr']} ATR."
-    tp, tp2 = lv.pick_targets(targets if targets is not None else lv.target_candidates(ctx, a, direction, entry, cfg),
+    found = targets if targets is not None else lv.target_candidates(ctx, a, direction, entry, cfg)
+    on_grid = [replace(t, price=lv.target_on_tick(t.price, direction, tick)) for t in found]
+    tp, tp2 = lv.pick_targets([t for t in on_grid if (t.price > entry if direction == "long" else t.price < entry)],
                               entry, stop, cfg.gates["min_rr"])
     if tp is None:
         return f"No target gives a risk-reward of at least {cfg.gates['min_rr']}."

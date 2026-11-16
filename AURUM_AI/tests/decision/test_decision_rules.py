@@ -720,3 +720,27 @@ def test_illegal_transitions(old, new):
 
 def test_active_statuses():
     assert set(ACTIVE) == {"new", "under_review"}
+
+
+# ---- prices on the broker's grid ---------------------------------------------------------------------------------------------
+def test_stops_and_targets_are_on_the_tick_grid_and_never_tighter_or_richer():
+    from aurum.decision.candidates import levels as lv
+    # US30-like grid (tick 0.1): the stop moves away from the entry, the target toward it
+    assert lv.stop_on_tick(52676.3727848782, "short", 0.1) == 52676.4
+    assert lv.stop_on_tick(52490.3727848782, "long", 0.1) == 52490.3
+    assert lv.target_on_tick(52013.56, "short", 0.1) == 52013.6
+    assert lv.target_on_tick(52713.56, "long", 0.1) == 52713.5
+    assert lv.stop_on_tick(52676.4, "short", 0.1) == 52676.4                      # already on the grid: unchanged
+    assert lv.stop_on_tick(1.0992734, "long", 0.00001) == 1.09927                 # FX, 5 digits
+    assert lv.stop_on_tick(1.0992734, "long", None) == 1.0992734                  # no specification: unchanged
+
+
+def test_every_candidate_leaves_module_05_on_the_tick_grid():
+    from decimal import Decimal
+    ctx = replace(ob_setup(), spec={**SPEC, "tick_size": 0.0001})                # a coarser grid than the computed stop
+    c = order_block_continuation(ctx, ctx.analyses["H1"], CFG)
+    assert isinstance(c, Candidate), c
+    assert c.stop_loss == 1.0992                                                  # 1.09927 moved away from the entry
+    for price in (c.stop_loss, c.take_profit, *([c.take_profit2] if c.take_profit2 else [])):
+        assert Decimal(repr(price)) % Decimal("0.0001") == 0, price
+    assert c.risk_reward == round(lv.risk_reward(c.entry_mid, c.stop_loss, c.take_profit), 2)

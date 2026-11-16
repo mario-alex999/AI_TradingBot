@@ -14,7 +14,11 @@ reported as missing when they do not.
 
 1. Builds one `DecisionContext` per symbol from Modules 01-04 as of a given time.
 2. Assesses the regime and the weighted bias across D1, H4, H1, M15 and M5.
-3. Runs eight strategy templates. Each gives a candidate or a stated reason it found nothing.
+3. Runs eight strategy templates. Each gives a candidate or a stated reason it found nothing. Stops and targets are
+   placed on the instrument's price grid (multiples of its tick size), because the broker accepts no other price and
+   Module 06 blocks any other price (R013). A stop is rounded away from the entry, so it stays beyond the level it
+   protects. A target is rounded toward the entry, so the reward is never overstated. Risk-reward is calculated from
+   the rounded prices.
 4. Scores evidence deterministically (grades A-F) and runs hard gates.
 5. Optionally asks an AI reviewer. It can lower a candidate or reject it, and it can never raise or create one.
 6. Saves a final decision and publishes candidates for human review.
