@@ -36,6 +36,11 @@ class Sources:
         self.results: dict[str, dict] = {}
         self.state: dict[str, str] = {}
         self.refreshed: list[str] = []
+        self.parts = ["fed", "ecb", "US_CPI_SA"]
+        self.part_budget: int | None = None                # how many macro parts one call gets through
+
+    def macro_parts(self):
+        return list(self.parts)
 
     def available(self, task):
         return self.avail[task], ("configured" if self.avail[task] else f"{task} is switched off")
@@ -46,11 +51,14 @@ class Sources:
     def cot_schedule(self, family, now):
         return {"status": self.cot[family], "series": [], "next_expected_release": "2026-11-13T20:30:00Z"}
 
-    def refresh(self, task, backfill_years):
+    def refresh(self, task, c, parts=None):
         self.refreshed.append(task)
         res = self.results.get(task, {"status": "ok", "changed": 3, "detail": "3 new."})
         if isinstance(res, Exception):
             raise res
+        if task == "macro" and "parts_done" not in res:
+            done = list(parts)[:self.part_budget] if self.part_budget else list(parts)
+            res = {**res, "parts_done": done, "remaining": [p for p in parts if p not in done]}
         return res
 
     def timestamps(self, task, now, c):
@@ -132,6 +140,39 @@ def test_a_source_that_is_not_configured_is_not_run(w):
     assert any(n["task"] == "news" and "switched off" in n["reason"] for n in out["not_due"])
     assert "news" not in w.u.sources(force=True)["items"]                     # force does not run an unconfigured source
     assert [i["task"] for i in w.u.sources(["macro"])["items"]] == ["macro"]
+
+
+def test_macro_data_is_refreshed_in_parts_oldest_first(w):
+    w.src.part_budget = 2                                                   # the time budget allows two parts per call
+    out = w.u.run("macro", run_id="m1")
+    assert out["parts_done"] == ["fed", "ecb"] and out["remaining"] == ["US_CPI_SA"]
+    w.u.record("macro", run_id="m1", result=out)
+    row = next(r for r in w.u.sources()["tasks"] if r["task"] == "macro")
+    assert row["due"] is True and row["parts_due"] == ["US_CPI_SA"] and "1 of 3" in row["reason"]
+    w.h.clock.advance(hours=1)
+    out = w.u.run("macro", run_id="m2")
+    assert out["parts_done"][0] == "US_CPI_SA"                               # the part never refreshed goes first
+    w.u.record("macro", run_id="m2", result=out)
+    assert "macro" not in w.due()
+    w.h.clock.advance(hours=23, minutes=1)                                   # fed and ecb are 24 h old again
+    assert next(r for r in w.u.sources()["tasks"] if r["task"] == "macro")["parts_due"] == ["fed", "ecb"]
+
+
+def test_the_real_macro_refresh_stops_starting_parts_after_its_time_budget(h, monkeypatch):
+    class MI:
+        calls: list = []
+
+        def refresh_macro(self, only=None):
+            self.calls.append(only[0])
+            return {"rates": {only[0]: {"status": "failed", "error": "403"} if only[0] == "boj" else {"status": "ok", "inserted": 2}}}
+    src = ModuleSources(h.engine, h.svc.settings)
+    src._mi = MI()
+    t = iter(range(0, 1000, 20))                                             # every part takes 20 s
+    monkeypatch.setattr(iu.time, "perf_counter", lambda: next(t))
+    c = h.svc.config().information_updates                                   # budget 30 s
+    out = src.refresh("macro", c, ["fed", "boj", "ecb", "boe"])
+    assert MI.calls == ["fed", "boj"] and out["parts_done"] == ["fed"] and out["parts_failed"] == ["boj"]
+    assert out["remaining"] == ["ecb", "boe"] and out["status"] == "partial" and "boj: 403" in out["detail"]
 
 
 # ---- refresh, verification and recording ---------------------------------------------------------------------------------

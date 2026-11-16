@@ -327,12 +327,23 @@ class MarketIntelligenceService:
         return risk
 
     # ------------------------------------------------------------------------------------------ macro
-    def refresh_macro(self, progress: Callable[[str], None] | None = None) -> dict[str, Any]:
+    def macro_parts(self) -> list[str]:
+        """The separately refreshable parts of the macro data: banks with a rate source, then the indicator series."""
+        b = self.cfg.banks
+        return ([k for k, v in (b.get("banks") or {}).items() if v.get("rate_source")]
+                + [m["id"] for m in (b.get("official_series") or [])]
+                + ([m["id"] for m in (b.get("fred_series") or [])] if self.settings.fred_api_key else []))
+
+    def refresh_macro(self, progress: Callable[[str], None] | None = None,
+                      only: list[str] | None = None) -> dict[str, Any]:
+        """Refreshes central-bank rates and macro series. ``only`` limits it to some banks / series ids (see
+        ``macro_parts``), so a caller with a time limit can refresh the data in parts."""
         self._require_schema()
         say = progress or (lambda m: None)
         if not self.settings.official_data_enabled:
             return {"status": "disabled", "reason": "OFFICIAL_DATA_ENABLED=false"}
-        banks = self.cfg.banks.get("banks") or {}
+        keep = (lambda k: True) if only is None else (lambda k: k in only)
+        banks = {k: v for k, v in (self.cfg.banks.get("banks") or {}).items() if keep(k)}
         start = date.fromisoformat(str(self.cfg.section("macro").get("rate_history_start") or "2024-01-01"))
         fred = self.settings.fred_api_key.get_secret_value() if self.settings.fred_api_key else None
         http = self.http([fred] if fred else [])
@@ -369,14 +380,14 @@ class MarketIntelligenceService:
             say(f"{bank}: {len(obs)} observations ({st['inserted']} new), latest "
                 f"{latest.rate if latest else '-'}")
         ss = SeriesSources(http, fred)
-        for meta in self.cfg.banks.get("official_series") or []:
+        for meta in [m for m in self.cfg.banks.get("official_series") or [] if keep(m["id"])]:
             try:
                 rows = ss.fetch(meta, start - timedelta(days=400))
                 results["series"][meta["id"]] = {"status": "ok", **self.repo.save_observations(meta, rows, now)}
             except (ProviderError, ValueError, KeyError) as exc:
                 results["series"][meta["id"]] = {"status": "failed", "error": str(exc)[:300]}
                 say(f"{meta['id']}: FAILED - {exc}")
-        for meta in self.cfg.banks.get("fred_series") or []:
+        for meta in [m for m in self.cfg.banks.get("fred_series") or [] if keep(m["id"])]:
             if not fred:
                 results["series"][meta["id"]] = {"status": "not_configured", "reason": "FRED_API_KEY not set"}
                 continue

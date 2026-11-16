@@ -19,7 +19,9 @@ When a task is due:
   ``cot_retry_hours``, never every few minutes.
 * **Economic calendar**: every ``calendar_refresh_hours``, and every ``calendar_event_refresh_minutes`` while a
   high-importance event is due within ``event_window_hours`` (refresh frequency follows event importance).
-* **News**: every ``news_refresh_minutes``. **Central-bank and macro data**: every ``macro_refresh_hours``.
+* **News**: every ``news_refresh_minutes``. **Central-bank and macro data**: every ``macro_refresh_hours``, in parts
+  (one bank or one indicator series at a time, the longest-unrefreshed first) until ``macro_budget_seconds`` is used;
+  the rest follows on the next run, so one call stays inside the API's time limit.
 * A task that failed is tried again after ``retry_after_minutes`` (COT: ``cot_retry_hours``).
 
 WF08-10 reads public, official sources through the modules only. It touches no account, no MT5 and no trade.
@@ -164,7 +166,10 @@ class ModuleSources:
         return {"status": worst, "series": series, "next_expected_release": nxt}
 
     # ---- refresh -----------------------------------------------------------------------------------------------------
-    def refresh(self, task: str, backfill_years: float) -> dict[str, Any]:
+    def macro_parts(self) -> list[str]:
+        return self.mi.macro_parts()
+
+    def refresh(self, task: str, c: InformationUpdatesCfg, parts: list[str] | None = None) -> dict[str, Any]:
         if task == "calendar":
             out = self.mi.refresh_calendar()
             prov = out.get("providers") or []
@@ -183,20 +188,31 @@ class ModuleSources:
                     "detail": f"{out.get('received', 0)} headline(s) received, {out.get('inserted', 0)} new"
                               + (f"; {len(errs)} feed(s) failed" if errs else "") + "."}
         if task == "macro":
-            out = self.mi.refresh_macro()
-            if out.get("status") == "disabled":
+            if not self.settings.official_data_enabled:
                 return {"status": "disabled", "changed": 0, "detail": "Official data is switched off."}
-            parts = list((out.get("rates") or {}).values()) + list((out.get("series") or {}).values())
-            failed = sum(1 for p in parts if p.get("status") == "failed")
-            ok = sum(1 for p in parts if p.get("status") == "ok")
-            changed = sum(int(p.get("inserted", 0) or 0) for p in parts)
-            st = "failed" if failed and not ok else "partial" if failed else "ok"
-            return {"status": st, "changed": changed, "detail": f"{ok} source(s) read, {changed} new value(s)"
-                    + (f", {failed} failed" if failed else "") + "."}
+            todo = list(parts if parts is not None else self.macro_parts())
+            t0, done, failed, errors, changed = time.perf_counter(), [], [], [], 0
+            for part in todo:
+                if (done or failed) and time.perf_counter() - t0 >= c.macro_budget_seconds:
+                    break                                    # the rest follows on the next run
+                out = self.mi.refresh_macro(only=[part])
+                r = (out.get("rates") or {}).get(part) or (out.get("series") or {}).get(part) or {}
+                if r.get("status") == "failed":
+                    failed.append(part)
+                    errors.append(f"{part}: {str(r.get('error') or '')[:120]}")
+                else:
+                    done.append(part)
+                    changed += int(r.get("inserted", 0) or 0)
+            remaining = [p for p in todo if p not in done and p not in failed]
+            st = "failed" if failed and not done else "partial" if failed else "ok"
+            return {"status": st, "changed": changed, "parts_done": done, "parts_failed": failed, "remaining": remaining,
+                    "detail": f"{len(done)} of {len(todo)} part(s) refreshed, {changed} new value(s)"
+                              + (f"; failed: {'; '.join(errors)}" if failed else "")
+                              + (f"; {len(remaining)} left for the next run" if remaining else "") + "."}
         fam = task.removeprefix("cot_")
         svc = self.cot
         stored = {d["report_type"] for d in svc.repo.status_summary()["datasets"]}
-        job = (svc.backfill(years=backfill_years, report_types=[fam]) if fam not in stored
+        job = (svc.backfill(years=c.cot_backfill_years, report_types=[fam]) if fam not in stored
                else svc.update(report_types=[fam]))
         tot = job.totals()
         st = {"success": "ok", "partial": "partial", "failed": "failed"}.get(job.status, "failed")
@@ -280,7 +296,8 @@ class InformationUpdates:
         return {"workflow_id": WORKFLOW_ID, "enabled": c.enabled, "kill_switch": not c.enabled, "tasks": [k for k, _, _ in TASKS],
                 "calendar_refresh_hours": c.calendar_refresh_hours, "calendar_event_refresh_minutes": c.calendar_event_refresh_minutes,
                 "event_window_hours": c.event_window_hours, "news_refresh_minutes": c.news_refresh_minutes,
-                "macro_refresh_hours": c.macro_refresh_hours, "cot_retry_hours": c.cot_retry_hours,
+                "macro_refresh_hours": c.macro_refresh_hours, "macro_budget_seconds": c.macro_budget_seconds,
+                "cot_retry_hours": c.cot_retry_hours,
                 "retry_after_minutes": c.retry_after_minutes, "notify_dashboard": c.notify_dashboard,
                 "schedule_hint": DEFAULT_SCHEDULE}
 
@@ -300,7 +317,7 @@ class InformationUpdates:
     # ---- Check Source Availability + Check COT Publication Schedule ------------------------------------------------------
     def due(self, task: str) -> dict[str, Any]:
         c, now = self.cfg(), self.now()
-        recs = [(at, d) for at, d in self._records(task) if d.get("outcome") != "dry_run"]
+        recs = [(at, d) for at, d in self._records(task, 200 if task == "macro" else 20) if d.get("outcome") != "dry_run"]
         last_at, last = recs[0] if recs else (None, {})
         last_ok = next((at for at, d in recs if d.get("outcome") in OK_OUTCOMES), None)
         try:
@@ -329,6 +346,16 @@ class InformationUpdates:
             why = {"no_data": "No COT report is stored yet.", "stale": "The stored COT report is out of date.",
                    "update_due": "A newer CFTC report should now be published."}[sch["status"]]
             return {**out, "due": True, "next_due_at": None, "reason": why}
+        if task == "macro":
+            stale, parts = self._macro_due(recs)
+            out["parts_due"] = stale
+            if stale:
+                return {**out, "due": True, "next_due_at": None,
+                        "reason": f"{len(stale)} of {len(parts)} macro part(s) not refreshed within {c.macro_refresh_hours} h."}
+            last = self._macro_last(recs)
+            nxt = min(last.values()) + timedelta(hours=c.macro_refresh_hours) if last else None
+            return {**out, "due": False, "next_due_at": _iso(nxt),
+                    "reason": f"Not due (every {c.macro_refresh_hours} h); next {_iso(nxt)}."}
         if task == "calendar":
             soon = self.src.high_impact_soon(now, c.event_window_hours)
             every = (timedelta(minutes=c.calendar_event_refresh_minutes) if soon
@@ -336,15 +363,33 @@ class InformationUpdates:
             out["high_impact_soon"] = soon
             basis = (f"high-importance event(s) within {c.event_window_hours} h ({soon[0]}): every "
                      f"{c.calendar_event_refresh_minutes} min" if soon else f"every {c.calendar_refresh_hours} h")
-        elif task == "news":
-            every, basis = timedelta(minutes=c.news_refresh_minutes), f"every {c.news_refresh_minutes} min"
         else:
-            every, basis = timedelta(hours=c.macro_refresh_hours), f"every {c.macro_refresh_hours} h"
+            every, basis = timedelta(minutes=c.news_refresh_minutes), f"every {c.news_refresh_minutes} min"
         nxt = last_ok + every if last_ok else None
         if nxt is None or now >= nxt:
             return {**out, "due": True, "next_due_at": None,
                     "reason": ("Never refreshed by WF08-10." if last_ok is None else f"Due ({basis}).")}
         return {**out, "due": False, "next_due_at": _iso(nxt), "reason": f"Not due ({basis}); next {_iso(nxt)}."}
+
+    @staticmethod
+    def _macro_last(recs: list[tuple[datetime, dict[str, Any]]]) -> dict[str, datetime]:
+        """When each macro part (bank or series) was last refreshed by WF08-10. Module 04 keeps an unchanged value's
+        original retrieval time, so its own tables cannot answer this."""
+        last: dict[str, datetime] = {}
+        for at, d in recs:                                    # newest first
+            for p in d.get("parts_done") or []:
+                last.setdefault(p, at)
+        return last
+
+    def _macro_due(self, recs: list[tuple[datetime, dict[str, Any]]] | None = None) -> tuple[list[str], list[str]]:
+        """(parts due, oldest first; all parts)."""
+        if recs is None:
+            recs = [(at, d) for at, d in self._records("macro", 200) if d.get("outcome") != "dry_run"]
+        parts, last = self.src.macro_parts(), self._macro_last(recs)
+        limit = self.now() - timedelta(hours=self.cfg().macro_refresh_hours)
+        epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
+        stale = sorted((p for p in parts if last.get(p, epoch) <= limit), key=lambda p: last.get(p, epoch))
+        return stale, parts
 
     def sources(self, only: list[str] | None = None, force: bool = False) -> dict[str, Any]:
         c = self.cfg()
@@ -369,7 +414,11 @@ class InformationUpdates:
             return {"task": task, "status": "dry_run", "changed": 0, "detail": f"Dry run: would refresh. {d['reason']}"}
         t0 = time.perf_counter()
         try:
-            res = self.src.refresh(task, c.cot_backfill_years)
+            parts = None
+            if task == "macro":
+                stale, every = self._macro_due()
+                parts = stale or every                     # forced or not due: refresh everything, oldest first
+            res = self.src.refresh(task, c, parts)
         except Exception as exc:  # noqa: BLE001 - a failing source is a finding, recorded by `record`
             res = {"status": "failed", "changed": 0, "detail": f"The refresh failed ({type(exc).__name__}: {str(exc)[:240]})."}
         return {"task": task, "name": NAMES[task], "run_id": run_id, "duration_ms": round((time.perf_counter() - t0) * 1000), **res}
@@ -412,6 +461,7 @@ class InformationUpdates:
                                 entity_id=task, at=now, outcome="ok" if outcome not in PROBLEMS else "failed",
                                 details={"run_id": run_id, "outcome": outcome, "run_status": run_status or None,
                                          "changed": int(result.get("changed") or 0), "latest_data_at": ts.get("latest_data_at"),
+                                         "parts_done": [str(p)[:32] for p in (result.get("parts_done") or [])][:50],
                                          "detail": detail})
         notified, note_error = 0, None
         if newly and c.notify_dashboard:

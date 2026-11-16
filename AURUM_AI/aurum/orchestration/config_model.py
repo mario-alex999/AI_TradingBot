@@ -188,6 +188,7 @@ class InformationUpdatesCfg(_M):
     news_stale_hours: int = Field(24, ge=2, le=240)
     macro_refresh_hours: int = Field(24, ge=6, le=168)
     macro_stale_hours: int = Field(72, ge=12, le=720)
+    macro_budget_seconds: int = Field(30, ge=5, le=300)         # one call starts no new macro part after this
     cot_retry_hours: int = Field(3, ge=1, le=48)                # CFTC not published yet / failed: try again after
     cot_backfill_years: float = Field(4, ge=1, le=10)           # history fetched the first time a report family runs
     retry_after_minutes: int = Field(30, ge=5, le=1440)

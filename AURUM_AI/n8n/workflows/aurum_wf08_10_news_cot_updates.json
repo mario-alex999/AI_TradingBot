@@ -1,0 +1,1069 @@
+{
+  "name": "AURUM - WF08-10 News and COT Update Scheduler (Module 08)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "aurum-wf08-10-news-cot-updates",
+        "authentication": "none",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "d46a51b3-7121-4a27-a416-129aa1c9ae91",
+      "name": "AURUM trigger (update schedule)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        300
+      ],
+      "notes": "Schedule Trigger. AURUM starts this run on its own schedule (hourly); each source then decides whether it is due.",
+      "webhookId": "bb37b988-bb18-42f0-a633-b2ec0ee79470"
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "aurum-api",
+              "name": "aurumApi",
+              "value": "https://aurum-api-tan.vercel.app/api/v1/orchestration",
+              "type": "string"
+            },
+            {
+              "id": "aurum-service-token",
+              "name": "serviceToken",
+              "value": "REPLACE_WITH_AURUM_SERVICE_TOKEN",
+              "type": "string"
+            },
+            {
+              "id": "aurum-webhook-token",
+              "name": "webhookToken",
+              "value": "REPLACE_WITH_AURUM_WEBHOOK_TOKEN",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b5b1ce4b-2f20-4fa4-af9f-78c29220ccd9",
+      "name": "AURUM settings",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        300
+      ],
+      "notes": "The only place the AURUM API address and the two tokens are set. Every request in this workflow goes only to this address."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('AURUM trigger (update schedule)').first().json.headers['x-aurum-webhook-token'] || '' }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "={{ $json.webhookToken }}"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "978fb509-e232-4670-a008-0258464c019d",
+      "name": "Webhook token valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ accepted: false, error: 'invalid webhook token' }) }}",
+        "options": {
+          "responseCode": 401
+        }
+      },
+      "id": "f9345ed3-ee41-4bd5-a694-b1e42a94a154",
+      "name": "Reject (wrong webhook token)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        660,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ accepted: true, executionId: $execution.id }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "152770c8-4e87-429d-a607-aaaa87857b9f",
+      "name": "Accept (return the n8n execution id)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/webhooks/n8n/callback",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-started', executionId: $(\"AURUM trigger (update schedule)\").first().json.body.executionId, workflowId: $(\"AURUM trigger (update schedule)\").first().json.body.workflowId, workflowVersion: $(\"AURUM trigger (update schedule)\").first().json.body.workflowVersion, attempt: $(\"AURUM trigger (update schedule)\").first().json.body.attempt, environment: $(\"AURUM trigger (update schedule)\").first().json.body.environment, status: 'started', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO() }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "380b2b1a-9a71-484d-a9f1-63bb24fa0bca",
+      "name": "Callback: started",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/information-updates/config",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "a68d8704-746b-4501-a68b-4e453abceebc",
+      "name": "Load update configuration",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1100,
+        300
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/webhooks/n8n/callback",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-failed', executionId: $(\"AURUM trigger (update schedule)\").first().json.body.executionId, workflowId: $(\"AURUM trigger (update schedule)\").first().json.body.workflowId, workflowVersion: $(\"AURUM trigger (update schedule)\").first().json.body.workflowVersion, attempt: $(\"AURUM trigger (update schedule)\").first().json.body.attempt, environment: $(\"AURUM trigger (update schedule)\").first().json.body.environment, status: 'failed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), error: { category: 'DEPENDENCY_UNAVAILABLE', retryable: true, message: 'WF08-10 could not load its configuration: ' + String(($json.error && ($json.error.message || $json.error.description)) || 'request failed').slice(0, 300) } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "b53fa102-dc5f-4303-a739-edbe58d47ca0",
+      "name": "Callback: failed (configuration)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1320,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/information-updates/preflight",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "61fc1530-cd1f-48b3-a288-af4eec584639",
+      "name": "Check the updates are switched on",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1320,
+        300
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/webhooks/n8n/callback",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-failed', executionId: $(\"AURUM trigger (update schedule)\").first().json.body.executionId, workflowId: $(\"AURUM trigger (update schedule)\").first().json.body.workflowId, workflowVersion: $(\"AURUM trigger (update schedule)\").first().json.body.workflowVersion, attempt: $(\"AURUM trigger (update schedule)\").first().json.body.attempt, environment: $(\"AURUM trigger (update schedule)\").first().json.body.environment, status: 'failed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), error: { category: 'DEPENDENCY_UNAVAILABLE', retryable: true, message: 'WF08-10 could not run its preflight: ' + String(($json.error && ($json.error.message || $json.error.description)) || 'request failed').slice(0, 300) } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "10771f0c-42f9-4a04-acbf-ddc74241a397",
+      "name": "Callback: failed (preflight)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1540,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.proceed }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "8f979d12-c25a-4167-a73b-094a8c6931d7",
+      "name": "Updates switched on?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1540,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/webhooks/n8n/callback",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-skipped', executionId: $(\"AURUM trigger (update schedule)\").first().json.body.executionId, workflowId: $(\"AURUM trigger (update schedule)\").first().json.body.workflowId, workflowVersion: $(\"AURUM trigger (update schedule)\").first().json.body.workflowVersion, attempt: $(\"AURUM trigger (update schedule)\").first().json.body.attempt, environment: $(\"AURUM trigger (update schedule)\").first().json.body.environment, status: 'completed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), output: { status: 'skipped', reason: ($('Check the updates are switched on').first().json.reasons || []).join(' '), updated: [], notDue: [], problems: [] } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "c9b7e104-2095-4d4b-a865-900fa2af4a24",
+      "name": "Callback: completed (skipped)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1760,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/information-updates/sources",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "tasks",
+              "value": "={{ (() => { const i = $(\"AURUM trigger (update schedule)\").first().json.body.input || {}; return Array.isArray(i.tasks) ? i.tasks.join(',') : ''; })() }}"
+            },
+            {
+              "name": "force",
+              "value": "={{ String(($(\"AURUM trigger (update schedule)\").first().json.body.input || {}).force === true) }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "9eeb6ed4-dd0e-415c-ab7c-c2e1b93e0e9f",
+      "name": "Check source availability and COT publication schedule",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1760,
+        300
+      ],
+      "notes": "Check Source Availability + Check COT Publication Schedule. The backend lists the sources that are configured and due: COT only once the CFTC should have published (Module 02's release schedule), the calendar more often while a high-importance event is near.",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/webhooks/n8n/callback",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-failed', executionId: $(\"AURUM trigger (update schedule)\").first().json.body.executionId, workflowId: $(\"AURUM trigger (update schedule)\").first().json.body.workflowId, workflowVersion: $(\"AURUM trigger (update schedule)\").first().json.body.workflowVersion, attempt: $(\"AURUM trigger (update schedule)\").first().json.body.attempt, environment: $(\"AURUM trigger (update schedule)\").first().json.body.environment, status: 'failed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), error: { category: 'DEPENDENCY_UNAVAILABLE', retryable: true, message: 'WF08-10 could not check its sources: ' + String(($json.error && ($json.error.message || $json.error.description)) || 'request failed').slice(0, 300) } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "909bb524-0eac-40d5-ab3d-d9d9469403d3",
+      "name": "Callback: failed (source check)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1980,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.count }}",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "rightValue": 0
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "219af9e8-f210-4b96-af8b-2725b66f63f6",
+      "name": "Any update due?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1980,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/webhooks/n8n/callback",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-nothing', executionId: $(\"AURUM trigger (update schedule)\").first().json.body.executionId, workflowId: $(\"AURUM trigger (update schedule)\").first().json.body.workflowId, workflowVersion: $(\"AURUM trigger (update schedule)\").first().json.body.workflowVersion, attempt: $(\"AURUM trigger (update schedule)\").first().json.body.attempt, environment: $(\"AURUM trigger (update schedule)\").first().json.body.environment, status: 'completed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), output: { status: 'skipped', reason: 'No source is due.', updated: [], notDue: $json.notDue || [], problems: [] } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "6beeec42-c03d-4897-a440-1a2324c9ff8a",
+      "name": "Callback: completed (nothing due)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2200,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "items",
+        "options": {}
+      },
+      "id": "5ffef877-2895-4542-a8b1-6ba4f3259988",
+      "name": "Split out updates",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1.1,
+      "position": [
+        2200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "184f3da8-cced-45dc-a3e3-bbba777059a6",
+      "name": "Loop over updates",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        2420,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/information-updates/run",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ task: $json.task, dryRun: ($(\"AURUM trigger (update schedule)\").first().json.body.input || {}).dryRun === true, executionId: $(\"AURUM trigger (update schedule)\").first().json.body.executionId }) }}",
+        "options": {
+          "timeout": 58000
+        }
+      },
+      "id": "5b335f85-3b23-4451-aec3-d42dfc9d4fd4",
+      "name": "Trigger refresh (market intelligence or COT update)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2640,
+        120
+      ],
+      "notes": "Trigger Market Intelligence Refresh / Trigger COT Update When Available. Module 04 or Module 02 fetches from its official sources and stores the data. A failed call is passed on and recorded as failed.",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/information-updates/record",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ task: $(\"Loop over updates\").item.json.task, executionId: $(\"AURUM trigger (update schedule)\").first().json.body.executionId, dryRun: ($(\"AURUM trigger (update schedule)\").first().json.body.input || {}).dryRun === true, result: $json.error ? { status: 'failed', changed: 0, detail: 'The refresh call failed: ' + String($json.error.message || 'error').slice(0, 200) } : $json }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "eb778e34-4aa6-46b3-a8c0-0ba7bf655f74",
+      "name": "Verify data timestamps and record update status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2860,
+        120
+      ],
+      "notes": "Verify News Data + Verify Data Timestamps + Record Update Status. The backend reads the stored data's own timestamps, records the status once and alerts the dashboard when a source starts failing or goes stale.",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ ['failed', 'stale'].includes($json.outcome) }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "83cc8c43-83d6-4ac5-a6c9-506066666029",
+      "name": "Failed or out of date?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3080,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "task",
+              "name": "task",
+              "value": "={{ $(\"Loop over updates\").item.json.task }}",
+              "type": "string"
+            },
+            {
+              "id": "outcome",
+              "name": "outcome",
+              "value": "={{ $json.outcome || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "latestDataAt",
+              "name": "latestDataAt",
+              "value": "={{ String($json.latestDataAt || '') }}",
+              "type": "string"
+            },
+            {
+              "id": "detail",
+              "name": "detail",
+              "value": "={{ String($json.detail || '').slice(0, 300) }}",
+              "type": "string"
+            },
+            {
+              "id": "notified",
+              "name": "notified",
+              "value": "={{ String($json.notified || 0) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6496c6e6-d226-4439-a5a0-c50383f4d914",
+      "name": "Record: update problem (dashboard alerted once)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "task",
+              "name": "task",
+              "value": "={{ $(\"Loop over updates\").item.json.task }}",
+              "type": "string"
+            },
+            {
+              "id": "outcome",
+              "name": "outcome",
+              "value": "={{ $json.outcome || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "latestDataAt",
+              "name": "latestDataAt",
+              "value": "={{ String($json.latestDataAt || '') }}",
+              "type": "string"
+            },
+            {
+              "id": "detail",
+              "name": "detail",
+              "value": "={{ String($json.detail || '').slice(0, 300) }}",
+              "type": "string"
+            },
+            {
+              "id": "notified",
+              "name": "notified",
+              "value": "={{ String($json.notified || 0) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7daf67b0-a231-47b9-a1a6-d06df7221c6e",
+      "name": "Record: update status",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3300,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "task",
+              "name": "task",
+              "value": "={{ $(\"Loop over updates\").item.json.task }}",
+              "type": "string"
+            },
+            {
+              "id": "outcome",
+              "name": "outcome",
+              "value": "failed",
+              "type": "string"
+            },
+            {
+              "id": "detail",
+              "name": "detail",
+              "value": "={{ 'The record call failed: ' + String(($json.error && $json.error.message) || 'error').slice(0, 200) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "25b81cd7-d5ec-43bf-ad7e-ab509b7c916c",
+      "name": "Record: status could not be recorded",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3080,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "results",
+        "options": {}
+      },
+      "id": "816fb7e1-0453-4e68-a520-baca72256846",
+      "name": "Collect results",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        2640,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/webhooks/n8n/callback",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-completed', executionId: $(\"AURUM trigger (update schedule)\").first().json.body.executionId, workflowId: $(\"AURUM trigger (update schedule)\").first().json.body.workflowId, workflowVersion: $(\"AURUM trigger (update schedule)\").first().json.body.workflowVersion, attempt: $(\"AURUM trigger (update schedule)\").first().json.body.attempt, environment: $(\"AURUM trigger (update schedule)\").first().json.body.environment, status: 'completed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), output: { status: $json.results.some(r => ['failed', 'stale'].includes(r.outcome)) ? 'partial' : 'completed', reason: $json.results.map(r => r.task + ': ' + r.outcome).join(', '), updated: $json.results.filter(r => !['failed', 'stale'].includes(r.outcome)), notDue: $('Check source availability and COT publication schedule').first().json.notDue || [], problems: $json.results.filter(r => ['failed', 'stale'].includes(r.outcome)) } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "4737c8de-aa6a-47a2-af94-b8efd2cce1df",
+      "name": "Callback: completed (run recorded)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2860,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## WF08-10 News and COT Update Scheduler\nAsks the backend which public sources are due (COT after the CFTC publishes, the calendar more often near high-importance events, news hourly, macro daily), triggers each refresh in Module 04 or Module 02, then has the backend verify the stored timestamps and record the status. Public data only: no MT5, broker or trade node.",
+        "height": 220,
+        "width": 620,
+        "color": 3
+      },
+      "id": "3e0fd166-d494-4e5f-a57f-d5dcf18c0593",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        20
+      ]
+    }
+  ],
+  "connections": {
+    "AURUM trigger (update schedule)": {
+      "main": [
+        [
+          {
+            "node": "AURUM settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook token valid?": {
+      "main": [
+        [
+          {
+            "node": "Accept (return the n8n execution id)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reject (wrong webhook token)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Accept (return the n8n execution id)": {
+      "main": [
+        [
+          {
+            "node": "Callback: started",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load update configuration": {
+      "main": [
+        [
+          {
+            "node": "Check the updates are switched on",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Callback: failed (configuration)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Callback: started": {
+      "main": [
+        [
+          {
+            "node": "Load update configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check the updates are switched on": {
+      "main": [
+        [
+          {
+            "node": "Updates switched on?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Callback: failed (preflight)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Updates switched on?": {
+      "main": [
+        [
+          {
+            "node": "Check source availability and COT publication schedule",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Callback: completed (skipped)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check source availability and COT publication schedule": {
+      "main": [
+        [
+          {
+            "node": "Any update due?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Callback: failed (source check)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any update due?": {
+      "main": [
+        [
+          {
+            "node": "Split out updates",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Callback: completed (nothing due)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect results": {
+      "main": [
+        [
+          {
+            "node": "Callback: completed (run recorded)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop over updates": {
+      "main": [
+        [
+          {
+            "node": "Collect results",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Trigger refresh (market intelligence or COT update)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: status could not be recorded": {
+      "main": [
+        [
+          {
+            "node": "Loop over updates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify data timestamps and record update status": {
+      "main": [
+        [
+          {
+            "node": "Failed or out of date?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record: status could not be recorded",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: update problem (dashboard alerted once)": {
+      "main": [
+        [
+          {
+            "node": "Loop over updates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Failed or out of date?": {
+      "main": [
+        [
+          {
+            "node": "Record: update problem (dashboard alerted once)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record: update status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: update status": {
+      "main": [
+        [
+          {
+            "node": "Loop over updates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger refresh (market intelligence or COT update)": {
+      "main": [
+        [
+          {
+            "node": "Verify data timestamps and record update status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split out updates": {
+      "main": [
+        [
+          {
+            "node": "Loop over updates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AURUM settings": {
+      "main": [
+        [
+          {
+            "node": "Webhook token valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}
