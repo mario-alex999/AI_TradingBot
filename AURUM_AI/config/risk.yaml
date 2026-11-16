@@ -47,6 +47,7 @@ profiles:
 # Shared by every profile; a profile value above wins over these.
 base:
   max_risk_per_trade_pct: 2            # hard ceiling on any requested risk percentage
+  oversized_volume: reduce             # a requested size above the balance's budget: reduce (to the budget, REVIEW) | block
   max_symbol_risk_pct: 2               # open + reserved + new risk on one instrument
   max_asset_class_risk_pct: 3          # per asset class (forex, metal, index, crypto)
   max_correlated_risk_pct: 2           # new trade plus positions correlated with it in the same effective direction

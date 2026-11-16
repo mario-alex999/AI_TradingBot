@@ -204,3 +204,15 @@ describe('Module 07 approvals', () => {
     expect(screen.queryByRole('button', { name: /Cancel request/ })).not.toBeInTheDocument();
   });
 });
+
+describe('evidence values', () => {
+  it('shows stored numbers without padding, with their unit, and objects as readable text', async () => {
+    const { show } = await import('@/components/approvals/evidenceFormat');
+    expect(show('52584.30000000')).toBe('52584.3');
+    expect(show(['52511.30000000', '52657.30000000'])).toBe('52511.3, 52657.3');
+    expect(show('9.54')).toBe('9.54');
+    expect(show('100')).toBe('100');
+    expect(show({ commissionPerLot: 0 })).toBe('Commission per lot: 0');
+    expect(show(null)).toBe('—');
+  });
+});

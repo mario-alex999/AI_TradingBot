@@ -83,10 +83,20 @@ def test_10_invalid_lot_step_blocks(h):
     assert r["decision"] == "BLOCK" and "R019" in ids(r, "rule_violations")
 
 
-def test_requested_volume_over_budget_blocks_but_smaller_is_used(h):
-    assert "R019" in ids(h.assess(requested_volume="0.80"), "rule_violations")
-    r = h.assess(requested_volume="0.20", key="small")
-    assert r["decision"] == "PASS" and r["final_volume"] == 0.2
+def test_requested_volume_over_budget_is_reduced_to_the_budget_and_smaller_is_used(h, tmp_path):
+    r = h.assess(requested_volume="0.80")
+    assert r["decision"] == "REVIEW" and "R019" in ids(r, "warnings") and "R019" not in ids(r, "rule_violations")
+    assert r["final_volume"] == r["recommended_volume"] < 0.8                  # sized from the balance, never above it
+    fresh = tmp_path / "fresh"
+    fresh.mkdir()
+    small = Harness(fresh).assess(requested_volume="0.20", key="small")         # a fresh account: no risk reserved yet
+    assert small["decision"] == "PASS" and small["final_volume"] == 0.2
+
+
+def test_requested_volume_over_budget_blocks_when_the_policy_is_block(h):
+    h.config(oversized_volume="block")
+    r = h.assess(requested_volume="0.80", key="strict")
+    assert r["decision"] == "BLOCK" and "R019" in ids(r, "rule_violations") and r["final_volume"] is None
 
 
 # 11 and 15

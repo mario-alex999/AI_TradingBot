@@ -38,8 +38,10 @@ recommended     = volume if volume ≥ volume_min else none   → R018 BLOCK "mi
 min_lot_risk %  = volume_min × total_loss_per_lot / equity × 100
 estimated_loss  = final_volume × total_loss_per_lot      (always ≤ risk_amount when the recommended size is used)
 ```
-- If a volume is requested, it must be valid for the broker (minimum, maximum, step) and its estimated loss must fit the
-  budget (R019).
+- If a volume is requested, it must be valid for the broker (minimum, maximum, step). If it is larger than the budget
+  allows, `oversized_volume` decides (R019): `reduce` (default) uses the recommended volume instead and sends the trade to
+  REVIEW with the warning `VOLUME_REDUCED_TO_BUDGET`, so the size always follows the account balance and the loss at the
+  stop never exceeds the budget; `block` refuses it (`VOLUME_OVER_BUDGET`).
 - If the budget allows more than `volume_max`, the size is capped and R020 warns.
 
 ## 4. Reward-to-risk
