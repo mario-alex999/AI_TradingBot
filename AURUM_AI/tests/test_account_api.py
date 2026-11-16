@@ -69,12 +69,20 @@ def env(tmp_path):
 @pytest.fixture
 def client(env):
     eng, settings, now = env
-    rec = AccountRecorder(eng)
+    rec = AccountRecorder(eng, login=ACCOUNT["login"])       # as a real sync does: every row carries the account
     rec.record_snapshot({**ACCOUNT, "equity": 10_200.0}, now - timedelta(days=1))
     rec.record_snapshot(ACCOUNT, now)
     rec.store_deals(history(now), to_utc)
     with TestClient(create_app(settings, cot_cfg(), eng)) as c:
+        signed_in(c)
         yield c
+
+
+def signed_in(c: TestClient) -> TestClient:
+    """The account routes need a signed-in person or a service token with approvals:view."""
+    token, _ = c.app.state.auth.create_service_token("account-tests", "test", ["approvals:view"])
+    c.headers["Authorization"] = f"Bearer {token}"
+    return c
 
 
 def test_positions_are_rebuilt_from_deals():
@@ -196,6 +204,8 @@ def test_sync_stores_deals_under_the_reported_login(env):
 def test_account_summary_null_until_first_snapshot(env):
     eng, settings, _ = env
     with TestClient(create_app(settings, cot_cfg(), eng)) as c:
+        assert c.get("/api/v1/account/summary").status_code == 401             # never readable without signing in
+        signed_in(c)
         assert c.get("/api/v1/account/summary").json() is None
         assert c.get("/api/v1/performance/summary").json() is None
         risk = c.get("/api/v1/risk/overview").json()

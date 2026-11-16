@@ -73,13 +73,13 @@ def seed(engine) -> None:
             d += timedelta(days=1)
         c.execute(insert(AccountSnapshot).values(captured_at=NOW - timedelta(minutes=1), login=1, currency="USD", trade_mode="DEMO",
                                                  leverage=100, balance=10000, equity=10000, margin=265, margin_free=9735, profit=0))
-        c.execute(insert(TradeRecord).values(id="901", position_id=901, symbol="XAUUSD", broker_symbol="XAUUSD", side="buy",
+        c.execute(insert(TradeRecord).values(id="901", position_id=901, login=1, symbol="XAUUSD", broker_symbol="XAUUSD", side="buy",
                                              status="open", volume=0.1, open_time=NOW - timedelta(hours=2), open_price=2650.0,
                                              stop_loss=2640.0, strategy="breakout"))
-        c.execute(insert(TradeRecord).values(id="900", position_id=900, symbol="EURUSD", broker_symbol="EURUSD", side="sell",
+        c.execute(insert(TradeRecord).values(id="900", position_id=900, login=1, symbol="EURUSD", broker_symbol="EURUSD", side="sell",
                                              status="closed", volume=0.2, open_time=NOW - timedelta(hours=5), open_price=1.1,
                                              close_time=NOW - timedelta(hours=4), close_price=1.101, pnl=-20.0))
-        c.execute(insert(AccountDeal).values(ticket=1, ts_utc=NOW - timedelta(hours=3), type=2, profit=0.0))          # zero deposit
+        c.execute(insert(AccountDeal).values(ticket=1, login=1, ts_utc=NOW - timedelta(hours=3), type=2, profit=0.0))          # zero deposit
         c.execute(insert(DataQualityIssue).values(fingerprint="f1", symbol="EURUSD", timeframe="M5", issue_type="missing_candles",
                                                   severity="warning", resolved=False, last_seen_at=NOW - timedelta(hours=1)))
         c.execute(insert(DataQualityIssue).values(fingerprint="f2", symbol="EURUSD", timeframe="M5", issue_type="candle_revision",
@@ -159,3 +159,62 @@ def test_assessment_from_module_05_idea_in_real_table(h, db):
     assert r["trade_idea_id"] == "idea-1" and D(r["proposal"]["entry"]) == D("1.10010") and r["decision"] in ("PASS", "REVIEW")
     info = {i["rule_id"]: i for i in r["information"]}
     assert info["R071"]["evidence"]["ai_confidence"] == 0.9
+
+
+
+# ---- several linked accounts are never mixed ------------------------------------------------------------------------------
+def test_each_account_is_read_on_its_own(db, h):
+    """A second person's account (login 2): its own snapshot, position, closed trade and deposit."""
+    with h.engine.begin() as c:
+        c.execute(insert(AccountSnapshot).values(captured_at=NOW, login=2, currency="USD", trade_mode="DEMO", leverage=100,
+                                                 balance=500, equity=480, margin=0, margin_free=480, profit=-20))
+        c.execute(insert(TradeRecord).values(id="77", position_id=77, login=2, symbol="EURUSD", broker_symbol="EURUSD", side="buy",
+                                             status="open", volume=0.01, open_time=NOW - timedelta(hours=1), open_price=1.1,
+                                             stop_loss=1.09))
+        c.execute(insert(AccountDeal).values(ticket=1, login=2, ts_utc=NOW - timedelta(hours=2), type=2, profit=500.0))
+    newest = db.account_snapshot()                       # unpinned: the most recently synced account (login 2)
+    assert newest.login == 2 and newest.equity == D(480)
+    assert [p.symbol for p in db.open_positions()] == ["EURUSD"] and db.closed_trades(NOW - timedelta(days=1)) == []
+    one = db.with_account(1)
+    assert one.account_snapshot().equity == D(10000) and [p.symbol for p in one.open_positions()] == ["XAUUSD"]
+    assert [c.pnl for c in one.closed_trades(NOW - timedelta(days=1))] == [D(-20)]
+    assert [b.amount for b in one.balance_operations(NOW - timedelta(days=1))] == [D(0)]
+    two = db.with_account(2)
+    assert [b.amount for b in two.balance_operations(NOW - timedelta(days=1))] == [D(500)]
+    assert max(p.equity for p in two.equity_history(NOW - timedelta(days=1), NOW)) == D(480)   # 10,000 of account 1 not used
+    assert db.login is None                              # pinning returns a copy
+
+
+def test_an_assessment_covers_one_account_and_reserves_risk_against_it_only(h, db):
+    with h.engine.begin() as c:
+        c.execute(insert(AccountSnapshot).values(captured_at=NOW, login=2, currency="USD", trade_mode="DEMO", leverage=100,
+                                                 balance=1000, equity=1000, margin=0, margin_free=1000, profit=0))
+    svc = RiskService(h.engine, None, data=db, clock=h.clock)
+    trade = {"symbol": "EURUSD", "direction": "BUY", "entry": "1.10010", "stop_loss": "1.09810", "take_profit": "1.10510"}
+    big = svc.assess({**trade, "account_login": "1"}, "tester", None, None)
+    small = svc.assess({**trade, "account_login": "2"}, "tester", None, None)
+    assert small["decision"] in ("PASS", "REVIEW"), [(r["rule_id"], r["message"]) for r in small["rule_violations"] + small.get("errors", [])]
+    assert big["account_login"] == "1" and small["account_login"] == "2"
+    assert big["final_volume"] == 0.46 and small["final_volume"] == 0.04          # sized from each account's own equity
+    assert big["assessment_id"] != small["assessment_id"]                         # the same trade, two assessments
+    with svc.engine.repo.read() as s:
+        held = svc.engine.repo.live_reservations(s, NOW, account_login=2)
+    assert [r.assessment_id for r in held] == [small["assessment_id"]]            # account 1's reservation is not counted
+
+
+def test_a_loss_limit_locks_only_the_account_that_reached_it(h, db):
+    cal_day_start = NOW.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=1)
+    with h.engine.begin() as c:                          # account 2 is down 10% today (limit 3%)
+        c.execute(insert(AccountSnapshot).values(captured_at=cal_day_start, login=2, currency="USD", trade_mode="DEMO",
+                                                 leverage=100, balance=1000, equity=1000, margin=0, margin_free=1000, profit=0))
+        c.execute(insert(AccountSnapshot).values(captured_at=NOW, login=2, currency="USD", trade_mode="DEMO", leverage=100,
+                                                 balance=900, equity=900, margin=0, margin_free=900, profit=0))
+    svc = RiskService(h.engine, None, data=db, clock=h.clock)
+    trade = {"symbol": "EURUSD", "direction": "BUY", "entry": "1.10010", "stop_loss": "1.09810", "take_profit": "1.10510"}
+    two = svc.assess({**trade, "account_login": "2"}, "tester", None, None)
+    assert two["decision"] == "BLOCK" and {"R031", "R032", "R033"} & {r["rule_id"] for r in two["rule_violations"]}
+    locks = svc.locks(False)["active"]
+    assert locks and {(lk["scope"], lk["scope_value"]) for lk in locks} == {("account", "2")}
+    one = svc.assess({**trade, "account_login": "1", "strategy": "other"}, "tester", None, None)
+    assert "R060" not in [r["rule_id"] for r in one["rule_violations"]]            # account 1 is not locked
+    assert one["decision"] in ("PASS", "REVIEW")

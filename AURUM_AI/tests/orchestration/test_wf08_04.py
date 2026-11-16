@@ -48,7 +48,7 @@ class RiskGateway:
     def normalised_entry(self, uid): return None
     def quote_time(self, symbol, now): return self.clock()
     def symbols(self): return {"EURUSD": "forex", "XAUUSD": "metal", "GBPUSD": "forex", "US30": "index"}
-    def account_login(self): return "1001"
+    def account_login(self, login=None): return "1001"
     def active_locks(self, symbol=None, strategy=None): return []
 
 

@@ -148,6 +148,8 @@ def test_sqlite_schema_has_every_module_06_table(h):
 
 def test_migration_matches_models():
     sql = (ROOT / "sql" / "migrations" / "0008_risk_engine.sql").read_text(encoding="utf-8")
+    later = "".join(p.read_text(encoding="utf-8") for p in sorted((ROOT / "sql" / "migrations").glob("*.sql"))
+                    if p.name > "0008_risk_engine.sql")
     from aurum.database.models import Base
     import aurum.risk.db_models  # noqa: F401
     for name, table in Base.metadata.tables.items():
@@ -156,7 +158,8 @@ def test_migration_matches_models():
         assert f"CREATE TABLE IF NOT EXISTS {name} (" in sql, name
         block = sql.split(f"CREATE TABLE IF NOT EXISTS {name} (")[1].split(");")[0]
         for col in table.columns:
-            assert re.search(rf"\b{col.name}\b", block), f"{name}.{col.name} missing from migration"
+            added = re.search(rf"ALTER TABLE {name} ADD COLUMN IF NOT EXISTS {col.name}\b", later)
+            assert re.search(rf"\b{col.name}\b", block) or added, f"{name}.{col.name} missing from migration"
 
 
 @pytest.mark.skipif(not os.environ.get("AURUM_TEST_DATABASE_URL"), reason="set AURUM_TEST_DATABASE_URL to run")

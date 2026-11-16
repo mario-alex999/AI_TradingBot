@@ -7,6 +7,7 @@ Identical idempotency keys inside the validity window return the stored assessme
 """
 from __future__ import annotations
 
+import copy
 import hashlib
 import logging
 import uuid
@@ -97,6 +98,12 @@ class RiskEngine:
                              ai_confidence=float(conf) if isinstance(conf, (int, float)) else None,
                              source=str(raw.get("source") or "api")[:32])
 
+    def _login_of(self, account: AccountRisk | None) -> int | None:
+        """The MT5 account an assessment covers: the snapshot it used, else the pinned account."""
+        snap = getattr(account, "snapshot", None) if account is not None else None
+        login = getattr(snap, "login", None) if snap is not None else None
+        return int(login) if login is not None else getattr(self, "_pinned", None)
+
     def proposal_from_idea(self, idea_id: str, overrides: dict[str, Any]) -> dict[str, Any]:
         """A Module 05 trade candidate as a proposal. Entry is the zone mid-point unless overridden; Module 06 then validates
         every level independently and never trusts them because they came from Module 05."""
@@ -123,7 +130,9 @@ class RiskEngine:
         opened = self.data.opened_since(cal.day(now).start)
         anchor = None
         if persist_anchor and snap is not None:
-            anchor = lambda p, compute: self.repo.period_anchor(p.kind, p.label, cfg.loss_basis, p.start, p.end, compute)  # noqa: E731
+            login = int(snap.login) if snap.login is not None else None      # each account keeps its own period start values
+            anchor = lambda p, compute: self.repo.period_anchor(p.kind, p.label, cfg.loss_basis, p.start, p.end, compute,  # noqa: E731
+                                                                account_login=login)
         return evaluate_account(cfg, cal, now, snap, history, closed, ops, opened, anchor)
 
     def _market(self, cfg: RiskConfig, symbol: str, now: datetime) -> MarketState:
@@ -248,6 +257,16 @@ class RiskEngine:
     # ---- assessment ----------------------------------------------------------------------------------------------------
     def assess(self, raw: dict[str, Any], *, actor: str, correlation_id: str | None = None,
                idempotency_key: str | None = None) -> dict[str, Any]:
+        account = raw.get("account_login") or raw.get("accountLogin")
+        if account not in (None, "") and getattr(self, "_pinned", None) is None and hasattr(self.data, "with_account"):
+            # One assessment covers one MT5 account: balance, positions and loss history come from that account only.
+            try:
+                login = int(str(account).strip())
+            except ValueError as exc:
+                raise ProposalError("account_login must be an MT5 account number.") from exc
+            pinned = copy.copy(self)
+            pinned.data, pinned._pinned = self.data.with_account(login), login
+            return pinned.assess(raw, actor=actor, correlation_id=correlation_id, idempotency_key=idempotency_key)
         self.repo.require_schema()
         now = self.clock()
         correlation_id = correlation_id or str(uuid.uuid4())
@@ -256,7 +275,10 @@ class RiskEngine:
         symbols = self.data.symbols()
         p = self.normalise(raw, symbols)
         cfg, version, meta = self.repo.active_config()
-        key = (idempotency_key or "").strip()[:128] or "auto:" + stable_hash({"p": p.canonical(), "v": version})[:40]
+        basis = {"p": p.canonical(), "v": version}
+        if getattr(self, "_pinned", None) is not None:
+            basis["a"] = self._pinned                 # the same trade on another account is another assessment
+        key = (idempotency_key or "").strip()[:128] or "auto:" + stable_hash(basis)[:40]
 
         with self.repo.read() as s:
             existing = self.repo.latest_by_key(s, key)
@@ -283,7 +305,8 @@ class RiskEngine:
             attempt = existing.attempt + 1 if existing is not None else 1
             self.repo.expire_locks(s, now)
             locks = self.repo.active_locks(s, now)
-            reservations = self.repo.live_reservations(s, now, exclude_key=key)
+            login = self._login_of(account)
+            reservations = self.repo.live_reservations(s, now, exclude_key=key, account_login=login)
             portfolio, ccy_rows = self._portfolio(cfg, account, now, reservations)
             correlations = self._correlations(cfg, p.symbol, [i.symbol for i in portfolio.items], now)
             ctx = AssessmentContext(p, cfg, version, now, account, spec, spec_error, math, calc_error, market, portfolio,
@@ -308,6 +331,7 @@ class RiskEngine:
             reserved = math.estimated_loss if decision in (PASS, REVIEW) and math else None
             row = RiskAssessment(
                 assessment_id=assessment_id, idempotency_key=key, attempt=attempt, trade_idea_id=p.trade_idea_id, symbol=p.symbol,
+                account_login=self._login_of(account),
                 asset_class=asset_class, direction=p.direction, strategy=p.strategy, decision=decision, state="active",
                 requested_volume=p.requested_volume, recommended_volume=math.recommended_volume if math else None,
                 final_volume=math.final_volume if math and decision in (PASS, REVIEW) else None,
@@ -330,7 +354,8 @@ class RiskEngine:
                 per = account.periods.get(kind)
                 if per:
                     hit = any(r.rule_id == rid and r.outcome == "fail" and r.severity == HARD for r in results)
-                    self.repo.record_period_loss(s, kind, per.label, cfg.loss_basis, per.loss_pct, hit, now)
+                    self.repo.record_period_loss(s, kind, per.label, cfg.loss_basis, per.loss_pct, hit, now,
+                                                 account_login=self._login_of(account))
             self._publish(s, view, decision, correlation_id, now)
             self.repo.audit(s, actor, "assessment.created", "risk_assessment", assessment_id,
                             {"decision": decision, "symbol": p.symbol, "trade_idea_id": p.trade_idea_id, "config_version": version,
@@ -345,8 +370,12 @@ class RiskEngine:
 
     def _auto_locks(self, s: Any, ctx: AssessmentContext, results: list[RuleResult], now: datetime, correlation_id: str,
                     assessment_id: str) -> list[Any]:
-        """Limits that are reached lock new approvals (global scope) until the configured reset or an authorised release."""
+        """Limits that are reached lock new approvals until the configured reset or an authorised release. The lock covers the
+        account that reached the limit (account scope), so another person's linked account keeps trading; without a known
+        account it is global, as before."""
         cfg, cal = ctx.cfg, TradingCalendar(ctx.cfg.trading_day)
+        login = self._login_of(ctx.account)
+        scope, scope_value = ("account", str(login)) if login is not None else ("global", None)
         created = []
         for r in results:
             key = LOCKING_RULES.get(r.rule_id)
@@ -356,17 +385,17 @@ class RiskEngine:
             expires = None
             if r.rule_id == "R035":
                 fp = streak_fingerprint(ctx.account.streak_trade_ids)
-                dedupe = f"{r.rule_id}:global:{fp}"
+                dedupe = f"{r.rule_id}:{scope}:{scope_value or ''}:{fp}" if scope_value else f"{r.rule_id}:global:{fp}"
                 if cfg.consecutive_loss_cooldown_minutes > 0:
                     expires = now + timedelta(minutes=cfg.consecutive_loss_cooldown_minutes)
             else:
                 kind = {"R030": "day", "R031": "week", "R032": "month"}.get(r.rule_id)
                 label = cal.period(kind, now).label if kind else "all"
-                dedupe = f"{r.rule_id}:global:{label}"
+                dedupe = f"{r.rule_id}:{scope}:{scope_value}:{label}" if scope_value else f"{r.rule_id}:global:{label}"
                 if kind and policy == "next_period":
                     expires = cal.period(kind, now).end
             lock, new = self.repo.activate_lock(
-                s, scope="global", scope_value=None, reason=f"{r.name}: {r.message}", trigger_source=f"auto:{r.rule_id}",
+                s, scope=scope, scope_value=scope_value, reason=f"{r.name}: {r.message}", trigger_source=f"auto:{r.rule_id}",
                 rule_id=r.rule_id, actor="system", now=now, expires_at=expires,
                 details={"assessment_id": assessment_id, "evidence": r.evidence, "reset_policy": policy},
                 dedupe_key=dedupe, correlation_id=correlation_id)
@@ -375,7 +404,7 @@ class RiskEngine:
                 if r.rule_id == "R035":
                     self.repo.record_streak(s, ctx.account.consecutive_losses, ctx.account.streak_trade_ids, lock.lock_id,
                                             streak_fingerprint(ctx.account.streak_trade_ids), now)
-                payload = {"lock_id": lock.lock_id, "rule_id": r.rule_id, "reason": lock.reason, "scope": "global",
+                payload = {"lock_id": lock.lock_id, "rule_id": r.rule_id, "reason": lock.reason, "scope": scope, "scope_value": scope_value,
                            "expires_at": expires, "assessment_id": assessment_id}
                 self.repo.add_event(s, "risk.limit.reached", r.rule_id, payload, correlation_id=correlation_id,
                                     idempotency_key=f"limit:{dedupe}", now=now)
@@ -483,6 +512,7 @@ class RiskEngine:
             "potential_reward": fnum(money(m.estimated_reward)) if m and m.estimated_reward is not None else None,
             "risk_reward": fnum(m.adjusted_rr, 3) if m else None, "gross_risk_reward": fnum(m.rr, 3) if m else None,
             "account_currency": ctx.account.snapshot.currency if ctx.account.snapshot else None,
+            "account_login": str(self._login_of(ctx.account)) if self._login_of(ctx.account) is not None else None,
             "calculation": self._math_view(m),
             "account_status": section("account", {"summary": self.account_view(ctx.account, ctx.cfg)}),
             "portfolio_status": section("portfolio", {"summary": self.portfolio_view(ctx.portfolio, ctx.correlations, ccy_rows)}),
@@ -578,7 +608,7 @@ class RiskEngine:
         cfg, version, _ = self.repo.active_config()
         a = self._account(cfg, now)
         with self.repo.read() as s:
-            reservations = self.repo.live_reservations(s, now)
+            reservations = self.repo.live_reservations(s, now, account_login=self._login_of(a))
         pf, ccy = self._portfolio(cfg, a, now, reservations)
         syms = sorted({i.symbol for i in pf.items})
         corr = [c for i, x in enumerate(syms) for c in self._correlations(cfg, x, syms[i + 1:], now)]

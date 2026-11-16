@@ -65,9 +65,9 @@ A test fires concurrent assessments against a budget that fits three trades; at 
 ## Locks
 | Trigger | Lock | Ends |
 |---|---|---|
-| R030 / R031 / R032 period loss | global | At the start of the next day, week or month (`reset_policy: next_period`), or by manual release |
-| R033 drawdown | global | Manual release only |
-| R035 consecutive losses | global | Manual release only. The streak is then acknowledged by its trade-id fingerprint, so the same streak does not re-lock |
+| R030 / R031 / R032 period loss | account (the account that reached it; global when the account is unknown) | At the start of the next day, week or month (`reset_policy: next_period`), or by manual release |
+| R033 drawdown | account (global when unknown) | Manual release only |
+| R035 consecutive losses | account (global when unknown) | Manual release only. The streak is then acknowledged by its trade-id fingerprint, so the same streak does not re-lock |
 | Manual | global, account, instrument or strategy | Manual release only, or an optional expiry |
 
 Locks are rows in `risk_locks`, not memory, so they survive restarts. A configuration change never releases a lock.

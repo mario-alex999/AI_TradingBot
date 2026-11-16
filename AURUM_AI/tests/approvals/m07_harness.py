@@ -102,7 +102,7 @@ class FakeRisk:
     def symbols(self) -> dict[str, str]:
         return {"EURUSD": "forex", "XAUUSD": "metal", "GBPUSD": "forex"}
 
-    def account_login(self) -> str | None:
+    def account_login(self, login=None) -> str | None:
         self._up()
         return self.account
 

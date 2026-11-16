@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from aurum.database.models import Base, BigIntPK, JsonType, UTCDateTime, utcnow
@@ -57,6 +57,7 @@ class RiskAssessment(Base):
     adjusted_risk_reward: Mapped[Decimal | None] = mapped_column(Money)
     reserved_risk: Mapped[Decimal | None] = mapped_column(Money)
     account_currency: Mapped[str | None] = mapped_column(String(16))
+    account_login: Mapped[int | None] = mapped_column(BigInteger)                   # the MT5 account assessed (migration 0014)
     account_status: Mapped[str] = mapped_column(String(16), nullable=False)
     portfolio_status: Mapped[str] = mapped_column(String(16), nullable=False)
     correlation_status: Mapped[str] = mapped_column(String(16), nullable=False)
@@ -155,6 +156,7 @@ class RiskPeriodRecord(Base):
     kind: Mapped[str] = mapped_column(String(8), nullable=False)
     label: Mapped[str] = mapped_column(String(16), nullable=False)
     basis: Mapped[str] = mapped_column(String(8), nullable=False)
+    account_login: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)   # 0 = unknown account (migration 0014)
     start_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
     end_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
     start_value: Mapped[Decimal | None] = mapped_column(Money)
@@ -164,7 +166,7 @@ class RiskPeriodRecord(Base):
     limit_reached_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False, default=utcnow)
-    __table_args__ = (UniqueConstraint("kind", "label", "basis", name="uq_risk_period_records"),)
+    __table_args__ = (UniqueConstraint("kind", "label", "basis", "account_login", name="uq_risk_period_records_account"),)
 
 
 class RiskLock(Base):

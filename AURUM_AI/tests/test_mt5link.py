@@ -369,3 +369,48 @@ def test_connector_rides_out_a_database_drop(env, monkeypatch):
     row = env[3].get(conn["id"])
     assert fails["n"] == 0 and row["status"] == "DISCONNECTED" and row["disconnect_reason"] == "test_limit"
     assert row["error_code"] is None
+
+
+# ---------------------------------------------------------------- Phase 2: each person sees their own account
+def _snapshot(eng, login: int, equity: float, at: datetime) -> None:
+    with session_scope(eng) as s:
+        s.add(AccountSnapshot(captured_at=at, login=login, currency="USD", trade_mode="DEMO", leverage=100, balance=equity,
+                              equity=equity, margin=0.0, margin_free=equity))
+
+
+def test_each_person_sees_only_their_own_account(env):
+    settings, eng, auth, *_ = env
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    _snapshot(eng, 111, 1000.0, now - timedelta(minutes=2))
+    _snapshot(eng, 222, 502.7, now - timedelta(minutes=1))                 # bob's account synced most recently
+    c = client(env)
+    assert c.get("/api/v1/account/summary").status_code == 401             # never without signing in
+    sign_in(c, "alice")
+    s = c.get("/api/v1/account/summary").json()
+    assert s["login"] == "111" and s["equity"] == 1000.0                    # not bob's newer snapshot
+    assert c.get("/api/v1/account/summary", params={"login": "222"}).status_code == 403
+    assert [a["login"] for a in c.get("/api/v1/account/accounts").json()["items"]] == ["111"]
+    c2 = client(env)
+    sign_in(c2, "bob")
+    assert c2.get("/api/v1/account/summary").json()["login"] == "222"
+    assert c2.get("/api/v1/risk/overview").status_code == 200
+
+
+def test_the_account_linked_in_this_session_is_shown_and_admins_can_choose(env):
+    settings, eng, auth, *_ = env
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    auth.create_user("dana", PASSWORD, "admin")                             # no account scope: may see any account
+    _snapshot(eng, 111, 1000.0, now - timedelta(minutes=2))
+    _snapshot(eng, 222, 502.7, now - timedelta(minutes=1))
+    c = client(env)
+    sign_in(c, "dana")
+    assert c.get("/api/v1/account/summary").json()["login"] == "222"        # no link yet: the most recently synced
+    assert c.get("/api/v1/account/summary", params={"login": "111"}).json()["login"] == "111"
+    session_id = auth.resolve_session(c.cookies.get("aurum_session")).session_id
+    with session_scope(eng) as s:                                           # dana links account 111 in this session
+        user_id = auth.resolve_session(c.cookies.get("aurum_session")).id
+        s.add(Mt5Connection(id="conn-dana", user_id=user_id, session_id=session_id, login=111, server="Broker-Demo", slot=1,
+                            status="CONNECTED", created_at=now, updated_at=now))
+    assert c.get("/api/v1/account/summary").json()["login"] == "111"
+    listed = c.get("/api/v1/account/accounts").json()
+    assert listed["current"] == "111" and listed["linked"] == "111" and {a["login"] for a in listed["items"]} == {"111", "222"}
