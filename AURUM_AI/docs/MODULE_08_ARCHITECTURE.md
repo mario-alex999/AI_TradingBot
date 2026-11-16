@@ -44,7 +44,7 @@
 | `N8nEngine` | HTTP adapter for n8n 2.x: health, webhook dispatch, public API (workflow, activate, executions, stop) |
 | `ControlledTestEngine` | Scripted stand-in for tests and local development; refused in `demo` and `production` |
 | `ModuleGateway` | Health checks of the other AURUM modules with a per-module circuit breaker (5 failures → open 30 s) |
-| `Worker` | One loop: bridge, deliver, schedules, dispatch, time-outs; health every `health.interval_seconds` |
+| `Worker` | One loop: bridge, deliver, schedules, dispatch, time-outs; health every `health.interval_seconds` (timed from the last stored check, so it also holds when each tick is a fresh serverless process) |
 
 ## Data flow — an event-driven run
 

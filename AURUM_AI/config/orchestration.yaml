@@ -103,3 +103,10 @@ error_recovery:             # WF08-08 Error Handling and Recovery (records faile
   max_errors_per_run: 20
   lookback_hours: 72
   notify_dashboard: true    # false = record only
+
+health_watchdog:            # WF08-09 System Health Watchdog (checks every service, records, alerts on new problems)
+  enabled: true             # backend off switch: false = WF08-09 checks and records nothing
+  market_data_stale_minutes: 30   # while the market is open, a newest candle older than this is reported as stale
+  account_stale_minutes: 60
+  database_slow_ms: 2000
+  notify_dashboard: true    # false = record only

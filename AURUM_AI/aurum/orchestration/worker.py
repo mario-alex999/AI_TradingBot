@@ -6,7 +6,8 @@ Each tick (default every 10 s):
 3. schedule - fire due schedule slots (each slot once, enforced by a unique row);
 4. dispatch - send queued and retry-pending executions to n8n within the concurrency limit;
 5. timeouts - reconcile or time out executions that passed their deadline;
-6. health   - integration checks and workflow health, every ``health.interval_seconds``.
+6. health   - integration checks and workflow health, every ``health.interval_seconds`` (measured from the last stored
+              check, so it holds for a fresh worker per tick too).
 
 Optional step 0, ``approval_expiry``: Module 07's own expiry pass, only when ``approval_responses.expire_overdue_requests``
 is on (hosts that run no Module 07 worker).
@@ -39,8 +40,7 @@ class Worker:
                  ("timeouts", self.svc.sweep_timeouts)]
         if self.svc.config().approval_responses.expire_overdue_requests:
             steps.insert(0, ("approval_expiry", self._approval_expiry))      # before the bridge, so its events go out now
-        interval = self.svc.config().health.interval_seconds
-        if force_health or time.monotonic() - self._last_health >= interval:
+        if force_health or self._health_due(self.svc.config().health.interval_seconds):
             steps += [("health", self.svc.check_all), ("workflow_health", self.svc.evaluate_workflow_health)]
             self._last_health = time.monotonic()
         for name, fn in steps:
@@ -54,6 +54,22 @@ class Worker:
     def _approval_expiry(self) -> dict[str, Any]:
         from aurum.orchestration.approval_responses import ApprovalResponseHandler
         return ApprovalResponseHandler(self.svc).expire_overdue()
+
+    def _health_due(self, interval: float) -> bool:
+        """Due when the last stored integration check is older than the interval. Read from the database, not from this
+        object, so a host that starts a fresh worker for every tick (a serverless function) still keeps the interval."""
+        if self._last_health and time.monotonic() - self._last_health < interval:
+            return False
+        try:
+            from sqlalchemy import func, select
+
+            from aurum.orchestration.db_models import OrchHealthCheck
+            from aurum.orchestration.repository import utc
+            with self.svc.repo.read() as s:
+                last = s.execute(select(func.max(OrchHealthCheck.checked_at))).scalar()
+            return last is None or (utc(self.svc.now()) - utc(last)).total_seconds() >= interval - 5
+        except Exception:  # noqa: BLE001 - when in doubt, check
+            return True
 
     def run_forever(self, interval: float, stop: Any = None) -> None:
         log.info("Module 08 worker started", extra={"interval": interval, "environment": self.svc.env})

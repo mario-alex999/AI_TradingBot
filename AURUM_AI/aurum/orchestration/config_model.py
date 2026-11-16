@@ -167,6 +167,15 @@ class ErrorRecoveryCfg(_M):
     notify_dashboard: bool = True                             # false = record only
 
 
+class HealthWatchdogCfg(_M):
+    """WF08-09 System Health Watchdog. ``enabled`` is its backend-enforced off switch. It reads and reports only."""
+    enabled: bool = True
+    market_data_stale_minutes: int = Field(30, ge=5, le=1440)   # newest stored candle older than this = stale
+    account_stale_minutes: int = Field(60, ge=5, le=1440)       # newest account snapshot older than this = stale
+    database_slow_ms: int = Field(2000, ge=50, le=60000)
+    notify_dashboard: bool = True                               # false = record only
+
+
 class OrchestrationConfig(_M):
     retry: dict[str, Any] = Field(default_factory=dict)
     dispatch: DispatchCfg = DispatchCfg()
@@ -185,6 +194,7 @@ class OrchestrationConfig(_M):
     trade_handoff: TradeHandoffCfg = TradeHandoffCfg()
     trade_monitoring: TradeMonitoringCfg = TradeMonitoringCfg()
     error_recovery: ErrorRecoveryCfg = ErrorRecoveryCfg()
+    health_watchdog: HealthWatchdogCfg = HealthWatchdogCfg()
 
     @field_validator("retry")
     @classmethod
