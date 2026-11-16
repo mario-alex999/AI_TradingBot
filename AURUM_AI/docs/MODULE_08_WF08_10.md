@@ -18,7 +18,14 @@ calendar information should be refreshed according to source update frequency an
 | `cot_legacy`, `cot_tff`, `cot_disaggregated` | 02 | When Module 02's release schedule says a newer report should now be public (normally Friday 15:30 US/Eastern, moved for US holidays; due 6 h after), when the stored report is out of date, or when nothing is stored yet. If the CFTC has not published yet, it is tried again after `cot_retry_hours`. While the data is current nothing is fetched, and the next expected release is shown. |
 | `calendar` | 04 | Every `calendar_refresh_hours`; every `calendar_event_refresh_minutes` while a high-importance event is due within `event_window_hours` |
 | `news` | 04 | Every `news_refresh_minutes` |
-| `macro` | 04 | Every `macro_refresh_hours` |
+| `macro` | 04 | Every `macro_refresh_hours`, in parts (see below) |
+
+**Macro data in parts.** Refreshing every central bank and indicator series takes 45 s or more, close to the API's
+60 s limit on Vercel. So the macro task works in parts, one bank or one series at a time (Module 04's
+`refresh_macro(only=[...])`, listed by `macro_parts()`): each run refreshes the parts not refreshed within
+`macro_refresh_hours`, the longest-unrefreshed first, starts no new part after `macro_budget_seconds`, and records which
+parts it did. The task stays due until every part is current, so the rest follows on the next hourly run. WF08-10
+keeps this record itself because Module 04 keeps an unchanged value's original retrieval time.
 
 A refresh that failed is tried again after `retry_after_minutes` (COT: `cot_retry_hours`). A source that is not
 configured (for example `NEWS_ENABLED=false`) is listed with the reason and never run. The first time a COT report
@@ -56,6 +63,7 @@ AURUM schedule (hourly at :17 UTC)
 | Outcome | Meaning | Alert |
 |---|---|---|
 | `updated` | The refresh stored new or revised data and the timestamps are current | — |
+| `partial` | The data is current, but some of the task's sources failed (named in the record) | — |
 | `current` | Nothing new, and the stored data is current | — |
 | `waiting` | COT: the next report is due but the CFTC has not published it yet | — |
 | `stale` | The stored data is older than allowed after the refresh | once |
@@ -73,7 +81,9 @@ works again the record is marked `recovered`.
 * **Off switch.** `information_updates.enabled: false` stops the refreshes; the run records that it was skipped.
 * **Manual runs.** Trigger WF08-10 with `{"dryRun": true}` to list what is due without fetching, with
   `{"tasks": ["cot_legacy"]}` for some sources only, or with `{"force": true}` to refresh configured sources now.
-* **Time limit.** Each refresh is one API call, so it must finish within the API's time limit (60 s on Vercel).
+* **Time limits.** Each refresh is one API call and must finish within the API's limit (60 s on Vercel); a whole run
+  may take up to 600 s (`setup-wf08-10` registers the workflow with that limit). Measured on the hosted demo: news 1 s,
+  calendar 6 s, a first 4-year COT backfill of one report family 23 s, macro in parts within its budget.
 
 ## Configuration (`config/orchestration.yaml` → `information_updates`)
 
@@ -88,6 +98,7 @@ works again the record is marked `recovered`.
 | `news_stale_hours` | 24 | No successful news refresh within this is `stale` |
 | `macro_refresh_hours` | 24 | Central-bank and macro refresh interval |
 | `macro_stale_hours` | 72 | No successful macro refresh within this is `stale` |
+| `macro_budget_seconds` | 30 | A macro call starts no new bank or series after this; the rest follows next run |
 | `cot_retry_hours` | 3 | COT: try again after this when the CFTC is late or the update failed |
 | `cot_backfill_years` | 4 | History fetched the first time a COT report family runs |
 | `retry_after_minutes` | 30 | Calendar, news, macro: try again after a failure |
@@ -123,3 +134,12 @@ installation; the HTTP routes and who may run them.
 
 The workflow file `n8n/workflows/aurum_wf08_10_news_cot_updates.json` is checked by
 `tests/orchestration/test_workflow_files.py`.
+
+Verified on the hosted demo: installation (schedule `17 * * * *` UTC, run limit 600 s, WF08-08 as the n8n error
+workflow), a dry run and a live run through n8n. The live run took 100 s. It backfilled the CFTC TFF (621 reports) and
+disaggregated (207 reports) families and recalculated their metrics. It left the legacy family alone because it was
+current, and named its next release: Monday 16 November 20:30 UTC, moved by the Veterans Day holiday. It also stored
+30 new official headlines, refreshed six calendar sources and 11 of 16 macro parts within the budget. Real source
+problems it found and recorded: the US Bureau of Labor Statistics calendar and one news feed failed, and the New York
+Fed and Bank of England rate sources answered HTTP 403 to the hosted server. Those parts stay due and are tried first
+on the next run.

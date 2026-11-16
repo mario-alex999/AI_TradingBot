@@ -58,7 +58,7 @@ TASKS: tuple[tuple[str, str, str], ...] = (*MI_TASKS, *[(f"cot_{k}", n, "module_
 NAMES = {k: n for k, n, _ in TASKS}
 MODULE = {k: m for k, _, m in TASKS}
 PROBLEMS = ("failed", "stale")                   # outcomes that are alerted (once) and can recover
-OK_OUTCOMES = ("updated", "current", "waiting")
+OK_OUTCOMES = ("updated", "partial", "current", "waiting")
 
 INPUT_SCHEMA: dict[str, Any] = {
     "type": "object", "additionalProperties": False,
@@ -443,7 +443,8 @@ class InformationUpdates:
         elif run_status == "disabled":
             outcome = "skipped"
         elif ts["state"] == "fresh":
-            outcome = "updated" if int(result.get("changed") or 0) > 0 else "current"
+            outcome = ("partial" if run_status == "partial"            # data current, but some sources failed
+                       else "updated" if int(result.get("changed") or 0) > 0 else "current")
         elif ts["state"] == "waiting":
             outcome = "waiting"                       # the CFTC has not published the next report yet
         else:

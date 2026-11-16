@@ -180,6 +180,9 @@ def test_outcomes_come_from_the_stored_timestamps(w):
     w.src.results["news"] = {"status": "ok", "changed": 0, "detail": "Nothing new."}
     out = w.cycle("news")
     assert out["outcome"] == "current" and out["verified"]["state"] == "fresh" and "news timestamps" in out["detail"]
+    w.src.results["calendar"] = {"status": "partial", "changed": 4, "detail": "6 source(s); failed: bls_ics."}
+    out = w.cycle("calendar")
+    assert out["outcome"] == "partial" and out["notified"] == 0 and "bls_ics" in out["detail"]   # current, not alerted
     w.src.state["macro"] = "stale"                                           # the refresh "worked" but the data is old
     out = w.cycle("macro")
     assert out["outcome"] == "stale" and out["notified"] == 1
