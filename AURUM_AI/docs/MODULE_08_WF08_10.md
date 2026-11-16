@@ -141,5 +141,7 @@ disaggregated (207 reports) families and recalculated their metrics. It left the
 current, and named its next release: Monday 16 November 20:30 UTC, moved by the Veterans Day holiday. It also stored
 30 new official headlines, refreshed six calendar sources and 11 of 16 macro parts within the budget. Real source
 problems it found and recorded: the US Bureau of Labor Statistics calendar and one news feed failed, and the New York
-Fed and Bank of England rate sources answered HTTP 403 to the hosted server. Those parts stay due and are tried first
-on the next run.
+Fed and Bank of England rate sources answered HTTP 403 to the hosted server. The first scheduled run (11:17 UTC, 17 s)
+refreshed only what was still due: the five remaining macro parts, oldest first. This time the New York Fed and Bank of
+England answered, so all 16 parts were current. A manual run after that found nothing due and fetched nothing. The
+COT families were current, with their next release named; news and calendar were not due until their next interval.
