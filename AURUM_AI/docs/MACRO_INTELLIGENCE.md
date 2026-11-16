@@ -16,6 +16,14 @@ All sources below are keyless official data services, verified reachable from th
 
 **AURUM does not infer policy rates from news headlines.**
 
+### Refreshing in parts
+`intelligence macro-update` (and `POST /macro/refresh`) refreshes every bank and indicator series in one go, which takes
+45 s or more. `MarketIntelligenceService.refresh_macro(only=[...])` refreshes only the named banks or series ids, and
+`macro_parts()` lists them. WF08-10 uses this to stay inside the hosted API's 60 s limit: it refreshes the parts in
+turn, oldest first, across its hourly runs. Some official hosts refuse requests from cloud servers at times (on the
+hosted demo the NY Fed and Bank of England once answered HTTP 403 and worked an hour later); a refused part is
+recorded as failed and tried again on the next run, never filled in.
+
 ### Storage and decisions
 - The first stored observation for a date wins. A later conflicting value is recorded as a data-quality issue, not overwritten.
 - **Decisions** are derived from the official series:

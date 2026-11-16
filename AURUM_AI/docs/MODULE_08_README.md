@@ -57,27 +57,28 @@ python -m aurum.cli orchestration health          # real checks of n8n, DB, even
 python -m aurum.cli orchestration worker          # or: docker compose -f docker-compose.orchestration.yml up -d --build
 ```
 
-Then follow [MODULE_08_N8N_INTEGRATION.md](MODULE_08_N8N_INTEGRATION.md) to import and verify the test workflow
-end to end. Do that before building WF08-01.
+Then verify the n8n connection end to end with the harmless test workflow before installing WF08-01: import
+`n8n/workflows/aurum_core_test_echo.json` (local n8n in Docker: [N8N_SETUP.md](N8N_SETUP.md)), activate it, and run
+`python -m aurum.cli orchestration test-run`. For n8n Cloud and the fully hosted set-up (Vercel + Supabase + n8n Cloud)
+see the *Install* section of [MODULE_08_WF08_01.md](MODULE_08_WF08_01.md).
 
 ## Documents
 
-1. [Architecture](MODULE_08_ARCHITECTURE.md)
-2. [Architecture compatibility report](MODULE_08_COMPATIBILITY_REPORT.md)
-3. [Database schema](MODULE_08_DATABASE_SCHEMA.md)
-4. [Event catalogue](MODULE_08_EVENT_CATALOGUE.md)
-5. [Execution lifecycle](MODULE_08_EXECUTION_LIFECYCLE.md)
-6. [n8n integration](MODULE_08_N8N_INTEGRATION.md)
-7. [Webhook security](MODULE_08_WEBHOOK_SECURITY.md)
-8. [Idempotency, retry and recovery](MODULE_08_RETRY_AND_RECOVERY.md)
-9. [Scheduling and locks](MODULE_08_SCHEDULING_AND_LOCKS.md)
-10. [Environments](MODULE_08_ENVIRONMENTS.md)
-11. [API reference](MODULE_08_API_REFERENCE.md)
-12. [RBAC](MODULE_08_RBAC.md)
-13. [Configuration and secrets](MODULE_08_CONFIGURATION.md)
-14. [Observability](MODULE_08_OBSERVABILITY.md)
-15. [Operations runbook](MODULE_08_RUNBOOK.md)
-16. [Security and safety](MODULE_08_SECURITY_AND_SAFETY.md)
-17. [Test report](MODULE_08_TEST_REPORT.md)
-18. [Known limitations](MODULE_08_KNOWN_LIMITATIONS.md)
-19. [Delivery report](MODULE_08_DELIVERY_REPORT.md)
+* [Architecture](MODULE_08_ARCHITECTURE.md): principles, components and the data flow of an event-driven run.
+* One guide per workflow, [WF08-01](MODULE_08_WF08_01.md) to [WF08-10](MODULE_08_WF08_10.md) (table above): how it
+  runs, its configuration section, install steps, tests and what was verified on the hosted demo.
+* [n8n in Docker](N8N_SETUP.md): running n8n locally and re-importing the workflow files.
+
+Reference material that lives in the code rather than in separate documents:
+
+| Topic | Where |
+| --- | --- |
+| Configuration (every section, with comments) | `config/orchestration.yaml`; validated by `aurum/orchestration/config_model.py`; versioned in the database and edited from the dashboard |
+| Secrets and environment variables | `.env.example` (Module 08 block); values are never shown, only their fingerprints |
+| REST API | `/api/v1/orchestration/...` in `aurum/api/routes/orchestration.py`; interactive reference at `/docs` on the API |
+| Event catalogue | `aurum/orchestration/catalogue.py` |
+| Execution, workflow and version states | `aurum/orchestration/states.py` |
+| Database tables | `sql/migrations/0010_orchestration.sql`, `aurum/orchestration/db_models.py` |
+| Webhook security (tokens, HMAC signatures) | `aurum/orchestration/security.py` |
+| Permissions | `aurum/auth/roles.py` (`orchestration:*`) |
+| Tests | `tests/orchestration/` (one file per workflow, plus `test_workflow_files.py` for the n8n files) |
