@@ -803,6 +803,46 @@ def build_router(state: AppState, svc: Callable[[], Any]) -> APIRouter:
             return _err(OrchError(422, "INVALID_INPUT", "n8nExecutionId or n8nWorkflowId is required."), cid or str(uuid.uuid4()))
         return run(response, lambda: recovery().report(b), cid)
 
+    # ---- WF08-09 health watchdog (reads every service and records; restarts and changes nothing) ---------------------
+    def watchdog() -> Any:
+        from aurum.orchestration.health_watchdog import HealthWatchdog
+        return HealthWatchdog(svc())
+
+    @r.get("/health-watchdog/config")
+    def hw_config(response: Response, who: Principal = View) -> Any:
+        return run(response, lambda: watchdog().config_view())
+
+    @r.get("/health-watchdog/preflight")
+    def hw_preflight(response: Response, who: Principal = View) -> Any:
+        return run(response, lambda: watchdog().preflight())
+
+    @r.get("/health-watchdog/services")
+    def hw_services(response: Response, services: str | None = Query(None, max_length=400), who: Principal = View) -> Any:
+        want = [x.strip() for x in services.split(",") if x.strip()] if services else None
+        return run(response, lambda: watchdog().services(want))
+
+    @r.post("/health-watchdog/check")
+    def hw_check(response: Response, body: dict[str, Any] = Body(...), cid: str | None = Cid, who: Principal = Hook) -> Any:
+        """One fresh check of one service, recorded under the run's id. Service tokens only."""
+        if (resp := limited(hook_limit, who.id)) is not None:
+            return resp
+        b = snake(body)
+        service = str(b.get("service") or "").strip()
+        if not service or len(service) > 32:
+            return _err(OrchError(422, "INVALID_INPUT", "service is required."), cid or str(uuid.uuid4()))
+        return run(response, lambda: watchdog().check(service, run_id=str(b["execution_id"]) if b.get("execution_id") else None,
+                                                       dry_run=bool(b.get("dry_run"))), cid)
+
+    @r.post("/health-watchdog/evaluate")
+    def hw_evaluate(response: Response, body: dict[str, Any] = Body(...), cid: str | None = Cid, who: Principal = Hook) -> Any:
+        """Evaluates this run's checks, records the result and alerts on new problems. Service tokens only."""
+        if (resp := limited(hook_limit, who.id)) is not None:
+            return resp
+        b = snake(body)
+        only = b.get("services") if isinstance(b.get("services"), list) else None
+        return run(response, lambda: watchdog().evaluate(run_id=str(b["execution_id"]) if b.get("execution_id") else None,
+                                                          dry_run=bool(b.get("dry_run")), only=only), cid)
+
     return r
 
 
