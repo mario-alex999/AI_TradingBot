@@ -103,6 +103,9 @@ class RiskConfig(BaseModel):
     max_consecutive_losses: int = Field(3, ge=1, le=100)
     max_trades_per_day: int = Field(6, ge=1, le=1000)
     min_risk_reward: float = Field(1.5, gt=0, le=20)
+    # A requested size larger than the balance allows: "reduce" sizes it down to the recommended volume and flags the
+    # assessment for review; "block" refuses it. The budget itself (risk_per_trade_pct) is never exceeded either way.
+    oversized_volume: Literal["reduce", "block"] = "reduce"
     max_margin_utilization_pct: float = Field(30, gt=0, le=100)
     min_free_margin: float = Field(0, ge=0)
     max_slippage_points: dict[str, float] = {"default": 0}

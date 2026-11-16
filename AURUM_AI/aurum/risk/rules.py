@@ -215,6 +215,9 @@ def r_requested_volume(ctx: AssessmentContext) -> Outcome:
     if problems:
         return fail("VOLUME_INVALID", " ".join(problems), requested=str(v))
     if m is not None and m.recommended_volume is not None and v > m.recommended_volume:
+        if ctx.cfg.oversized_volume == "reduce":
+            return fail("VOLUME_REDUCED_TO_BUDGET", f"Requested {v} lots is more than the account's risk budget allows; the size "
+                        f"was reduced to {m.recommended_volume} lots.", WARNING, requested=str(v), recommended=str(m.recommended_volume))
         return fail("VOLUME_OVER_BUDGET", f"Requested {v} lots exceeds the {m.recommended_volume} lots the risk budget allows.",
                     requested=str(v), recommended=str(m.recommended_volume))
     return ok(requested=str(v))
@@ -564,7 +567,7 @@ RULES: tuple[Rule, ...] = (
     Rule("R016", "Minimum reward-to-risk", "trade", HARD, "Reward-to-risk after costs must meet the minimum.", r_min_rr, _t("min_risk_reward")),
     Rule("R017", "Risk per trade", "trade", HARD, "Requested risk percentage cannot exceed the maximum.", r_risk_pct, _t("risk_per_trade_pct", "max_risk_per_trade_pct")),
     Rule("R018", "Minimum lot within budget", "trade", HARD, "Reject when the minimum lot risks more than the budget.", r_min_volume),
-    Rule("R019", "Requested volume", "trade", HARD, "A requested volume must be valid and within the risk budget.", r_requested_volume),
+    Rule("R019", "Requested volume", "trade", HARD, "A requested volume must be valid; one above the risk budget is reduced to it (or blocked, per oversized_volume).", r_requested_volume),
     Rule("R020", "Maximum volume cap", "trade", WARNING, "Budget allows more than the broker maximum lot.", r_max_volume),
     Rule("R030", "Daily loss limit", "account", HARD, "Daily loss below the limit.", _period_rule("day", "max_daily_loss_pct", "DAILY_LOSS_LIMIT"), _t("max_daily_loss_pct", "loss_basis")),
     Rule("R031", "Weekly loss limit", "account", HARD, "Weekly loss below the limit.", _period_rule("week", "max_weekly_loss_pct", "WEEKLY_LOSS_LIMIT"), _t("max_weekly_loss_pct", "loss_basis")),

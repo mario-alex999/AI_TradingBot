@@ -183,7 +183,8 @@ def value_per_price_unit(spec: InstrumentSpec, account_ccy: str, now: datetime, 
 def calculate(*, spec: InstrumentSpec, direction: str, entry: Decimal, stop: Decimal, take_profit: Decimal | None,
               account_ccy: str, equity: Decimal, risk_pct: Decimal, max_risk_pct: Decimal, requested_volume: Decimal | None,
               spread_price: Decimal | None, slippage_points: Decimal, commission_per_lot: Decimal, leverage: int | None,
-              now: datetime, max_conv_age: timedelta, rate_fn: Callable[[str, str], Rate | None]) -> TradeMath:
+              now: datetime, max_conv_age: timedelta, rate_fn: Callable[[str, str], Rate | None],
+              reduce_oversize: bool = False) -> TradeMath:
     """Position size and money at risk. Assumes the stop and take-profit are already on the correct sides (validation.py)."""
     if equity <= 0:
         raise CalcError("ACCOUNT_INVALID", "Account equity must be positive.")
@@ -218,7 +219,10 @@ def calculate(*, spec: InstrumentSpec, direction: str, entry: Decimal, stop: Dec
 
     final, source = recommended, "recommended"
     if requested_volume is not None:
-        final, source = requested_volume, "requested"
+        if reduce_oversize and recommended is not None and requested_volume > recommended:
+            final, source = recommended, "reduced_to_budget"      # never more than the balance allows (R019 warns)
+        else:
+            final, source = requested_volume, "requested"
     est_loss = final * total_loss if final is not None else None
     notional = margin = margin_method = None
     if final is not None and spec.calc_mode in FORMULA_MODES:

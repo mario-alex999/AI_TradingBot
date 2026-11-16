@@ -3,6 +3,7 @@ import { Badge, type Tone } from '@/components/common/Badge';
 import { Tabs } from '@/components/common/Tabs';
 import { formatDateTime } from '@/utils/format';
 import type { Evidence, EvidenceItem, EvidenceKind, EvidenceSectionKey } from '@/types/approvals';
+import { show } from './evidenceFormat';
 
 const SECTION_LABEL: Record<EvidenceSectionKey, string> = {
   trade: 'Trade',
@@ -23,11 +24,11 @@ const KIND: Record<EvidenceKind, { label: string; tone: Tone }> = {
   missing: { label: 'Missing', tone: 'neutral' },
 };
 
-function show(v: unknown): string {
-  if (v === null || v === undefined || v === '') return '—';
-  if (Array.isArray(v)) return v.map(show).join(', ');
-  if (typeof v === 'object') return JSON.stringify(v);
-  return String(v);
+function withUnit(item: EvidenceItem): string {
+  const text = show(item.value);
+  const unit = typeof item.unit === 'string' && item.unit ? item.unit : null;
+  if (!unit || text === '—') return text;
+  return unit === '%' ? `${text}%` : `${text} ${unit}`;
 }
 
 function Row({ item }: { item: EvidenceItem }) {
@@ -36,7 +37,7 @@ function Row({ item }: { item: EvidenceItem }) {
     <li className="flex flex-col gap-1 border-b border-line-soft py-2 last:border-0 sm:flex-row sm:items-start sm:gap-3">
       <span className="w-40 shrink-0 text-xs text-neutral">{item.label}</span>
       <span className={item.kind === 'missing' ? 'flex-1 text-sm italic text-neutral' : 'num flex-1 break-words text-sm text-ink'}>
-        {item.kind === 'missing' ? item.reason ?? 'Not available' : show(item.value)}
+        {item.kind === 'missing' ? item.reason ?? 'Not available' : withUnit(item)}
       </span>
       <span className="flex shrink-0 flex-wrap items-center gap-1.5">
         <Badge tone={k.tone}>{k.label}</Badge>

@@ -201,7 +201,8 @@ class RiskEngine:
                              commission_per_lot=D(cfg.per_symbol(cfg.commission_per_lot, p.symbol) or 0),
                              leverage=snap.leverage if snap else None, now=now,
                              max_conv_age=timedelta(minutes=cfg.conversion_max_age_minutes),
-                             rate_fn=lambda a, b: self.data.rate(a, b, now)), None
+                             rate_fn=lambda a, b: self.data.rate(a, b, now),
+                             reduce_oversize=cfg.oversized_volume == "reduce"), None
         except CalcError as exc:
             return None, exc
 

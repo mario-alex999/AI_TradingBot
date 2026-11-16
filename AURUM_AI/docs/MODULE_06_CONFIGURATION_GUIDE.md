@@ -55,6 +55,7 @@ Applying a profile replaces those values. Editing individual values afterwards g
 | `volatility` | block VERY_HIGH; warn HIGH, VERY_LOW; unknown → review | R054 (Module 04 regimes) |
 | `sessions` | none | R055: `blocked_sessions` per symbol, `blocked_weekdays` |
 | `data_unavailable_policy` | review | What missing market data means: `review`, `block` or `error`, never `pass` |
+| `oversized_volume` | reduce | A requested size above the balance's budget: `reduce` sizes it down to the recommended volume (R019 warning, REVIEW); `block` refuses it |
 | `rules` | `{}` | Per-rule overrides (below) |
 
 The schema is strict (`extra="forbid"`), so a misspelt key is rejected rather than ignored. Cross-field checks:
