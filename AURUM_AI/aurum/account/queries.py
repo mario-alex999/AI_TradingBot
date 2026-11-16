@@ -12,7 +12,7 @@ from datetime import date, datetime, timedelta, timezone
 from itertools import accumulate
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, true
 from sqlalchemy.engine import Engine
 
 from aurum.account.db_models import AccountDeal, AccountSnapshot, TradeRecord
@@ -45,15 +45,54 @@ def _max_drawdown_pct(values: list[float]) -> float:
 
 
 class AccountQueries:
-    def __init__(self, engine: Engine, settings: Settings):
+    """Reads of the account mirror. Each instance covers ONE MT5 account: ``login``, or - when it is None - the account
+    synced most recently. Rows of different accounts are never combined."""
+
+    def __init__(self, engine: Engine, settings: Settings, login: int | None = None):
         self.engine = engine
         self.settings = settings
         self.mq = MarketQueries(engine)
+        self.login = login
+        self._resolved: int | None = None
+
+    def for_account(self, login: int | None) -> "AccountQueries":
+        twin = AccountQueries.__new__(AccountQueries)
+        twin.engine, twin.settings, twin.mq, twin.login, twin._resolved = self.engine, self.settings, self.mq, login, None
+        return twin
+
+    def account(self) -> int | None:
+        """The account this instance reads (resolved once)."""
+        if self.login is not None:
+            return self.login
+        if self._resolved is None:
+            with session_scope(self.engine) as s:
+                self._resolved = s.execute(select(AccountSnapshot.login).order_by(AccountSnapshot.captured_at.desc())
+                                           .limit(1)).scalar()
+        return self._resolved
+
+    def _of(self, column: Any) -> Any:
+        login = self.account()
+        return column == login if login is not None else true()
+
+    def accounts(self) -> list[dict[str, Any]]:
+        """Every mirrored account: login, currency, environment, last update."""
+        with session_scope(self.engine) as s:
+            rows = s.execute(select(AccountSnapshot.login, func.max(AccountSnapshot.captured_at))
+                             .group_by(AccountSnapshot.login).order_by(func.max(AccountSnapshot.captured_at).desc())).all()
+            out = []
+            for login, at in rows:
+                snap = s.execute(select(AccountSnapshot).where(AccountSnapshot.login == login, AccountSnapshot.captured_at == at)
+                                 .limit(1)).scalar()
+                out.append({"login": str(login), "currency": snap.currency if snap else None,
+                            "environment": ("demo" if snap and snap.trade_mode == "DEMO" else "live") if snap else None,
+                            "updatedAt": _iso(at)})
+            return out
 
     # ------------------------------------------------------------------ raw reads
     def latest_snapshot(self) -> AccountSnapshot | None:
         with session_scope(self.engine) as s:
-            snap = s.execute(select(AccountSnapshot).order_by(AccountSnapshot.captured_at.desc()).limit(1)).scalar()
+            snap = s.execute(select(AccountSnapshot).where(self._of(AccountSnapshot.login))
+                             .order_by(AccountSnapshot.captured_at.desc()).limit(1)).scalar()
             if snap is not None:
                 s.expunge(snap)
             return snap
@@ -61,26 +100,31 @@ class AccountQueries:
     def _equity_at(self, start: datetime) -> float | None:
         """Equity of the last snapshot before ``start``, else the first one after it."""
         with session_scope(self.engine) as s:
-            before = s.execute(select(AccountSnapshot.equity).where(AccountSnapshot.captured_at < start)
+            before = s.execute(select(AccountSnapshot.equity).where(AccountSnapshot.captured_at < start,
+                                                                     self._of(AccountSnapshot.login))
                                .order_by(AccountSnapshot.captured_at.desc()).limit(1)).scalar()
             if before is not None:
                 return before
-            return s.execute(select(AccountSnapshot.equity).where(AccountSnapshot.captured_at >= start)
+            return s.execute(select(AccountSnapshot.equity).where(AccountSnapshot.captured_at >= start,
+                                                                   self._of(AccountSnapshot.login))
                              .order_by(AccountSnapshot.captured_at).limit(1)).scalar()
 
     def _equity_history(self) -> list[float]:
         # Only one column is read; the recorder thins snapshots older than 7 days to one per hour.
         with session_scope(self.engine) as s:
-            return list(s.execute(select(AccountSnapshot.equity).order_by(AccountSnapshot.captured_at)).scalars().all())
+            return list(s.execute(select(AccountSnapshot.equity).where(self._of(AccountSnapshot.login))
+                                  .order_by(AccountSnapshot.captured_at)).scalars().all())
 
     def _open_count(self) -> int:
         with session_scope(self.engine) as s:
-            return s.execute(select(func.count()).select_from(TradeRecord).where(TradeRecord.status == "open")).scalar_one()
+            return s.execute(select(func.count()).select_from(TradeRecord).where(TradeRecord.status == "open",
+                                                                                 self._of(TradeRecord.login))).scalar_one()
 
     def _trades(self, status: str) -> list[TradeRecord]:
         with session_scope(self.engine) as s:
             order = TradeRecord.close_time if status == "closed" else TradeRecord.open_time
-            rows = list(s.execute(select(TradeRecord).where(TradeRecord.status == status).order_by(order)).scalars().all())
+            rows = list(s.execute(select(TradeRecord).where(TradeRecord.status == status, self._of(TradeRecord.login))
+                                  .order_by(order)).scalars().all())
             s.expunge_all()
             return rows
 
@@ -92,7 +136,7 @@ class AccountQueries:
         snap = self.latest_snapshot()
         if snap is None:
             return None
-        return {"environment": "demo" if snap.trade_mode == "DEMO" else "live", "currency": snap.currency,
+        return {"login": str(snap.login), "environment": "demo" if snap.trade_mode == "DEMO" else "live", "currency": snap.currency,
                 "balance": _r(snap.balance), "equity": _r(snap.equity), "freeMargin": _r(snap.margin_free),
                 "marginLevel": _r(snap.margin_level), "openPositions": self._open_count(),
                 "pendingApprovals": self._pending_approvals(), "updatedAt": _iso(snap.captured_at)}
@@ -150,7 +194,8 @@ class AccountQueries:
         from aurum.account.db_models import AccountOrder
         try:
             with session_scope(self.engine) as s:
-                rows = list(s.execute(select(AccountOrder).order_by(AccountOrder.placed_at)).scalars().all())
+                rows = list(s.execute(select(AccountOrder).where(self._of(AccountOrder.login))
+                                      .order_by(AccountOrder.placed_at)).scalars().all())
                 s.expunge_all()
         except SQLAlchemyError:          # table not migrated yet: no pending orders to show
             return []
@@ -167,7 +212,7 @@ class AccountQueries:
 
     def history(self, limit: int = 500) -> list[dict[str, Any]]:
         with session_scope(self.engine) as s:
-            rows = list(s.execute(select(TradeRecord).where(TradeRecord.status == "closed")
+            rows = list(s.execute(select(TradeRecord).where(TradeRecord.status == "closed", self._of(TradeRecord.login))
                                   .order_by(TradeRecord.close_time.desc()).limit(limit)).scalars().all())
             s.expunge_all()
         return [{"ticket": r.id, "instrument": r.symbol, "side": r.side, "volume": r.volume,
@@ -182,7 +227,7 @@ class AccountQueries:
         events: list[tuple[datetime, float]] = [(r.close_time, r.pnl or 0.0) for r in self._trades("closed")]
         with session_scope(self.engine) as s:
             cash = select(AccountDeal.ts_utc, AccountDeal.profit, AccountDeal.swap, AccountDeal.commission, AccountDeal.fee).where(
-                AccountDeal.type.not_in(TRADE_TYPES + CANCELED_TYPES))
+                AccountDeal.type.not_in(TRADE_TYPES + CANCELED_TYPES), self._of(AccountDeal.login))
             events += [(_utc(t), sum(v or 0.0 for v in vals)) for t, *vals in s.execute(cash).all()]
         events.sort(key=lambda e: e[0])
         times = [_utc(t) for t, _ in events]

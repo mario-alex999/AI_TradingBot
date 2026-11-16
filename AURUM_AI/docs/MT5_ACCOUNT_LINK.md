@@ -51,7 +51,29 @@ Errors: `INVALID_LOGIN`, `INVALID_SERVER`, `INVALID_PASSWORD` (422), `ACCOUNT_NO
 (409), `ALL_SLOTS_BUSY`, `MT5_LINK_NOT_CONFIGURED` (503). Connector outcomes on the row: `NOT_DEMO`, `CONNECT_FAILED`,
 `WRONG_ACCOUNT`, `SYNC_FAILED`, `CONNECTOR_LOST`.
 
-## Not in Phase 1
+## Phase 2: each person sees and is assessed on their own account
 
-Trade Management, Risk, Performance and Approvals still read all mirrored accounts together; Phase 2 filters them by the
-signed-in person's linked account.
+Several linked accounts are never combined.
+
+**Account pages** (`/account/summary`, `/account/accounts`, `/trades/open`, `/trades/history`, `/risk/overview`,
+`/performance/summary`) need a signed-in person or a service token (`approvals:view`) and cover one account:
+
+1. `?login=` when the caller may see that account (otherwise 403);
+2. else the account linked in this sign-in session;
+3. else the first account in the person's account scope;
+4. else (people without a scope, such as administrators) the account synced most recently.
+
+`GET /account/accounts` lists the accounts the caller may see, the one used by default (`current`) and the one linked in
+this session (`linked`).
+
+**Risk (Module 06).** An assessment covers one account: `account_login` in the request (or the account synced most
+recently when it is absent). Balance, equity history, open positions, closed trades, cash flows, period start values and
+the risk reserved by assessments waiting for approval all come from that account only. A loss or drawdown limit locks
+the account that reached it (`account` scope), so another person's account keeps trading. Migration `0014` adds
+`account_login` to `risk_assessments` and `risk_period_records`.
+
+**Approvals (Module 07).** A request keeps the account it was opened for. Revalidation and the hand-off re-check risk on
+that same account, and the hand-off checks that this account is still mirrored. Requests and positions are shown only to
+people whose account scope includes the account (unchanged).
+
+Trade ideas (Module 05) are not per account: each idea is assessed against one account when its request is opened.

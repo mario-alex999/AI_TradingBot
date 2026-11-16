@@ -30,7 +30,7 @@ class RiskGateway(Protocol):
     def normalised_entry(self, candidate_uid: str) -> Decimal | None: ...
     def quote_time(self, symbol: str, now: datetime) -> datetime | None: ...
     def symbols(self) -> dict[str, str]: ...
-    def account_login(self) -> str | None: ...
+    def account_login(self, login: str | None = None) -> str | None: ...
     def active_locks(self, symbol: str | None = None, strategy: str | None = None) -> list[dict[str, Any]]: ...
 
 
@@ -78,8 +78,15 @@ class InProcessRiskGateway:
     def symbols(self) -> dict[str, str]:
         return self._call(lambda: self._svc().data.symbols())
 
-    def account_login(self) -> str | None:
-        snap = self._call(lambda: self._svc().data.account_snapshot())
+    def account_login(self, login: str | None = None) -> str | None:
+        """The account Module 06 sees: the most recently synced one, or - with ``login`` - that account if it is still
+        mirrored (None when it is not), so a hand-off checks the approval's own account even when others are linked."""
+        def snap_of() -> Any:
+            data = self._svc().data
+            if login and hasattr(data, "with_account"):
+                return data.with_account(int(login)).account_snapshot()
+            return data.account_snapshot()
+        snap = self._call(snap_of)
         return str(snap.login) if snap is not None and snap.login is not None else None
 
     def active_locks(self, symbol: str | None = None, strategy: str | None = None) -> list[dict[str, Any]]:

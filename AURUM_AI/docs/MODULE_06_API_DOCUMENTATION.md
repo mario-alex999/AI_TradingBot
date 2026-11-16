@@ -50,6 +50,8 @@ Content-Type: application/json
 Optional fields:
 - `requestedVolume`: checked against the budget and the broker limits.
 - `tradeIdeaId`: instead of prices. Module 05's candidate is used.
+- `accountLogin`: the MT5 account to assess (its balance, positions, loss history and reserved risk only). Without it,
+  the account synced most recently is used. The response's `accountLogin` says which account was assessed.
 
 Response (abridged):
 ```json

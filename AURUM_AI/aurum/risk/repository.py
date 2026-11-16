@@ -164,22 +164,25 @@ class RiskRepository:
 
     # ---- period anchors ------------------------------------------------------------------------------------------------
     def period_anchor(self, kind: str, label: str, basis: str, start: datetime, end: datetime,
-                      compute: Callable[[], tuple[Decimal | None, str, bool]]) -> tuple[Decimal | None, str, bool]:
+                      compute: Callable[[], tuple[Decimal | None, str, bool]],
+                      account_login: int | None = None) -> tuple[Decimal | None, str, bool]:
         """The persisted starting value for a period. A certain value, once stored, never changes; an uncertain or missing one
         is recomputed until a certain one is found."""
         with self.read() as s:
             row = s.execute(select(RiskPeriodRecord).where(and_(RiskPeriodRecord.kind == kind, RiskPeriodRecord.label == label,
-                                                                 RiskPeriodRecord.basis == basis))).scalar_one_or_none()
+                                                                 RiskPeriodRecord.basis == basis,
+                                                                 RiskPeriodRecord.account_login == (account_login or 0)))).scalar_one_or_none()
             if row is not None and not row.start_uncertain and row.start_value is not None:
                 return row.start_value, row.start_source, False
         value, source, uncertain = compute()
         try:
             with session_scope(self.engine) as s:
                 row = s.execute(select(RiskPeriodRecord).where(and_(RiskPeriodRecord.kind == kind, RiskPeriodRecord.label == label,
-                                                                     RiskPeriodRecord.basis == basis))).scalar_one_or_none()
+                                                                     RiskPeriodRecord.basis == basis,
+                                                                 RiskPeriodRecord.account_login == (account_login or 0)))).scalar_one_or_none()
                 now = datetime.now(timezone.utc)
                 if row is None:
-                    s.add(RiskPeriodRecord(kind=kind, label=label, basis=basis, start_at=start, end_at=end, start_value=value,
+                    s.add(RiskPeriodRecord(kind=kind, label=label, basis=basis, account_login=account_login or 0, start_at=start, end_at=end, start_value=value,
                                            start_source=source, start_uncertain=uncertain, created_at=now, updated_at=now))
                 elif row.start_uncertain or row.start_value is None:
                     row.start_value, row.start_source, row.start_uncertain, row.updated_at = value, source, uncertain, now
@@ -188,9 +191,10 @@ class RiskRepository:
         return value, source, uncertain
 
     def record_period_loss(self, s: Session, kind: str, label: str, basis: str, loss_pct: Decimal | None, limit_hit: bool,
-                           now: datetime) -> None:
+                           now: datetime, account_login: int | None = None) -> None:
         row = s.execute(select(RiskPeriodRecord).where(and_(RiskPeriodRecord.kind == kind, RiskPeriodRecord.label == label,
-                                                             RiskPeriodRecord.basis == basis))).scalar_one_or_none()
+                                                             RiskPeriodRecord.basis == basis,
+                                                                 RiskPeriodRecord.account_login == (account_login or 0)))).scalar_one_or_none()
         if row is None:
             return
         row.last_loss_pct, row.updated_at = loss_pct, now
@@ -200,7 +204,7 @@ class RiskRepository:
     def period_records(self, limit: int = 60) -> list[dict[str, Any]]:
         with self.read() as s:
             rows = s.execute(select(RiskPeriodRecord).order_by(RiskPeriodRecord.start_at.desc()).limit(limit)).scalars().all()
-            return [{"kind": r.kind, "label": r.label, "basis": r.basis, "start_at": _utc(r.start_at), "end_at": _utc(r.end_at),
+            return [{"kind": r.kind, "label": r.label, "basis": r.basis, "account_login": r.account_login or None, "start_at": _utc(r.start_at), "end_at": _utc(r.end_at),
                      "start_value": r.start_value, "start_source": r.start_source, "start_uncertain": r.start_uncertain,
                      "last_loss_pct": r.last_loss_pct, "limit_reached_at": _utc(r.limit_reached_at)} for r in rows]
 
@@ -209,9 +213,14 @@ class RiskRepository:
         return s.execute(select(RiskAssessment).where(RiskAssessment.idempotency_key == key)
                          .order_by(RiskAssessment.attempt.desc()).limit(1)).scalar_one_or_none()
 
-    def live_reservations(self, s: Session, now: datetime, exclude_key: str | None = None) -> list[Reservation]:
+    def live_reservations(self, s: Session, now: datetime, exclude_key: str | None = None,
+                          account_login: int | None = None) -> list[Reservation]:
+        """Risk held by assessments still waiting for approval. With ``account_login`` only that account's reservations
+        count (older assessments without an account count against every account, as before)."""
         q = select(RiskAssessment).where(and_(RiskAssessment.decision.in_((PASS, REVIEW)), RiskAssessment.state == "active",
                                               RiskAssessment.expires_at > now, RiskAssessment.reserved_risk.is_not(None)))
+        if account_login is not None:
+            q = q.where(or_(RiskAssessment.account_login == account_login, RiskAssessment.account_login.is_(None)))
         if exclude_key:
             q = q.where(RiskAssessment.idempotency_key != exclude_key)
         return [Reservation(r.assessment_id, r.symbol, r.direction, r.asset_class, r.strategy, r.reserved_risk,

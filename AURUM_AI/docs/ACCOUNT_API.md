@@ -43,9 +43,15 @@ Tables: `account_snapshots`, `account_deals`, `trade_records`. PostgreSQL gets t
 
 ## Endpoints
 
+The account routes below need a signed-in person or a service token with `approvals:view`, and each covers **one** MT5
+account: `?login=` (if the caller may see it), else the account linked in this sign-in session, else the first account
+in the person's scope, else the account synced most recently. Accounts are never combined. See
+[MT5_ACCOUNT_LINK.md](MT5_ACCOUNT_LINK.md), *Phase 2*.
+
 | Endpoint | Returns |
 | --- | --- |
-| `GET /account/summary` | Latest snapshot: balance, equity, free margin, margin level, open positions. `pendingApprovals` is 0 because AURUM proposes no trades yet. Returns `null` before the first sync. |
+| `GET /account/accounts` | The accounts the caller may see, the one used by default (`current`) and the one linked in this session (`linked`). |
+| `GET /account/summary` | Latest snapshot of the account: `login`, balance, equity, free margin, margin level, open positions, pending approvals. Returns `null` before the first sync. |
 | `GET /trades/open` | Open positions. `currentPrice` and `floatingPnl` come from the latest stored tick, only while it is fresh (≤ 2 min old); otherwise they are `null`. Floating P/L = price move × tick value ÷ tick size × volume, plus commission and swap charged so far. |
 | `GET /trades/history?limit=` | Closed positions, newest first, with net realised P/L (profit + swap + commission + fee). |
 | `GET /risk/overview` | Daily, weekly and max drawdown from equity snapshots. Open risk to each position's stop loss. Exposure as notional % of equity. Configured limits. |

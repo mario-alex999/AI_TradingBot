@@ -268,20 +268,23 @@ class ApprovalService:
         self._move(s, req, target, who, reason, now, event="approval.invalidated")
 
     # ---- opening a request -----------------------------------------------------------------------------------------------
-    def _proposal(self, idea: TradeIdea, v: TradeIdeaVersion) -> dict[str, Any]:
+    def _proposal(self, idea: TradeIdea, v: TradeIdeaVersion, account_login: str | None = None) -> dict[str, Any]:
         p = {"symbol": idea.symbol, "direction": v.direction, "entry": str(v.entry), "stop_loss": str(v.stop_loss),
              "take_profit": v.take_profits[0], "strategy": idea.strategy, "timeframe": idea.timeframe,
              "trade_idea_id": idea.idea_id, "source": "module_07"}
+        if account_login:
+            p["account_login"] = account_login        # re-checks cover the account the request was opened for
         if v.requested_volume is not None:
             p["requested_volume"] = str(v.requested_volume)
         if v.ai_confidence is not None:
             p["ai_confidence"] = float(v.ai_confidence)
         return p
 
-    def _assess(self, idea: TradeIdea, v: TradeIdeaVersion, purpose: str, correlation_id: str) -> dict[str, Any] | None:
+    def _assess(self, idea: TradeIdea, v: TradeIdeaVersion, purpose: str, correlation_id: str,
+                account_login: str | None = None) -> dict[str, Any] | None:
         key = f"m07:{idea.idea_id}:v{v.version}:{purpose}:{uuid.uuid4().hex[:12]}"
         try:
-            return self.risk.assess(self._proposal(idea, v), "module_07", correlation_id, key)
+            return self.risk.assess(self._proposal(idea, v, account_login), "module_07", correlation_id, key)
         except GatewayUnavailable as exc:
             log.warning("Module 06 unavailable during %s", purpose, extra={"idea": idea.idea_id, "error": str(exc)})
             return None
@@ -842,7 +845,7 @@ class ApprovalService:
             old = req.risk_assessment_id
             s.expunge_all()
         self._cancel_assessment_later(old, "Replaced by a revalidation in Module 07.")    # frees R047 for the new one
-        risk = self._assess(idea, v, "revalidate", req.correlation_id)
+        risk = self._assess(idea, v, "revalidate", req.correlation_id, req.account_login)
         ev = self._gather(idea, v, risk)
         now = self.now()
         with self.repo.write() as s:
@@ -947,7 +950,7 @@ class ApprovalService:
                     problems += ["Module 06: " + r for r in check_old.get("reasons") or []]
                 elif full:
                     self.risk.cancel(req.risk_assessment_id, "module_07", "Replaced by the handoff revalidation.", req.correlation_id)
-                    fresh = self._assess(idea, v, "handoff", req.correlation_id)
+                    fresh = self._assess(idea, v, "handoff", req.correlation_id, req.account_login)
                     if fresh is None:
                         unavailable = True
                     else:
@@ -955,7 +958,7 @@ class ApprovalService:
                 quote_at = self.risk.quote_time(req.symbol, now)
                 if quote_at is None or (now - quote_at).total_seconds() > policy.review.market_data_max_age_seconds:
                     problems.append("Market data is stale at handoff.")
-                account = self.risk.account_login()
+                account = self.risk.account_login(req.account_login) if req.account_login else self.risk.account_login()
                 if account != req.account_login:
                     problems.append("The trading account changed after approval.")
                 if policy.handoff.allowed_accounts and (account or "") not in policy.handoff.allowed_accounts:

@@ -12,12 +12,12 @@
 | Table | Holds | Keys and guarantees |
 |---|---|---|
 | `risk_config_versions` | Every configuration version: full config JSON, fingerprint, author, reason, loosened fields | `version` unique; **no UPDATE or DELETE** (trigger) |
-| `risk_assessments` | One row per assessment: proposal, decision, state, volumes, risk, R:R, reserved risk, the four section statuses, config and engine version, `input_snapshot`, `input_hash`, full `result` JSON, expiry | `assessment_id` unique; `(idempotency_key, attempt)` unique; state is `active`, `consumed` or `cancelled` (CHECK); indexes on time, symbol, live reservations and trade idea |
+| `risk_assessments` | One row per assessment: the MT5 account assessed (`account_login`, migration 0014), proposal, decision, state, volumes, risk, R:R, reserved risk, the four section statuses, config and engine version, `input_snapshot`, `input_hash`, full `result` JSON, expiry | `assessment_id` unique; `(idempotency_key, attempt)` unique; state is `active`, `consumed` or `cancelled` (CHECK); indexes on time, symbol, live reservations and trade idea |
 | `risk_rule_evaluations` | Every rule result for every assessment: outcome, severity, reason code, message, evidence, thresholds | Index on `(rule_id, outcome)`; **no UPDATE** (trigger) |
 | `risk_account_snapshots` | The account view each assessment used: balance, equity, drawdown, period losses, margin, streak | Index on time |
 | `risk_portfolio_snapshots` | The exposure each assessment or portfolio refresh saw, including reservations | Index on time |
 | `risk_correlation_snapshots` | Pair coefficients with samples, window and reliability; reused while fresh | Index on pair and time |
-| `risk_period_records` | Day, week and month anchors: start value and its source, uncertainty, last loss %, when the limit was reached | `(kind, label, basis)` unique, so an anchor never moves |
+| `risk_period_records` | Day, week and month anchors per account: start value and its source, uncertainty, last loss %, when the limit was reached | `(kind, label, basis, account_login)` unique (migration 0014; 0 = unknown account), so an anchor never moves |
 | `risk_locks` | Active and past locks: scope, reason, trigger, rule, expiry, release | `lock_id` unique; `dedupe_key` unique while active (set to NULL on release), so the same automatic lock is never duplicated |
 | `risk_lock_history` | activated, expired and released actions with actor and reason | Index on lock |
 | `risk_loss_streaks` | Streaks that triggered a lock, by trade-id fingerprint | `fingerprint` unique, so a released streak does not re-lock |

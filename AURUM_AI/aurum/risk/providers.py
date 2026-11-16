@@ -6,6 +6,7 @@ Nothing here imports the MT5 gateway: Module 06 never talks to MetaTrader 5.
 """
 from __future__ import annotations
 
+import copy
 import logging
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -13,7 +14,7 @@ from statistics import median
 from typing import Any, Protocol
 
 import pandas as pd
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, select, true
 from sqlalchemy.engine import Engine
 
 from aurum.risk.account import BalanceOperation, ClosedTrade, EquityPoint, Snapshot
@@ -56,11 +57,35 @@ def _side(value: str) -> str:
 class DatabaseRiskData:
     """Live implementation over the AURUM database."""
 
-    def __init__(self, engine: Engine, settings: Any, intelligence_service: Any = None, quality_lookback_hours: int = 24):
+    def __init__(self, engine: Engine, settings: Any, intelligence_service: Any = None, quality_lookback_hours: int = 24,
+                 login: int | None = None):
         self.engine, self.settings = engine, settings
         self._intel = intelligence_service
         self.quality_lookback = timedelta(hours=quality_lookback_hours)
         self._spec_cache: dict[str, tuple[datetime, InstrumentSpec]] = {}
+        self.login = login           # the MT5 account assessed; None = the account synced most recently
+
+    def with_account(self, login: int | str | None) -> "DatabaseRiskData":
+        """The same data source, pinned to one MT5 account. Balance, equity history, positions, closed trades and cash
+        flows then all come from that account only, so several linked accounts are never mixed."""
+        twin = copy.copy(self)
+        twin.login = int(login) if login not in (None, "") else None
+        return twin
+
+    def _account(self) -> int | None:
+        """The account every account read uses: the pinned one, else the one with the newest snapshot."""
+        if self.login is not None:
+            return self.login
+        from aurum.account.db_models import AccountSnapshot as S
+        try:
+            with self._session() as s:
+                return s.execute(select(S.login).order_by(S.captured_at.desc()).limit(1)).scalar()
+        except Exception:  # noqa: BLE001
+            return None
+
+    @staticmethod
+    def _of(column: Any, login: int | None) -> Any:
+        return column == login if login is not None else true()
 
     def _session(self):
         from aurum.database.connection import session_scope
@@ -71,7 +96,8 @@ class DatabaseRiskData:
         from aurum.account.db_models import AccountSnapshot as S
         try:
             with self._session() as s:
-                r = s.execute(select(S).order_by(S.captured_at.desc()).limit(1)).scalar_one_or_none()
+                r = s.execute(select(S).where(self._of(S.login, self._account())).order_by(S.captured_at.desc())
+                              .limit(1)).scalar_one_or_none()
         except Exception as exc:  # noqa: BLE001 - absent tables mean "no data", reported as such
             log.warning("Account snapshot unavailable", extra={"error": type(exc).__name__})
             return None
@@ -83,11 +109,12 @@ class DatabaseRiskData:
 
     def equity_history(self, since: datetime, until: datetime) -> list[EquityPoint]:
         from aurum.account.db_models import AccountSnapshot as S
+        login = self._account()
         try:
             with self._session() as s:
-                rows = s.execute(select(S.captured_at, S.equity, S.balance).where(and_(S.captured_at >= since, S.captured_at <= until))
-                                 .order_by(S.captured_at)).all()
-                peak = s.execute(select(func.max(S.equity))).scalar()
+                rows = s.execute(select(S.captured_at, S.equity, S.balance).where(and_(
+                    S.captured_at >= since, S.captured_at <= until, self._of(S.login, login))).order_by(S.captured_at)).all()
+                peak = s.execute(select(func.max(S.equity)).where(self._of(S.login, login))).scalar()
         except Exception:  # noqa: BLE001
             return []
         pts = [EquityPoint(_utc(t), D(e), D(b)) for t, e, b in rows]
@@ -101,7 +128,7 @@ class DatabaseRiskData:
         classes = self.symbols()
         try:
             with self._session() as s:
-                rows = s.execute(select(T).where(T.status == "open")).scalars().all()
+                rows = s.execute(select(T).where(T.status == "open", self._of(T.login, self._account()))).scalars().all()
         except Exception:  # noqa: BLE001
             return []
         return [Position(id=r.id, symbol=r.symbol, side=_side(r.side), volume=D(r.volume), open_price=D(r.open_price),
@@ -113,7 +140,8 @@ class DatabaseRiskData:
         from aurum.account.db_models import TradeRecord as T
         try:
             with self._session() as s:
-                rows = s.execute(select(T).where(and_(T.status == "closed", T.close_time >= since))).scalars().all()
+                rows = s.execute(select(T).where(and_(T.status == "closed", T.close_time >= since,
+                                                      self._of(T.login, self._account())))).scalars().all()
         except Exception:  # noqa: BLE001
             return []
         return [ClosedTrade(r.id, r.symbol, _utc(r.open_time), _utc(r.close_time), D(r.pnl or 0)) for r in rows if r.close_time]
@@ -122,7 +150,8 @@ class DatabaseRiskData:
         from aurum.account.db_models import TradeRecord as T
         try:
             with self._session() as s:
-                return int(s.execute(select(func.count()).select_from(T).where(T.open_time >= since)).scalar() or 0)
+                return int(s.execute(select(func.count()).select_from(T).where(
+                    T.open_time >= since, self._of(T.login, self._account()))).scalar() or 0)
         except Exception:  # noqa: BLE001
             return 0
 
@@ -130,7 +159,8 @@ class DatabaseRiskData:
         from aurum.account.db_models import AccountDeal as A
         try:
             with self._session() as s:
-                rows = s.execute(select(A.ts_utc, A.profit).where(and_(A.type.in_(CASH_FLOW_TYPES), A.ts_utc >= since))).all()
+                rows = s.execute(select(A.ts_utc, A.profit).where(and_(A.type.in_(CASH_FLOW_TYPES), A.ts_utc >= since,
+                                                                      self._of(A.login, self._account())))).all()
         except Exception:  # noqa: BLE001
             return []
         return [BalanceOperation(_utc(t), D(p or 0)) for t, p in rows]
