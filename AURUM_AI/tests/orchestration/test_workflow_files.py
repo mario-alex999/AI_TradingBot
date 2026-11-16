@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from aurum.orchestration import approval_notifications, approval_responses, market_analysis, market_monitoring, trade_handoff, trade_monitoring, trade_opportunities
+from aurum.orchestration import approval_notifications, approval_responses, error_recovery, market_analysis, market_monitoring, trade_handoff, trade_monitoring, trade_opportunities
 
 DIR = Path(__file__).resolve().parents[2] / "n8n" / "workflows"
 API = '={{ $("AURUM settings").first().json.aurumApi }}'
@@ -50,6 +50,12 @@ FILES = {
         ["Retrieve open trade records", "Split out trades", "Request trade status and check for risk and lifecycle events",
          "Anything changed since the last record?", "Record status update", "Needs attention?",
          "Record: status update (dashboard alerted)", "Record: status update", "Record: unchanged"]),
+    "aurum_wf08_08_error_recovery.json": (error_recovery.WEBHOOK_PATH, "Loop over failures",
+        {"/webhooks/n8n/callback", "/error-recovery/record", "/error-recovery/report"},
+        ["n8n Error Trigger", "Identify failed workflow and capture error details", "Classify error and record it in the backend",
+         "Is retry safe? (crash)", "Identify failed workflow runs", "Capture error details and classify error",
+         "Record error in the backend", "Is retry safe?", "Recovery verified?", "Record: retry with limits (scheduled by AURUM)",
+         "Record: recovery verified", "Record: escalated and alerted (not retried)"]),
 }
 
 
@@ -72,7 +78,7 @@ def test_well_formed_inactive_and_fully_connected(wf):
                 assert t["node"] in names, t["node"]
                 targets.add(t["node"])
     unreachable = [n["name"] for n in w["nodes"] if n["name"] not in targets
-                   and n["type"] not in ("n8n-nodes-base.webhook", "n8n-nodes-base.stickyNote")]
+                   and n["type"] not in ("n8n-nodes-base.webhook", "n8n-nodes-base.errorTrigger", "n8n-nodes-base.stickyNote")]
     assert unreachable == [], unreachable
     hook = next(n for n in w["nodes"] if n["type"] == "n8n-nodes-base.webhook")
     assert hook["parameters"]["path"] == FILES[name][0] and hook["parameters"]["httpMethod"] == "POST"
@@ -93,7 +99,7 @@ def test_only_calls_the_configured_aurum_api_and_only_safe_endpoints(wf):
     assert not re.search(r"(?i)/(approve|reject|execute|orders?|trade-management)\b", text)
     assert "host.docker.internal" not in text and "localhost" not in text
     kinds = {n["type"] for n in w["nodes"]}                               # no broker, MT5, code or shell node anywhere
-    assert kinds <= {"n8n-nodes-base.webhook", "n8n-nodes-base.set", "n8n-nodes-base.if", "n8n-nodes-base.respondToWebhook",
+    assert kinds <= {"n8n-nodes-base.webhook", "n8n-nodes-base.errorTrigger", "n8n-nodes-base.set", "n8n-nodes-base.if", "n8n-nodes-base.respondToWebhook",
                      "n8n-nodes-base.httpRequest", "n8n-nodes-base.splitOut", "n8n-nodes-base.splitInBatches",
                      "n8n-nodes-base.aggregate", "n8n-nodes-base.stickyNote"}, kinds
 
@@ -112,7 +118,16 @@ def test_webhook_token_is_checked_before_anything_else(wf):
     _, w, _ = wf
     hook = next(n for n in w["nodes"] if n["type"] == "n8n-nodes-base.webhook")["name"]
     assert [t["node"] for t in w["connections"][hook]["main"][0]] == ["AURUM settings"]
-    assert [t["node"] for t in w["connections"]["AURUM settings"]["main"][0]] == ["Webhook token valid?"]
+    after = [t["node"] for t in w["connections"]["AURUM settings"]["main"][0]]
+    if after == ["Started by the n8n Error Trigger?"]:          # WF08-08: two ways in
+        crash, aurum = w["connections"]["Started by the n8n Error Trigger?"]["main"]
+        assert [t["node"] for t in aurum] == ["Webhook token valid?"]
+        # The crash branch is only reachable from n8n's own Error Trigger, which cannot be called over HTTP.
+        cond = next(n for n in w["nodes"] if n["name"] == "Started by the n8n Error Trigger?")
+        assert "$('n8n Error Trigger').isExecuted" in json.dumps(cond["parameters"])
+        assert [t["node"] for t in w["connections"]["n8n Error Trigger"]["main"][0]] == ["AURUM settings"]
+    else:
+        assert after == ["Webhook token valid?"]
     yes, no = w["connections"]["Webhook token valid?"]["main"]
     assert [t["node"] for t in no] == ["Reject (wrong webhook token)"]
     assert all(next(n for n in w["nodes"] if n["name"] == t["node"])["type"] == "n8n-nodes-base.respondToWebhook" for t in yes)
