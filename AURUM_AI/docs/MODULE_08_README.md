@@ -30,8 +30,9 @@ execution decision, and nothing in Module 08 turns AI output into a trade.
 **Module 09 (trade execution) is not built**, and nothing in AURUM sends an order. WF08-06 and WF08-07 are built up to
 that boundary: WF08-06 verifies and records the execution request Module 07 creates and reports that it is waiting for
 Module 09 (see [MODULE_08_WF08_06.md](MODULE_08_WF08_06.md), *What is left for Module 09*); WF08-07 watches the
-positions Module 07 holds, which come from the read-only account mirror until Module 09 reports them. WF08-09 and
-WF08-10 are not built. WF08-01 to WF08-08 are built (see the table below).
+positions Module 07 holds, which come from the read-only account mirror until Module 09 reports them; WF08-09
+reports Module 09 as not deployed. WF08-10 (News and COT Update Scheduler) is not built. WF08-01 to WF08-09 are built
+(see the table below).
 
 ## Built workflows
 
@@ -45,6 +46,7 @@ WF08-10 are not built. WF08-01 to WF08-08 are built (see the table below).
 | WF08-06 Approved Trade Handoff | `n8n/workflows/aurum_wf08_06_trade_handoff.json` | `python -m aurum.cli orchestration setup-wf08-06 --n8n-workflow-id <id>` | [MODULE_08_WF08_06.md](MODULE_08_WF08_06.md) |
 | WF08-07 Trade Monitoring Orchestrator | `n8n/workflows/aurum_wf08_07_trade_monitoring.json` | `python -m aurum.cli orchestration setup-wf08-07 --n8n-workflow-id <id>` | [MODULE_08_WF08_07.md](MODULE_08_WF08_07.md) |
 | WF08-08 Error Handling and Recovery | `n8n/workflows/aurum_wf08_08_error_recovery.json` | `python -m aurum.cli orchestration setup-wf08-08 --n8n-workflow-id <id>` | [MODULE_08_WF08_08.md](MODULE_08_WF08_08.md) |
+| WF08-09 System Health Watchdog | `n8n/workflows/aurum_wf08_09_health_watchdog.json` | `python -m aurum.cli orchestration setup-wf08-09 --n8n-workflow-id <id>` | [MODULE_08_WF08_09.md](MODULE_08_WF08_09.md) |
 
 ## Quick start
 

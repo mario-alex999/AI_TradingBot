@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from aurum.orchestration import approval_notifications, approval_responses, error_recovery, market_analysis, market_monitoring, trade_handoff, trade_monitoring, trade_opportunities
+from aurum.orchestration import approval_notifications, approval_responses, error_recovery, health_watchdog, market_analysis, market_monitoring, trade_handoff, trade_monitoring, trade_opportunities
 
 DIR = Path(__file__).resolve().parents[2] / "n8n" / "workflows"
 API = '={{ $("AURUM settings").first().json.aurumApi }}'
@@ -56,6 +56,11 @@ FILES = {
          "Is retry safe? (crash)", "Identify failed workflow runs", "Capture error details and classify error",
          "Record error in the backend", "Is retry safe?", "Recovery verified?", "Record: retry with limits (scheduled by AURUM)",
          "Record: recovery verified", "Record: escalated and alerted (not retried)"]),
+    "aurum_wf08_09_health_watchdog.json": (health_watchdog.WEBHOOK_PATH, "Loop over services",
+        {"/webhooks/n8n/callback", "/health-watchdog/check", "/health-watchdog/evaluate"},
+        ["List the services to check", "Split out services", "Check service", "Service working?",
+         "Record: service working", "Record: service problem", "Record: check request failed",
+         "Evaluate status and alert on new problems"]),
 }
 
 
