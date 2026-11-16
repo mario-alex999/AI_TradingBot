@@ -46,6 +46,7 @@ DESCRIPTION = ("Refresh the economic calendar, official news and macro data (Mod
                "(Module 02) when each is due, verify the stored timestamps and record the status. Reads public data only.")
 DEFAULT_SCHEDULE = "17 * * * *"                  # hourly; each task decides whether it is due
 SCHEDULE_NAME = "WF08-10 news and COT updates"
+TIMEOUT_SECONDS = 600                            # one run may refresh six sources, each up to the API's time limit
 AUDIT_ACTION = "wf08-10.update_recorded"
 AUDIT_ENTITY = "information_updates"
 
@@ -500,8 +501,12 @@ def install(svc: Any, actor: Any, n8n_workflow_id: str, *, schedule: str | None 
     except OrchError:
         svc.register_workflow(actor, {"workflow_id": WORKFLOW_ID, "name": WORKFLOW_NAME, "category": "other",
                                       "trigger_types": ["schedule", "manual", "admin"], "owner": "module_08",
-                                      "description": DESCRIPTION})
+                                      "description": DESCRIPTION, "timeout_seconds": TIMEOUT_SECONDS})
         steps.append("registered")
+        w = svc.get_workflow(WORKFLOW_ID)
+    if (w.get("timeout_seconds") or 0) < TIMEOUT_SECONDS:
+        svc.update_workflow(actor, WORKFLOW_ID, {"timeout_seconds": TIMEOUT_SECONDS, "row_version": w["row_version"]})
+        steps.append(f"run time limit set to {TIMEOUT_SECONDS} s")
         w = svc.get_workflow(WORKFLOW_ID)
     if w["state"] in ("ACTIVE", "DEGRADED") and (w.get("n8n_workflow_id") != n8n_workflow_id
                                                   or w.get("webhook_path") != WEBHOOK_PATH):

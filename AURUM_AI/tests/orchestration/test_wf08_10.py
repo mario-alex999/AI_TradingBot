@@ -233,6 +233,7 @@ def test_install_registers_the_workflow_with_its_schedule(h):
     h.n8n.workflows["n8nWF0810"] = {"id": "n8nWF0810", "active": True, "webhook_paths": [iu.WEBHOOK_PATH]}
     out = install(h.svc, ALICE, "n8nWF0810")
     assert out["state"] == "ACTIVE" and "registered" in out["steps"] and out["schedule"]["expression"] == "17 * * * *"
+    assert h.svc.get_workflow(iu.WORKFLOW_ID)["timeout_seconds"] == iu.TIMEOUT_SECONDS
     again = install(h.svc, ALICE, "n8nWF0810")
     assert "registered" not in again["steps"] and any(s.startswith("schedule already present") for s in again["steps"])
 
