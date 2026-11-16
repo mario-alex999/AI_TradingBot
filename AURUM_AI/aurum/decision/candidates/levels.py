@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
 from typing import Any
 
 from aurum.decision.config import DecisionConfig
@@ -22,6 +23,27 @@ def stop_buffer(ctx: DecisionContext, atr: float, cfg: DecisionConfig) -> float:
 
 def stop_beyond(level: float, direction: str, buffer: float) -> float:
     return level - buffer if direction == "long" else level + buffer
+
+
+def to_tick(price: float, tick: float | None, toward: str) -> float:
+    """``price`` on the instrument's price grid, rounded ``up`` or ``down``. The broker accepts only multiples of the tick
+    size, and Module 06 refuses any other price, so every stop and target leaves Module 05 on the grid. Without a tick
+    size the price is returned unchanged (Module 06 then reports the missing specification)."""
+    if not tick or tick <= 0:
+        return price
+    p, t = Decimal(repr(price)), Decimal(repr(tick))
+    steps = (p / t).to_integral_value(rounding=ROUND_CEILING if toward == "up" else ROUND_FLOOR)
+    return float(steps * t)
+
+
+def stop_on_tick(stop: float, direction: str, tick: float | None) -> float:
+    """Away from the entry, so the stop always stays beyond the level it protects."""
+    return to_tick(stop, tick, "down" if direction == "long" else "up")
+
+
+def target_on_tick(target: float, direction: str, tick: float | None) -> float:
+    """Toward the entry, so the reward is never overstated."""
+    return to_tick(target, tick, "down" if direction == "long" else "up")
 
 
 def risk_reward(entry: float, stop: float, target: float) -> float:
