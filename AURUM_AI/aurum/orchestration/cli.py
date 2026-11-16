@@ -327,6 +327,27 @@ def setup_wf08_09(n8n_workflow_id: str = typer.Option(..., help="Id of the 'AURU
                            title="WF08-09 System Health Watchdog"))
 
 
+@orchestration_app.command("setup-wf08-10")
+def setup_wf08_10(n8n_workflow_id: str = typer.Option(..., help="Id of the 'AURUM - WF08-10 News and COT Update Scheduler' "
+                                                                 "workflow in n8n (from its URL)."),
+                  schedule: str = typer.Option("17 * * * *", help="Cron (UTC by default): how often WF08-10 looks for due "
+                                                                  "updates; each source decides whether it is due."),
+                  timezone: str = typer.Option("UTC", help="Time zone of the schedule."),
+                  no_schedule: bool = typer.Option(False, "--no-schedule", help="Do not create the schedule."),
+                  activate: bool = typer.Option(True, help="Activate WF08-10 in AURUM after validation.")) -> None:
+    """Installs WF08-10: registers it, links it to n8n, adds and validates version 1.0.0, activates it and creates its
+    schedule. It refreshes public information only. Safe to re-run."""
+    from aurum.orchestration.information_updates import install
+    svc = _svc()
+    out = _guard(lambda: install(svc, _console_actor(), n8n_workflow_id, schedule=None if no_schedule else schedule,
+                                 schedule_timezone=timezone, activate=activate))
+    for step in out["steps"]:
+        console.print(f"  - {step}")
+    console.print(kv_table({"Workflow": out["workflow_id"], "State": out["state"], "Version": out["version"],
+                            "Schedule": (out["schedule"] or {}).get("expression") or "-"},
+                           title="WF08-10 News and COT Update Scheduler"))
+
+
 @orchestration_app.command("test-run")
 def test_run(wait: int = typer.Option(60, help="Seconds to wait for the callback."),
              message: str = typer.Option("hello from AURUM", help="Echoed back by the test workflow."),

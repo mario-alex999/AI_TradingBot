@@ -176,6 +176,25 @@ class HealthWatchdogCfg(_M):
     notify_dashboard: bool = True                               # false = record only
 
 
+class InformationUpdatesCfg(_M):
+    """WF08-10 News and COT Update Scheduler. ``enabled`` is its backend-enforced off switch. Each source is refreshed
+    when due: COT after the CFTC publishes, the calendar more often while a high-importance event is near."""
+    enabled: bool = True
+    calendar_refresh_hours: int = Field(6, ge=1, le=72)
+    calendar_event_refresh_minutes: int = Field(60, ge=15, le=720)  # while a high-importance event is near
+    event_window_hours: int = Field(12, ge=1, le=72)
+    calendar_stale_hours: int = Field(36, ge=6, le=240)         # last successful calendar download older = stale
+    news_refresh_minutes: int = Field(60, ge=15, le=1440)
+    news_stale_hours: int = Field(24, ge=2, le=240)
+    macro_refresh_hours: int = Field(24, ge=6, le=168)
+    macro_stale_hours: int = Field(72, ge=12, le=720)
+    macro_budget_seconds: int = Field(30, ge=5, le=300)         # one call starts no new macro part after this
+    cot_retry_hours: int = Field(3, ge=1, le=48)                # CFTC not published yet / failed: try again after
+    cot_backfill_years: float = Field(4, ge=1, le=10)           # history fetched the first time a report family runs
+    retry_after_minutes: int = Field(30, ge=5, le=1440)
+    notify_dashboard: bool = True                               # false = record only
+
+
 class OrchestrationConfig(_M):
     retry: dict[str, Any] = Field(default_factory=dict)
     dispatch: DispatchCfg = DispatchCfg()
@@ -195,6 +214,7 @@ class OrchestrationConfig(_M):
     trade_monitoring: TradeMonitoringCfg = TradeMonitoringCfg()
     error_recovery: ErrorRecoveryCfg = ErrorRecoveryCfg()
     health_watchdog: HealthWatchdogCfg = HealthWatchdogCfg()
+    information_updates: InformationUpdatesCfg = InformationUpdatesCfg()
 
     @field_validator("retry")
     @classmethod

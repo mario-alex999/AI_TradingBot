@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from aurum.orchestration import approval_notifications, approval_responses, error_recovery, health_watchdog, market_analysis, market_monitoring, trade_handoff, trade_monitoring, trade_opportunities
+from aurum.orchestration import approval_notifications, approval_responses, error_recovery, health_watchdog, information_updates, market_analysis, market_monitoring, trade_handoff, trade_monitoring, trade_opportunities
 
 DIR = Path(__file__).resolve().parents[2] / "n8n" / "workflows"
 API = '={{ $("AURUM settings").first().json.aurumApi }}'
@@ -61,6 +61,13 @@ FILES = {
         ["List the services to check", "Split out services", "Check service", "Service working?",
          "Record: service working", "Record: service problem", "Record: check request failed",
          "Evaluate status and alert on new problems"]),
+    "aurum_wf08_10_news_cot_updates.json": (information_updates.WEBHOOK_PATH, "Loop over updates",
+        {"/webhooks/n8n/callback", "/information-updates/run", "/information-updates/record"},
+        ["Load update configuration", "Check source availability and COT publication schedule", "Any update due?",
+         "Split out updates", "Trigger refresh (market intelligence or COT update)",
+         "Verify data timestamps and record update status", "Failed or out of date?",
+         "Record: update problem (dashboard alerted once)", "Record: update status",
+         "Record: status could not be recorded"]),
 }
 
 
