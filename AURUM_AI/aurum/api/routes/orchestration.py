@@ -843,6 +843,56 @@ def build_router(state: AppState, svc: Callable[[], Any]) -> APIRouter:
         return run(response, lambda: watchdog().evaluate(run_id=str(b["execution_id"]) if b.get("execution_id") else None,
                                                           dry_run=bool(b.get("dry_run")), only=only), cid)
 
+    # ---- WF08-10 news and COT updates (refreshes public information through Modules 02 and 04 when due) ---------------
+    def info_updates() -> Any:
+        from aurum.orchestration.information_updates import InformationUpdates
+        return InformationUpdates(svc())
+
+    @r.get("/information-updates/config")
+    def iu_config(response: Response, who: Principal = View) -> Any:
+        return run(response, lambda: info_updates().config_view())
+
+    @r.get("/information-updates/preflight")
+    def iu_preflight(response: Response, who: Principal = View) -> Any:
+        return run(response, lambda: info_updates().preflight())
+
+    @r.get("/information-updates/sources")
+    def iu_sources(response: Response, tasks: str | None = Query(None, max_length=400), force: bool = False,
+                   who: Principal = View) -> Any:
+        want = [x.strip() for x in tasks.split(",") if x.strip()] if tasks else None
+        return run(response, lambda: info_updates().sources(want, force=force))
+
+    def _iu_task(b: dict[str, Any], cid: str | None) -> Any:
+        task = str(b.get("task") or "").strip()
+        if not task or len(task) > 32:
+            return _err(OrchError(422, "INVALID_INPUT", "task is required."), cid or str(uuid.uuid4()))
+        return task
+
+    @r.post("/information-updates/run")
+    def iu_run(response: Response, body: dict[str, Any] = Body(...), cid: str | None = Cid, who: Principal = Hook) -> Any:
+        """Runs one due refresh (Module 02 or 04) now. Service tokens only."""
+        if (resp := limited(hook_limit, who.id)) is not None:
+            return resp
+        b = snake(body)
+        task = _iu_task(b, cid)
+        if not isinstance(task, str):
+            return task
+        return run(response, lambda: info_updates().run(task, run_id=str(b["execution_id"]) if b.get("execution_id") else None,
+                                                         dry_run=bool(b.get("dry_run"))), cid)
+
+    @r.post("/information-updates/record")
+    def iu_record(response: Response, body: dict[str, Any] = Body(...), cid: str | None = Cid, who: Principal = Hook) -> Any:
+        """Verifies the stored data's timestamps, records the update status once and alerts on new problems."""
+        if (resp := limited(hook_limit, who.id)) is not None:
+            return resp
+        b = snake(body)
+        task = _iu_task(b, cid)
+        if not isinstance(task, str):
+            return task
+        result = b.get("result") if isinstance(b.get("result"), dict) else None
+        return run(response, lambda: info_updates().record(task, run_id=str(b["execution_id"]) if b.get("execution_id") else None,
+                                                            dry_run=bool(b.get("dry_run")), result=result), cid)
+
     return r
 
 

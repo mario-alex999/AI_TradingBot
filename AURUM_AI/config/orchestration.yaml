@@ -110,3 +110,18 @@ health_watchdog:            # WF08-09 System Health Watchdog (checks every servi
   account_stale_minutes: 60
   database_slow_ms: 2000
   notify_dashboard: true    # false = record only
+
+information_updates:        # WF08-10 News and COT Update Scheduler (refreshes Module 02/04 sources when each is due)
+  enabled: true             # backend off switch: false = WF08-10 refreshes and records nothing
+  calendar_refresh_hours: 6
+  calendar_event_refresh_minutes: 60   # used while a high-importance event is due within event_window_hours
+  event_window_hours: 12
+  calendar_stale_hours: 36
+  news_refresh_minutes: 60
+  news_stale_hours: 24
+  macro_refresh_hours: 24
+  macro_stale_hours: 72
+  cot_retry_hours: 3        # COT follows the CFTC release schedule; if the report is late, try again after this
+  cot_backfill_years: 4     # history fetched the first time a COT report family is updated
+  retry_after_minutes: 30
+  notify_dashboard: true    # false = record only
