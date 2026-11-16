@@ -63,7 +63,10 @@ Fetches from three weeks before the newest stored report to today (picks up new 
 revisions), stores changes (revisions keep the previous payload in `cot_report_revisions`), recalculates
 metrics. Running it twice changes nothing. With no data stored it performs a 4-year backfill.
 
-**Scheduling (optional):**
+**Scheduling.** On the hosted set-up, Module 08's **WF08-10 News and COT Update Scheduler** runs the update for each
+report family once the CFTC should have published it (the release rules in [COT_METHODOLOGY.md](COT_METHODOLOGY.md), section 3,
+including US holidays), retries after 3 h while the CFTC is late, and records the result. See
+[MODULE_08_WF08_10.md](MODULE_08_WF08_10.md). Without Module 08, schedule it on the machine instead:
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\install_cot_schedule.ps1
 ```

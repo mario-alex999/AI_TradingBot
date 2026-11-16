@@ -283,6 +283,39 @@ python -m aurum.cli approvals worker                    # expiry, handoff, outbo
 
 Start with [docs/module07/README.md](docs/module07/README.md).
 
+## Module 04 - Market Intelligence Engine
+
+Trading sessions and kill zones, session levels and liquidity, the economic calendar (official central-bank and
+statistics-agency schedules, plus a paid provider if configured), central-bank rates, macro indicators, official news,
+volatility and market conditions. Official sources only; unavailable data is shown as unavailable, never filled in.
+Read-only: no trading endpoints.
+
+```
+python -m aurum.cli init-db
+python -m aurum.cli intelligence check
+python -m aurum.cli intelligence calendar-update
+python -m aurum.cli intelligence analyze --symbol EURUSD
+```
+
+Start with [docs/MODULE_04_MARKET_INTELLIGENCE.md](docs/MODULE_04_MARKET_INTELLIGENCE.md). On the hosted set-up, WF08-10
+(Module 08) refreshes the calendar, news and macro data on schedule.
+
+## Module 08 - Workflow Orchestration (n8n control plane)
+
+Registers, versions, triggers and follows the n8n workflows, routes events, retries safely, runs schedules and audits
+every change. Ten workflows (WF08-01 to WF08-10) sequence the pipeline from market data to human approval, monitor
+positions and the platform, and keep the COT, calendar, news and macro data current. **n8n only sequences calls; the
+modules decide.** No workflow places, approves or executes a trade, and n8n never connects to MT5.
+
+```
+python -m aurum.cli orchestration status
+python -m aurum.cli orchestration health
+python -m aurum.cli orchestration worker        # or the per-minute tick endpoint on a serverless host
+python -m aurum.cli orchestration setup-wf08-01 --n8n-workflow-id <id>     # one setup command per workflow
+```
+
+Start with [docs/MODULE_08_README.md](docs/MODULE_08_README.md).
+
 ## Project layout
 ```
 aurum/  config.py · logging_config.py · cli.py
@@ -296,8 +329,13 @@ aurum/  config.py · logging_config.py · cli.py
         collectors/                      candles · ticks · instrument specs
         services/                        market_data_service (orchestration) · validation_service
         database/                        connection · models (SQLAlchemy) · repository (upserts)
+        market_intelligence/             Module 04: sessions · levels · liquidity · economic_calendar · macro ·
+                                         news · volatility · conditions · service · cli
         risk/                            Module 06: calculator · account · portfolio · rules · engine ·
                                          repository · service · simulation · cli (never places trades)
+        approvals/                       Module 07: human approval, trade-management requests, notifications
+        orchestration/                   Module 08: registry · executions · events · worker · one module per
+                                         WF08 workflow (n8n files in n8n/workflows/)
         exporters/market_data_exporter.py
 sql/schema.sql  sql/migrations/   config/instruments.yaml · cot.yaml · analysis.yaml · risk.yaml   scripts/setup_database.py
 data/raw · data/processed · data/exports   logs/aurum.log (JSON lines)   tests/

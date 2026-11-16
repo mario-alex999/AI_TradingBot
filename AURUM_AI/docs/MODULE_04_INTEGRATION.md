@@ -28,8 +28,11 @@ Every panel shows:
 
 In **demo mode, no Module 04 data is generated**: panels say "Unavailable in demo mode". A disconnected backend is reported as an error, never filled with demo data.
 
-## n8n (API usage only; no workflows are shipped)
-n8n should call the read endpoints with plain HTTP requests. Guidelines:
+## n8n
+The scheduled refreshes of the calendar, news and macro data are shipped as Module 08's **WF08-10 News and COT Update
+Scheduler** ([MODULE_08_WF08_10.md](MODULE_08_WF08_10.md)): it calls Module 04's refreshes in-process through the
+Module 08 API, more often while a high-importance event is near, and records each result. Other uses of the Module 04
+data from n8n should call the read endpoints with plain HTTP requests. Guidelines:
 - **Credentials.**
   - n8n needs **no MT5 credentials and no provider API keys**: those stay in the AURUM server's `.env`.
   - The admin key is needed only for refresh jobs. Store it as an n8n credential (Header Auth: `X-AURUM-Admin-Key`), never in node parameters.
