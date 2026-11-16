@@ -1,0 +1,1903 @@
+{
+  "name": "AURUM - WF08-08 Error Handling and Recovery (Module 08)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "aurum-wf08-08-error-recovery",
+        "authentication": "none",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "9dac14ba-1bbc-4cfc-aaa0-da3b940d460e",
+      "name": "AURUM trigger (failed run)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        300
+      ],
+      "notes": "AURUM starts this run when a tracked workflow run fails, times out or is dead-lettered, and when a run completes after a retry.",
+      "webhookId": "4780f9c1-c878-4121-ab28-8916c4486441"
+    },
+    {
+      "parameters": {},
+      "id": "3edb9375-8d1f-4f8c-ab3e-bf11038c6911",
+      "name": "n8n Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        760
+      ],
+      "notes": "Error Trigger. n8n starts this when another AURUM workflow that names this one as its error workflow stops with an error."
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "aurum-api",
+              "name": "aurumApi",
+              "value": "https://aurum-api-tan.vercel.app/api/v1/orchestration",
+              "type": "string"
+            },
+            {
+              "id": "aurum-service-token",
+              "name": "serviceToken",
+              "value": "REPLACE_WITH_AURUM_SERVICE_TOKEN",
+              "type": "string"
+            },
+            {
+              "id": "aurum-webhook-token",
+              "name": "webhookToken",
+              "value": "REPLACE_WITH_AURUM_WEBHOOK_TOKEN",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b5b1ce4b-2f20-4fa4-af9f-78c29220ccd9",
+      "name": "AURUM settings",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        300
+      ],
+      "notes": "The only place the AURUM API address and the two tokens are set. Every request in this workflow goes only to this address."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('n8n Error Trigger').isExecuted }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b4f801c5-35a4-48b9-abdd-777c026b316d",
+      "name": "Started by the n8n Error Trigger?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "n8nWorkflowId",
+              "name": "n8nWorkflowId",
+              "value": "={{ String($('n8n Error Trigger').first().json.workflow.id || '') }}",
+              "type": "string"
+            },
+            {
+              "id": "workflowName",
+              "name": "workflowName",
+              "value": "={{ $('n8n Error Trigger').first().json.workflow.name || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "n8nExecutionId",
+              "name": "n8nExecutionId",
+              "value": "={{ String($('n8n Error Trigger').first().json.execution.id || '') }}",
+              "type": "string"
+            },
+            {
+              "id": "node",
+              "name": "node",
+              "value": "={{ $('n8n Error Trigger').first().json.execution.lastNodeExecuted || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "message",
+              "name": "message",
+              "value": "={{ String(($('n8n Error Trigger').first().json.execution.error && $('n8n Error Trigger').first().json.execution.error.message) || 'no message').slice(0, 900) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "bf4bf8a8-2c12-4c14-a95c-cef027f7bb72",
+      "name": "Identify failed workflow and capture error details",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        660,
+        760
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/error-recovery/report",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ n8nWorkflowId: $json.n8nWorkflowId, n8nExecutionId: $json.n8nExecutionId, node: $json.node, message: $json.message, workflowName: $json.workflowName }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "2d17bc04-1a7e-4818-a478-100288c672bb",
+      "name": "Classify error and record it in the backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        880,
+        760
+      ],
+      "notes": "Classify Error + Record Error in Backend. AURUM finds the run by its n8n execution id, classifies the error and applies its own retry rules: retried within the retry limit, or dead-lettered. This workflow sends nothing again itself.",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.retrySafe === true }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f597e4b1-5491-4914-af23-22a6dc327e37",
+      "name": "Is retry safe? (crash)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        660
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "result",
+              "name": "result",
+              "value": "={{ $json.result || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "category",
+              "name": "category",
+              "value": "={{ $json.category || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "executionId",
+              "name": "executionId",
+              "value": "={{ $json.executionId || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "reason",
+              "name": "reason",
+              "value": "={{ $json.reason || '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e7433b3d-2151-4672-a04c-8a3e32ff2683",
+      "name": "Crash: retry scheduled by AURUM (within limits)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1320,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "result",
+              "name": "result",
+              "value": "={{ $json.result || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "category",
+              "name": "category",
+              "value": "={{ $json.category || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "executionId",
+              "name": "executionId",
+              "value": "={{ $json.executionId || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "reason",
+              "name": "reason",
+              "value": "={{ $json.reason || '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d0f14d2d-b48d-4341-a87a-7ca23239c5c8",
+      "name": "Crash: escalated and alerted (not retried)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1320,
+        760
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "result",
+              "name": "result",
+              "value": "not_reported",
+              "type": "string"
+            },
+            {
+              "id": "reason",
+              "name": "reason",
+              "value": "={{ String(($json.error && $json.error.message) || 'error').slice(0, 200) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b2ffb4d6-309f-4391-a9e6-326714869b9c",
+      "name": "Crash: could not be reported to AURUM",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1100,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('AURUM trigger (failed run)').first().json.headers['x-aurum-webhook-token'] || '' }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "={{ $('AURUM settings').first().json.webhookToken }}"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "978fb509-e232-4670-a008-0258464c019d",
+      "name": "Webhook token valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ accepted: false, error: 'invalid webhook token' }) }}",
+        "options": {
+          "responseCode": 401
+        }
+      },
+      "id": "f9345ed3-ee41-4bd5-a694-b1e42a94a154",
+      "name": "Reject (wrong webhook token)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        880,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ accepted: true, executionId: $execution.id }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "152770c8-4e87-429d-a607-aaaa87857b9f",
+      "name": "Accept (return the n8n execution id)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/webhooks/n8n/callback",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-started', executionId: $(\"AURUM trigger (failed run)\").first().json.body.executionId, workflowId: $(\"AURUM trigger (failed run)\").first().json.body.workflowId, workflowVersion: $(\"AURUM trigger (failed run)\").first().json.body.workflowVersion, attempt: $(\"AURUM trigger (failed run)\").first().json.body.attempt, environment: $(\"AURUM trigger (failed run)\").first().json.body.environment, status: 'started', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO() }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "380b2b1a-9a71-484d-a9f1-63bb24fa0bca",
+      "name": "Callback: started",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/error-recovery/config",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "600b39a4-55d8-47b0-a5bf-0a820b276ee1",
+      "name": "Load automation configuration",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1320,
+        300
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/webhooks/n8n/callback",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-failed', executionId: $(\"AURUM trigger (failed run)\").first().json.body.executionId, workflowId: $(\"AURUM trigger (failed run)\").first().json.body.workflowId, workflowVersion: $(\"AURUM trigger (failed run)\").first().json.body.workflowVersion, attempt: $(\"AURUM trigger (failed run)\").first().json.body.attempt, environment: $(\"AURUM trigger (failed run)\").first().json.body.environment, status: 'failed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), error: { category: 'DEPENDENCY_UNAVAILABLE', retryable: true, message: 'WF08-08 could not load its configuration: ' + String(($json.error && ($json.error.message || $json.error.description)) || 'request failed').slice(0, 300) } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "b53fa102-dc5f-4303-a739-edbe58d47ca0",
+      "name": "Callback: failed (configuration)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1540,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/error-recovery/preflight",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "2b49f794-b56c-405a-a140-8c5a7c8739d0",
+      "name": "Check system health",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1540,
+        300
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/webhooks/n8n/callback",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-failed', executionId: $(\"AURUM trigger (failed run)\").first().json.body.executionId, workflowId: $(\"AURUM trigger (failed run)\").first().json.body.workflowId, workflowVersion: $(\"AURUM trigger (failed run)\").first().json.body.workflowVersion, attempt: $(\"AURUM trigger (failed run)\").first().json.body.attempt, environment: $(\"AURUM trigger (failed run)\").first().json.body.environment, status: 'failed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), error: { category: 'DEPENDENCY_UNAVAILABLE', retryable: true, message: 'WF08-08 could not check system health: ' + String(($json.error && ($json.error.message || $json.error.description)) || 'request failed').slice(0, 300) } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "87c0c7fb-80e8-4029-a625-08bb51326ff7",
+      "name": "Callback: failed (health check)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1760,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.proceed }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f7463c8c-6e4b-4b4d-aab1-ecb8d576b97e",
+      "name": "Error handling available?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1760,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/webhooks/n8n/callback",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-skipped', executionId: $(\"AURUM trigger (failed run)\").first().json.body.executionId, workflowId: $(\"AURUM trigger (failed run)\").first().json.body.workflowId, workflowVersion: $(\"AURUM trigger (failed run)\").first().json.body.workflowVersion, attempt: $(\"AURUM trigger (failed run)\").first().json.body.attempt, environment: $(\"AURUM trigger (failed run)\").first().json.body.environment, status: 'completed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), output: { status: 'skipped', reason: ($('Check system health').first().json.reasons || []).join(' '), recorded: [], skipped: [] } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "c9b7e104-2095-4d4b-a865-900fa2af4a24",
+      "name": "Callback: completed (skipped)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1980,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/error-recovery/pending",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "executionIds",
+              "value": "={{ (() => { const i = $(\"AURUM trigger (failed run)\").first().json.body.input || {}; if (Array.isArray(i.executionIds) && i.executionIds.length) return i.executionIds.join(','); const p = (i.event && i.event.payload) || {}; return p.execution_id || p.executionId || ''; })() }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "bdd30d9c-0d3f-4f93-a702-bb6c26d50ac4",
+      "name": "Identify failed workflow runs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1980,
+        300
+      ],
+      "notes": "Identify Failed Workflow. The run named by the event; with none, every failed run whose state is not recorded yet and every run that recovered.",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/webhooks/n8n/callback",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-failed', executionId: $(\"AURUM trigger (failed run)\").first().json.body.executionId, workflowId: $(\"AURUM trigger (failed run)\").first().json.body.workflowId, workflowVersion: $(\"AURUM trigger (failed run)\").first().json.body.workflowVersion, attempt: $(\"AURUM trigger (failed run)\").first().json.body.attempt, environment: $(\"AURUM trigger (failed run)\").first().json.body.environment, status: 'failed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), error: { category: 'DEPENDENCY_UNAVAILABLE', retryable: true, message: 'WF08-08 could not read the failed runs: ' + String(($json.error && ($json.error.message || $json.error.description)) || 'request failed').slice(0, 300) } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "9c0ee042-6bf4-4bee-a67c-8fc6e39d8a7f",
+      "name": "Callback: failed (failure list)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2200,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.count }}",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "rightValue": 0
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d249a3fb-00ad-4e19-ab81-b129d8596eb9",
+      "name": "Any failure to handle?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/webhooks/n8n/callback",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-nothing', executionId: $(\"AURUM trigger (failed run)\").first().json.body.executionId, workflowId: $(\"AURUM trigger (failed run)\").first().json.body.workflowId, workflowVersion: $(\"AURUM trigger (failed run)\").first().json.body.workflowVersion, attempt: $(\"AURUM trigger (failed run)\").first().json.body.attempt, environment: $(\"AURUM trigger (failed run)\").first().json.body.environment, status: 'completed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), output: { status: 'skipped', reason: 'No failed run is waiting to be recorded.', recorded: [], skipped: [] } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "251563d5-5973-4b6e-ab95-deba6c88aceb",
+      "name": "Callback: completed (nothing to handle)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2420,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "items",
+        "options": {}
+      },
+      "id": "dc71b30b-1e20-48db-a6ba-4152c7d0ed9d",
+      "name": "Split out failures",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1.1,
+      "position": [
+        2420,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "d8b6c231-2f33-47b9-a937-87b49e5aa886",
+      "name": "Loop over failures",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        2640,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/error-recovery/status",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "executionId",
+              "value": "={{ $json.executionId }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "59711bf3-2740-44d2-a1fc-a06e83da0a72",
+      "name": "Capture error details and classify error",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2860,
+        120
+      ],
+      "notes": "Capture Error Details + Classify Error + Is Retry Safe? AURUM reads the failed run, its error category and what its own retry rules have done about it.",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.ok }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "074b3380-db90-402c-ae3d-93ba19105f18",
+      "name": "Failure not recorded yet?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3080,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/error-recovery/record",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ targetExecutionId: $json.executionId, dryRun: ($(\"AURUM trigger (failed run)\").first().json.body.input || {}).dryRun === true, executionId: $(\"AURUM trigger (failed run)\").first().json.body.executionId }) }}",
+        "options": {
+          "timeout": 58000
+        }
+      },
+      "id": "809e899a-ed86-4b93-a507-483fb06ee60c",
+      "name": "Record error in the backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        3300,
+        0
+      ],
+      "notes": "Record Error in Backend + Escalate and alert + Notify Dashboard. Recorded once per state. A failure that is not being retried is announced on the dashboard by Module 07. This step starts no retry: retries are scheduled by AURUM within the retry limit.",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.status === 'recorded' }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "36eb53d3-8351-42b9-a80d-a90dda7911b3",
+      "name": "Recorded?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.result === 'retry_scheduled' }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "787442cf-631b-4ba3-a955-2a9e527bfbaa",
+      "name": "Is retry safe?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3740,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.result === 'recovered' }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "904323f8-905d-47fa-a41e-75e525d34aa1",
+      "name": "Recovery verified?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "executionId",
+              "name": "executionId",
+              "value": "={{ $(\"Loop over failures\").item.json.executionId }}",
+              "type": "string"
+            },
+            {
+              "id": "workflowId",
+              "name": "workflowId",
+              "value": "={{ $json.workflowId || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "outcome",
+              "name": "outcome",
+              "value": "retry_scheduled",
+              "type": "string"
+            },
+            {
+              "id": "result",
+              "name": "result",
+              "value": "={{ $json.result || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "errorCategory",
+              "name": "errorCategory",
+              "value": "={{ $json.errorCategory || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "retrySafe",
+              "name": "retrySafe",
+              "value": "={{ String($json.retrySafe === true) }}",
+              "type": "string"
+            },
+            {
+              "id": "attempt",
+              "name": "attempt",
+              "value": "={{ String($json.attempt || '') }}",
+              "type": "string"
+            },
+            {
+              "id": "nextStep",
+              "name": "nextStep",
+              "value": "={{ $json.nextStep || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "reason",
+              "name": "reason",
+              "value": "={{ $json.reason || '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8ecf4619-c5a3-4c3d-a924-d073f178edb0",
+      "name": "Record: retry with limits (scheduled by AURUM)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3960,
+        -240
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "executionId",
+              "name": "executionId",
+              "value": "={{ $(\"Loop over failures\").item.json.executionId }}",
+              "type": "string"
+            },
+            {
+              "id": "workflowId",
+              "name": "workflowId",
+              "value": "={{ $json.workflowId || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "outcome",
+              "name": "outcome",
+              "value": "recovered",
+              "type": "string"
+            },
+            {
+              "id": "result",
+              "name": "result",
+              "value": "={{ $json.result || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "errorCategory",
+              "name": "errorCategory",
+              "value": "={{ $json.errorCategory || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "retrySafe",
+              "name": "retrySafe",
+              "value": "={{ String($json.retrySafe === true) }}",
+              "type": "string"
+            },
+            {
+              "id": "attempt",
+              "name": "attempt",
+              "value": "={{ String($json.attempt || '') }}",
+              "type": "string"
+            },
+            {
+              "id": "nextStep",
+              "name": "nextStep",
+              "value": "={{ $json.nextStep || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "reason",
+              "name": "reason",
+              "value": "={{ $json.reason || '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a77d9536-d927-4775-a315-f018408251e4",
+      "name": "Record: recovery verified",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        4180,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "executionId",
+              "name": "executionId",
+              "value": "={{ $(\"Loop over failures\").item.json.executionId }}",
+              "type": "string"
+            },
+            {
+              "id": "workflowId",
+              "name": "workflowId",
+              "value": "={{ $json.workflowId || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "outcome",
+              "name": "outcome",
+              "value": "={{ $json.result === 'closed' ? 'closed' : 'escalated' }}",
+              "type": "string"
+            },
+            {
+              "id": "result",
+              "name": "result",
+              "value": "={{ $json.result || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "errorCategory",
+              "name": "errorCategory",
+              "value": "={{ $json.errorCategory || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "retrySafe",
+              "name": "retrySafe",
+              "value": "={{ String($json.retrySafe === true) }}",
+              "type": "string"
+            },
+            {
+              "id": "attempt",
+              "name": "attempt",
+              "value": "={{ String($json.attempt || '') }}",
+              "type": "string"
+            },
+            {
+              "id": "nextStep",
+              "name": "nextStep",
+              "value": "={{ $json.nextStep || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "reason",
+              "name": "reason",
+              "value": "={{ $json.reason || '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "05f1b208-bafd-438d-ab2d-ab9f27aeccab",
+      "name": "Record: escalated and alerted (not retried)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        4180,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "executionId",
+              "name": "executionId",
+              "value": "={{ $(\"Loop over failures\").item.json.executionId }}",
+              "type": "string"
+            },
+            {
+              "id": "workflowId",
+              "name": "workflowId",
+              "value": "={{ $json.workflowId || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "outcome",
+              "name": "outcome",
+              "value": "={{ ['dry_run', 'skipped'].includes($json.status) ? $json.status : 'failed' }}",
+              "type": "string"
+            },
+            {
+              "id": "result",
+              "name": "result",
+              "value": "={{ $json.result || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "errorCategory",
+              "name": "errorCategory",
+              "value": "={{ $json.errorCategory || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "retrySafe",
+              "name": "retrySafe",
+              "value": "={{ String($json.retrySafe === true) }}",
+              "type": "string"
+            },
+            {
+              "id": "attempt",
+              "name": "attempt",
+              "value": "={{ String($json.attempt || '') }}",
+              "type": "string"
+            },
+            {
+              "id": "nextStep",
+              "name": "nextStep",
+              "value": "={{ $json.nextStep || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "reason",
+              "name": "reason",
+              "value": "={{ $json.reason || '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "02b62753-e816-4b63-a463-d3091cefa37f",
+      "name": "Record: not recorded",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3740,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "executionId",
+              "name": "executionId",
+              "value": "={{ $(\"Loop over failures\").item.json.executionId }}",
+              "type": "string"
+            },
+            {
+              "id": "workflowId",
+              "name": "workflowId",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "outcome",
+              "name": "outcome",
+              "value": "failed",
+              "type": "string"
+            },
+            {
+              "id": "reason",
+              "name": "reason",
+              "value": "={{ 'The record call failed: ' + String(($json.error && $json.error.message) || 'error').slice(0, 200) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "39b26519-1abb-4243-a2a4-ee10fc994a39",
+      "name": "Record: record request failed",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3520,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "executionId",
+              "name": "executionId",
+              "value": "={{ $(\"Loop over failures\").item.json.executionId }}",
+              "type": "string"
+            },
+            {
+              "id": "workflowId",
+              "name": "workflowId",
+              "value": "={{ $json.workflowId || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "outcome",
+              "name": "outcome",
+              "value": "skipped",
+              "type": "string"
+            },
+            {
+              "id": "reason",
+              "name": "reason",
+              "value": "={{ ($json.reasons || []).join(' ') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "83e05ab1-9efe-4b89-aa8e-926f94678762",
+      "name": "Record: nothing to handle",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3300,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "executionId",
+              "name": "executionId",
+              "value": "={{ $(\"Loop over failures\").item.json.executionId }}",
+              "type": "string"
+            },
+            {
+              "id": "workflowId",
+              "name": "workflowId",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "outcome",
+              "name": "outcome",
+              "value": "failed",
+              "type": "string"
+            },
+            {
+              "id": "reason",
+              "name": "reason",
+              "value": "={{ 'Status check failed: ' + String(($json.error && $json.error.message) || 'error').slice(0, 200) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6ced4841-e44b-4741-a12c-8df7df699b7f",
+      "name": "Record: status check failed",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3080,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "results",
+        "options": {}
+      },
+      "id": "816fb7e1-0453-4e68-a520-baca72256846",
+      "name": "Collect results",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        2860,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $(\"AURUM settings\").first().json.aurumApi }}/webhooks/n8n/callback",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $(\"AURUM settings\").first().json.serviceToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ callbackId: $execution.id + '-completed', executionId: $(\"AURUM trigger (failed run)\").first().json.body.executionId, workflowId: $(\"AURUM trigger (failed run)\").first().json.body.workflowId, workflowVersion: $(\"AURUM trigger (failed run)\").first().json.body.workflowVersion, attempt: $(\"AURUM trigger (failed run)\").first().json.body.attempt, environment: $(\"AURUM trigger (failed run)\").first().json.body.environment, status: 'completed', n8nExecutionId: $execution.id, sentAt: $now.toUTC().toISO(), output: { status: $json.results.some(r => r.outcome === 'failed') ? 'partial' : 'completed', reason: $json.results.filter(r => !['failed', 'skipped', 'dry_run'].includes(r.outcome)).length + ' failure state(s) recorded, ' + $json.results.filter(r => r.outcome === 'escalated').length + ' escalated', recorded: $json.results.filter(r => !['failed', 'skipped', 'dry_run'].includes(r.outcome)), skipped: $json.results.filter(r => !(!['failed', 'skipped', 'dry_run'].includes(r.outcome))) } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "4737c8de-aa6a-47a2-af94-b8efd2cce1df",
+      "name": "Callback: completed (run recorded)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        3080,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## WF08-08 Error Handling and Recovery\nTwo ways in. (1) n8n Error Trigger: another AURUM workflow crashed; the error is reported to AURUM, which classifies it and retries within its retry limit or dead-letters it. (2) AURUM webhook: a tracked run failed, timed out, was dead-lettered or recovered; its state is recorded once and escalated to the dashboard when it is not being retried. This workflow sends nothing again itself and never retries anything about a trade.",
+        "height": 220,
+        "width": 620,
+        "color": 3
+      },
+      "id": "3e0fd166-d494-4e5f-a57f-d5dcf18c0593",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        20
+      ]
+    }
+  ],
+  "connections": {
+    "AURUM trigger (failed run)": {
+      "main": [
+        [
+          {
+            "node": "AURUM settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify error and record it in the backend": {
+      "main": [
+        [
+          {
+            "node": "Is retry safe? (crash)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Crash: could not be reported to AURUM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is retry safe? (crash)": {
+      "main": [
+        [
+          {
+            "node": "Crash: retry scheduled by AURUM (within limits)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Crash: escalated and alerted (not retried)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Identify failed workflow and capture error details": {
+      "main": [
+        [
+          {
+            "node": "Classify error and record it in the backend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Started by the n8n Error Trigger?": {
+      "main": [
+        [
+          {
+            "node": "Identify failed workflow and capture error details",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Webhook token valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook token valid?": {
+      "main": [
+        [
+          {
+            "node": "Accept (return the n8n execution id)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reject (wrong webhook token)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Accept (return the n8n execution id)": {
+      "main": [
+        [
+          {
+            "node": "Callback: started",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load automation configuration": {
+      "main": [
+        [
+          {
+            "node": "Check system health",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Callback: failed (configuration)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Callback: started": {
+      "main": [
+        [
+          {
+            "node": "Load automation configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check system health": {
+      "main": [
+        [
+          {
+            "node": "Error handling available?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Callback: failed (health check)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error handling available?": {
+      "main": [
+        [
+          {
+            "node": "Identify failed workflow runs",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Callback: completed (skipped)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Identify failed workflow runs": {
+      "main": [
+        [
+          {
+            "node": "Any failure to handle?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Callback: failed (failure list)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any failure to handle?": {
+      "main": [
+        [
+          {
+            "node": "Split out failures",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Callback: completed (nothing to handle)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect results": {
+      "main": [
+        [
+          {
+            "node": "Callback: completed (run recorded)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop over failures": {
+      "main": [
+        [
+          {
+            "node": "Collect results",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Capture error details and classify error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: status check failed": {
+      "main": [
+        [
+          {
+            "node": "Loop over failures",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Capture error details and classify error": {
+      "main": [
+        [
+          {
+            "node": "Failure not recorded yet?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record: status check failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: nothing to handle": {
+      "main": [
+        [
+          {
+            "node": "Loop over failures",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Failure not recorded yet?": {
+      "main": [
+        [
+          {
+            "node": "Record error in the backend",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record: nothing to handle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: record request failed": {
+      "main": [
+        [
+          {
+            "node": "Loop over failures",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record error in the backend": {
+      "main": [
+        [
+          {
+            "node": "Recorded?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record: record request failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: not recorded": {
+      "main": [
+        [
+          {
+            "node": "Loop over failures",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recorded?": {
+      "main": [
+        [
+          {
+            "node": "Is retry safe?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record: not recorded",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: retry with limits (scheduled by AURUM)": {
+      "main": [
+        [
+          {
+            "node": "Loop over failures",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is retry safe?": {
+      "main": [
+        [
+          {
+            "node": "Record: retry with limits (scheduled by AURUM)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Recovery verified?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: recovery verified": {
+      "main": [
+        [
+          {
+            "node": "Loop over failures",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recovery verified?": {
+      "main": [
+        [
+          {
+            "node": "Record: recovery verified",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record: escalated and alerted (not retried)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record: escalated and alerted (not retried)": {
+      "main": [
+        [
+          {
+            "node": "Loop over failures",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split out failures": {
+      "main": [
+        [
+          {
+            "node": "Loop over failures",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AURUM settings": {
+      "main": [
+        [
+          {
+            "node": "Started by the n8n Error Trigger?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "n8n Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "AURUM settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

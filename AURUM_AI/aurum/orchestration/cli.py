@@ -290,6 +290,23 @@ def setup_wf08_07(n8n_workflow_id: str = typer.Option(..., help="Id of the 'AURU
                            title="WF08-07 Trade Monitoring Orchestrator"))
 
 
+@orchestration_app.command("setup-wf08-08")
+def setup_wf08_08(n8n_workflow_id: str = typer.Option(..., help="Id of the 'AURUM - WF08-08 Error Handling and Recovery' "
+                                                                 "workflow in n8n (from its URL)."),
+                  no_subscribe: bool = typer.Option(False, "--no-subscribe", help="Do not subscribe it to the failure events."),
+                  activate: bool = typer.Option(True, help="Activate WF08-08 in AURUM after validation.")) -> None:
+    """Installs WF08-08: registers it, links it to n8n, adds and validates version 1.0.0, activates it and subscribes it
+    to failed, timed-out and dead-lettered runs and to runs that completed after a retry. It starts no retry itself.
+    Safe to re-run."""
+    from aurum.orchestration.error_recovery import install
+    svc = _svc()
+    out = _guard(lambda: install(svc, _console_actor(), n8n_workflow_id, activate=activate, subscribe=not no_subscribe))
+    for step in out["steps"]:
+        console.print(f"  - {step}")
+    console.print(kv_table({"Workflow": out["workflow_id"], "State": out["state"], "Version": out["version"]},
+                           title="WF08-08 Error Handling and Recovery"))
+
+
 @orchestration_app.command("test-run")
 def test_run(wait: int = typer.Option(60, help="Seconds to wait for the callback."),
              message: str = typer.Option("hello from AURUM", help="Echoed back by the test workflow."),
