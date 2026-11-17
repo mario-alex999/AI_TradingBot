@@ -9,6 +9,9 @@ Each tick (default every 10 s):
 6. health   - integration checks and workflow health, every ``health.interval_seconds`` (measured from the last stored
               check, so it holds for a fresh worker per tick too).
 
+Step ``signal_outcomes`` (every 5 minutes): Module 05's outcome labelling - whether each AI signal reached its entry
+and then its target or stop, from stored M5 candles. Hypothetical results for the AI Signals page; nothing is traded.
+
 Optional step ``backup_prices``: the cloud backup price feed (aurum/collectors/backup_prices.py), only when
 TWELVE_DATA_API_KEY is set. It fetches nothing while the MT5 PC is sending prices.
 
@@ -43,6 +46,8 @@ class Worker:
                  ("timeouts", self.svc.sweep_timeouts)]
         if self.svc.config().approval_responses.expire_overdue_requests:
             steps.insert(0, ("approval_expiry", self._approval_expiry))      # before the bridge, so its events go out now
+        if self._outcomes_due():
+            steps.append(("signal_outcomes", self._signal_outcomes))        # what each AI signal did in the market
         st = self.svc.settings
         if getattr(st, "backup_prices_enabled", False) and getattr(st, "twelve_data_api_key", None) is not None:
             steps.insert(0, ("backup_prices", self._backup_prices))         # before schedules, so WF08-01 sees the candles
@@ -56,6 +61,27 @@ class Worker:
                 log.exception("Module 08 worker step failed", extra={"step": name})
                 out[name] = {"error": f"{type(exc).__name__}: {exc}"[:300]}
         return out
+
+    OUTCOME_INTERVAL_SECONDS = 300
+
+    def _outcomes_due(self) -> bool:
+        """Every 5 minutes, measured from the last stored outcome (works with a fresh worker per tick too)."""
+        try:
+            from sqlalchemy import func, select
+
+            from aurum.decision.db_models import CandidateOutcome
+            from aurum.orchestration.repository import utc
+            with self.svc.repo.read() as s:
+                last = s.execute(select(func.max(CandidateOutcome.updated_at))).scalar()
+            return last is None or (utc(self.svc.now()) - utc(last)).total_seconds() >= self.OUTCOME_INTERVAL_SECONDS - 5
+        except Exception:  # noqa: BLE001 - Module 05 tables missing: nothing to label
+            return False
+
+    def _signal_outcomes(self) -> dict[str, Any]:
+        """Module 05's own outcome labelling: for each signal not yet resolved, did price reach the entry, then the
+        target or the stop? Hypothetical (AURUM places no trades); read from stored M5 candles."""
+        from aurum.decision.service import DecisionService
+        return DecisionService(self.svc.settings, self.svc.repo.engine).update_outcomes()
 
     def _backup_prices(self) -> dict[str, Any]:
         from aurum.collectors.backup_prices import feed_from_settings

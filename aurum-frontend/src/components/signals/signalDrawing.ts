@@ -7,6 +7,7 @@
  */
 import type { Candle, ChartOverlay } from '@/types/market';
 import type { SignalOutcome } from '@/types/decision';
+import { outcomeState, RESOLVED } from '@/config/signals';
 import type { TradeSignal } from '@/types/trading';
 import type { ChartPalette } from '@/theme/theme';
 import { formatNumber } from '@/utils/format';
@@ -194,17 +195,35 @@ export function buildSignalDrawing(
   levels.push({ id: 'sl', price: s.stopLoss, color: p.down, title: 'SL', style: 'solid' });
   levels.push({ id: 'entry', price: entry, color: p.accent, title: 'Entry', style: 'dashed' });
 
-  const resolved = s.outcome?.resolvedAt ? snapTime(Math.floor(Date.parse(s.outcome.resolvedAt) / 1000), times) : null;
-  if (resolved != null && s.outcome) {
-    const r = s.outcome.rMultiple;
-    const win = r != null && r > 0;
+  // What happened next: the bar where price reached the entry, and the exit (target, stop or time limit).
+  const o = s.outcome;
+  const state = outcomeState(o);
+  const at = (iso: string | null | undefined) => (iso ? snapTime(Math.floor(Date.parse(iso) / 1000), times) : null);
+  const filledTime = o?.filled ? at(o.filledAt ?? null) : null;
+  const exitTime = o && RESOLVED.includes(state) ? at(o.resolvedAt) : null;
+  if (filledTime != null) {
+    markers.push({ time: filledTime, position: 'inBar', shape: 'circle', color: p.accent, text: `Triggered ${fmt(entry)}` });
+  }
+  if (exitTime != null && o) {
+    const r = o.rMultiple;
+    const tone = state === 'take_profit' ? p.up : state === 'stop_loss' || state === 'ambiguous' ? p.down : p.grey1;
+    const what = state === 'take_profit' ? 'TP hit' : state === 'stop_loss' ? 'SL hit' : state === 'ambiguous' ? 'SL/TP same bar' : 'Closed';
     markers.push({
-      time: resolved,
-      position: 'inBar',
+      time: exitTime,
+      position: long === (state === 'take_profit') ? 'aboveBar' : 'belowBar',
       shape: 'square',
-      color: win ? p.up : r != null && r < 0 ? p.down : p.grey1,
-      text: `${s.outcome.result.replace(/_/g, ' ')}${r != null ? ` ${r > 0 ? '+' : ''}${r.toFixed(2)}R` : ''}`,
+      color: tone,
+      text: `${what}${o.exitPrice != null ? ` ${fmt(o.exitPrice)}` : ''}${r != null ? ` · ${r > 0 ? '+' : ''}${r.toFixed(2)}R` : ''}`,
     });
+    // The position is closed: end its boxes at the exit, as TradingView's position tool does.
+    for (const b of boxes) if (b.id === 'reward' || b.id === 'risk' || b.id === 'entry') b.to = exitTime;
+    if (o.exitPrice != null) levels.push({ id: 'exit', price: o.exitPrice, color: tone, title: what, style: 'dotted' });
+  } else if (state === 'not_triggered' && o?.resolvedAt) {
+    const end = at(o.resolvedAt);
+    if (end != null) {
+      for (const b of boxes) if (b.id === 'reward' || b.id === 'risk' || b.id === 'entry') b.to = end;
+      markers.push({ time: end, position: long ? 'belowBar' : 'aboveBar', shape: 'square', color: p.grey1, text: 'Expired · not triggered' });
+    }
   }
 
   markers.sort((a, b) => a.time - b.time);

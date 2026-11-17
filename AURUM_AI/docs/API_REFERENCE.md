@@ -7,7 +7,7 @@ Responses that describe candidates, analysis or evaluation carry a `disclaimer`.
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/analysis/signals` | `TradeSignal[]`; `?status=&instrument=&limit=` |
+| GET | `/analysis/signals` | `TradeSignal[]`; `?status=&instrument=&limit=`. Each has `entryPrice` (middle of the entry zone) and `outcome`: `{state, touched, filled, result, rMultiple, mfeR, maeR, filledAt, resolvedAt, exitPrice}` (states in MODULE_05_AI_ENGINE.md, *Signal outcomes*) |
 | GET | `/analysis/signals/{id}` | Dossier: evidence, gates, AI review, history, outcome, and `availability`: one object per input, `{available, reason, ...}` (the dashboard lists the unavailable ones with their reason) |
 | POST | `/analysis/signals/{id}/approve` | Admin. `{reviewer, note}`. Records a decision only |
 | POST | `/analysis/signals/{id}/reject` | Admin |

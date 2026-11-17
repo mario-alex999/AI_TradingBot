@@ -22,12 +22,35 @@ reported as missing when they do not.
 4. Scores evidence deterministically (grades A-F) and runs hard gates.
 5. Optionally asks an AI reviewer. It can lower a candidate or reject it, and it can never raise or create one.
 6. Saves a final decision and publishes candidates for human review.
-7. Labels outcomes from later candles, and replays history for evaluation.
+7. Labels outcomes from later candles, and replays history for evaluation. See *Signal outcomes* below.
 
 Decisions: `STRONG_BUY_SETUP`, `BUY_SETUP`, `STRONG_SELL_SETUP`, `SELL_SETUP`, `WAIT`, `NO_TRADE`, `INSUFFICIENT_DATA`.
 A "setup" decision is a research label for review. It is not an instruction to trade.
 
 Confidence measures how far the evidence agrees. It is not a probability of success.
+
+## Signal outcomes
+
+After a signal is published, its outcome is labelled from stored M5 candles (`aurum/decision/outcomes.py`). The entry is
+a limit at the middle of the entry zone, the price the risk-reward is quoted from. The hosted Module 08 worker runs the
+labelling every 5 minutes (step `signal_outcomes`); elsewhere run `python -m aurum.cli decide outcomes-update`.
+
+| State | Meaning |
+|---|---|
+| `pending` | Not checked yet |
+| `waiting` | Price has not reached the entry |
+| `running` | Price reached the entry (triggered); neither target nor stop hit yet |
+| `take_profit` | Triggered, then the target was hit |
+| `stop_loss` | Triggered, then the stop was hit |
+| `ambiguous` | Target and stop in the same candle, or the target in the fill candle: counted as a loss (−1R) |
+| `closed_at_limit` | Triggered; neither level hit within `outcomes.max_hold_candles` (96 M5 candles); closed at that candle's close |
+| `not_triggered` | Expired before price reached the entry |
+
+Each outcome stores when the entry was reached (`filled_at`), the exit price and time, the result in R, and the best and
+worst move against the entry (in R). `GET /analysis/signals` and the dossier return it as `outcome`, with `entryPrice`.
+The AI Signals page shows it on every card, sums up the results with a win rate, filters by result, and draws the trigger
+and the exit on the chart, where the position boxes end at the exit. Every outcome is **hypothetical**: AURUM places no
+trades, and labels are labels, not fills.
 
 ## How two specifications were combined
 

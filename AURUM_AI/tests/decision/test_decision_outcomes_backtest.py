@@ -244,3 +244,40 @@ def test_replay_runs_and_blocks_duplicates(tmp_path, frames):
     assert len({(t.template, t.as_of) for t in r.trades}) == len(r.trades)
     for t in r.trades:
         assert t.resolved_at is None or t.resolved_at >= t.as_of
+
+
+# ---- trigger time and exit price (shown on the AI Signals page)
+def test_win_records_when_it_triggered_and_the_exit_price():
+    o = outcome([(1.1003, 1.1001, 1.1002), (1.1010, 1.0999, 1.1005), (1.1110, 1.1000, 1.1100)])
+    assert o.touched and o.filled and o.filled_at == T + timedelta(minutes=5)       # second candle reached the 1.1000 mid
+    assert o.result == "tp" and o.exit_price == 1.1100 and o.resolved_at == T + timedelta(minutes=10)
+
+
+def test_loss_exits_at_the_stop():
+    o = outcome([(1.1010, 1.0999, 1.1005), (1.1005, 1.0940, 1.0950)])
+    assert o.filled_at == T and o.exit_price == 1.0950
+
+
+def test_not_triggered_has_no_fill_time_or_exit():
+    o = outcome([(1.1100, 1.1010, 1.1050)], expires=T + timedelta(minutes=5))
+    assert o.filled_at is None and o.exit_price is None
+
+
+def test_hold_limit_exits_at_the_close():
+    o = outcome([(1.1010, 1.0999, 1.1005), (1.1020, 1.1001, 1.1015)], hold=1)
+    assert o.result == "expired" and o.exit_price == 1.1015 and o.r_multiple == pytest.approx(0.3)
+
+
+@pytest.mark.parametrize("stored,state", [
+    (None, "pending"),
+    ({"result": "open", "filled": False}, "waiting"),
+    ({"result": "open", "filled": True}, "running"),
+    ({"result": "tp", "filled": True}, "take_profit"),
+    ({"result": "sl", "filled": True}, "stop_loss"),
+    ({"result": "ambiguous", "filled": True}, "ambiguous"),
+    ({"result": "expired", "filled": False}, "not_triggered"),
+    ({"result": "expired", "filled": True}, "closed_at_limit"),
+])
+def test_outcome_states_for_the_dashboard(stored, state):
+    from aurum.decision.frontend_views import outcome_view
+    assert outcome_view(stored)["state"] == state

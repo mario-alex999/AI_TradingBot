@@ -8,6 +8,7 @@ import { formatDateTime, formatNumber } from '@/utils/format';
 import { humanize } from '@/utils/labels';
 import type { ReviewAction } from '@/types/decision';
 import type { TradeSignal } from '@/types/trading';
+import { SignalOutcomePanel } from './SignalOutcome';
 
 interface Props {
   s: TradeSignal;
@@ -22,10 +23,9 @@ export function SignalCard({ s, digits = 5, onOpen }: Props) {
   const active = s.status === 'new' || s.status === 'under_review';
   const blocked = !gate.allowed || !active || !onOpen;
   const why = gate.reason ?? `Already ${st.label.toLowerCase()}`;
+  const entry = s.entryPrice ?? (s.entryZone[0] + s.entryZone[1]) / 2;
   const rows: [string, string][] = [
     ['Entry zone', `${formatNumber(s.entryZone[0], digits)} – ${formatNumber(s.entryZone[1], digits)}`],
-    ['Stop loss', formatNumber(s.stopLoss, digits)],
-    ['Take profit', formatNumber(s.takeProfit, digits)],
     ['Risk / reward', `1 : ${s.riskReward.toFixed(2)}`],
     ['Strategy', humanize(s.strategy)],
     ['Timeframe', s.timeframe],
@@ -43,6 +43,7 @@ export function SignalCard({ s, digits = 5, onOpen }: Props) {
         </div>
         <Badge tone={st.tone}>{st.label}</Badge>
       </div>
+      <SignalOutcomePanel outcome={s.outcome} entry={entry} stopLoss={s.stopLoss} takeProfit={s.takeProfit} digits={digits} />
       <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
         {rows.map(([k, v]) => (
           <div key={k} className="contents">
@@ -71,7 +72,7 @@ export function SignalCard({ s, digits = 5, onOpen }: Props) {
       <div className="flex items-center justify-between gap-2 border-t border-line-soft pt-2">
         <span className="num text-2xs text-neutral">{formatDateTime(s.timestamp)} UTC</span>
         <div className="flex gap-1.5">
-          <Button size="sm" variant="ghost" onClick={() => onOpen?.(null)}>
+          <Button size="sm" variant="ghost" onClick={() => onOpen?.(null)} title="Chart analysis with entry, stop, target and what happened">
             Details
           </Button>
           <Button size="sm" variant="ghost" disabled={blocked} disabledReason={why} onClick={() => onOpen?.('reject')}>

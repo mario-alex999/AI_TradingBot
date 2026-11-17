@@ -1,5 +1,5 @@
 import type { AvailabilityEntry } from '@/utils/availability';
-import type { PerformanceReport, TradeSignal } from './trading';
+import type { PerformanceReport, SignalOutcome, TradeSignal } from './trading';
 
 export type DecisionLabel = 'STRONG_BUY_SETUP' | 'BUY_SETUP' | 'STRONG_SELL_SETUP' | 'SELL_SETUP' | 'WAIT' | 'NO_TRADE' | 'INSUFFICIENT_DATA';
 
@@ -46,15 +46,7 @@ export interface AiReview {
   createdAt?: string | null;
 }
 
-export interface SignalOutcome {
-  touched: boolean;
-  filled: boolean;
-  result: string;
-  rMultiple: number | null;
-  mfeR: number | null;
-  maeR: number | null;
-  resolvedAt: string | null;
-}
+export type { OutcomeState, SignalOutcome } from './trading';
 
 export interface SignalDossier extends TradeSignal {
   takeProfit2: number | null;

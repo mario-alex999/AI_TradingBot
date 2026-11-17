@@ -278,7 +278,8 @@ class DecisionService:
             o = label(row["direction"], row["entry_low"], row["entry_high"], row["stop_loss"], row["take_profit"], row["expires_at"], after,
                       self.cfg.outcomes["max_hold_candles"])
             self.repo.save_outcome(row["candidate_uid"], touched=o.touched, filled=o.filled, result=o.result, r_multiple=o.r_multiple,
-                                   mfe_r=o.mfe_r, mae_r=o.mae_r, resolved_at=o.resolved_at)
+                                   mfe_r=o.mfe_r, mae_r=o.mae_r, resolved_at=o.resolved_at, filled_at=o.filled_at,
+                                   exit_price=o.exit_price)
             counts[o.result] = counts.get(o.result, 0) + 1
         return counts
 
@@ -321,8 +322,9 @@ class DecisionService:
     def signals(self, status: str | None = None, symbol: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
         self._require_schema()
         rows = self.repo.listing(status, symbol.upper() if symbol else None, limit)
-        evidence = self.repo.evidence_sentences([r["candidate_uid"] for r in rows])
-        return [frontend_views.signal(r, evidence[r["candidate_uid"]]) for r in rows]
+        uids = [r["candidate_uid"] for r in rows]
+        evidence, outcomes = self.repo.evidence_sentences(uids), self.repo.outcomes(uids)
+        return [frontend_views.signal(r, evidence[r["candidate_uid"]], outcomes.get(r["candidate_uid"])) for r in rows]
 
     def _view(self, row: dict[str, Any]) -> dict[str, Any]:
         return self.dossier(row["candidate_uid"])
@@ -330,13 +332,13 @@ class DecisionService:
     def dossier(self, uid: str) -> dict[str, Any]:
         row = self._candidate(uid)
         evidence = self.repo.evidence(uid)
-        return {**frontend_views.signal(row, [e["sentence"] for e in evidence]), "take_profit2": row["take_profit2"],
+        return {**frontend_views.signal(row, [e["sentence"] for e in evidence], self.repo.outcome(uid)), "take_profit2": row["take_profit2"],
                 "expires_at": row["expires_at"], "invalidation": row["invalidation"], "grade": row["grade"],
                 "deterministic_score": row["deterministic_score"], "rejected_by": row["rejected_by"],
                 "review_status": frontend_views.review_status(row, self.repo.history(uid)),
                 "suggested_volume": row["suggested_volume"], "volume_reason": row["volume_reason"], "evidence_detail": evidence,
                 "gates": self.repo.gates(uid), "ai_review": frontend_views.ai_view(self.ai.audit.latest(uid)),
-                "status_history": self.repo.history(uid), "outcome": self.repo.outcome(uid), "availability": row["availability"],
+                "status_history": self.repo.history(uid), "availability": row["availability"],
                 "disclaimer": DISCLAIMER}
 
     def context(self, symbol: str, as_of: datetime | None = None) -> dict[str, Any]:
