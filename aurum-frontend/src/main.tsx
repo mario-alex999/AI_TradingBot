@@ -4,9 +4,11 @@ import { BrowserRouter, MemoryRouter } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createQueryClient } from '@/config/queryClient';
 import App from './App';
+import { installStaleBuildReload } from '@/utils/staleBuild';
 import '@/styles/globals.css';
 
 const queryClient = createQueryClient();
+installStaleBuildReload();
 
 // VITE_ROUTER=memory builds a self-contained preview (no URL routing), e.g. for sandboxed hosting.
 const Router = import.meta.env.VITE_ROUTER === 'memory' ? MemoryRouter : BrowserRouter;
