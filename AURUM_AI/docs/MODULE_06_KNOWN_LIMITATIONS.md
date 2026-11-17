@@ -9,6 +9,9 @@
   counted again.
 - **Weekend quotes are stale.** Outside market hours, R050 reports the market as closed. If Module 04 does not know the
   market is closed, R051 blocks on quote age.
+- **Backup prices go to review.** While the MT5 PC is offline, quotes can come from the cloud backup feed (Twelve Data). Its ask is estimated from the
+  broker's usual spread and the Dow Jones cash index can differ from the broker's US30 CFD, so R051 sends every such
+  assessment to REVIEW (`QUOTE_FROM_BACKUP`) and blocks backup prices older than 20 min. See BACKUP_PRICES.md.
 - **Live sizing differs from the simulation.** For example, 0.39 lots live against 0.46 simulated for the same EURUSD
   trade, because the live spread from the last stored quote was wider. The engine uses whatever spread is stored.
 - **The `SAMPLE_SPECS` in the simulation are illustrative.** They follow the demo server's stored specifications, but are

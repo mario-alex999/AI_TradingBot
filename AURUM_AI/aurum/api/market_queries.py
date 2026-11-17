@@ -27,6 +27,7 @@ ASSET_CLASS = {"forex": "forex", "fx": "forex", "metal": "commodities", "metals"
 
 # A quote is "live" while its latest tick is this fresh; older means the feed is not updating.
 LIVE_TICK_SECONDS = 120
+BACKUP_LIVE_SECONDS = 20 * 60   # the backup feed fetches every few minutes, not every second
 
 
 def _utc(dt: datetime | None) -> datetime | None:
@@ -97,6 +98,8 @@ class MarketQueries:
                     .order_by(MarketCandle.ts_utc.desc()).limit(1)).scalar()
                 bid, ask = float(tick.bid), float(tick.ask if tick.ask is not None else tick.bid)
                 age = (now - _utc(tick.ts_utc)).total_seconds()
+                backup = (tick.source or "mt5") != "mt5"
+                live_for = BACKUP_LIVE_SECONDS if backup else LIVE_TICK_SECONDS
                 spread = tick.spread_points if tick.spread_points is not None else round((ask - bid) / point)
                 out.append({
                     "symbol": inst.symbol,
@@ -107,7 +110,10 @@ class MarketQueries:
                     "dailyHigh": max(float(hi), bid) if hi is not None else bid,
                     "dailyLow": min(float(lo), bid) if lo is not None else bid,
                     "volume": int(vol) if vol is not None else None,
-                    "status": "open" if age <= LIVE_TICK_SECONDS else "closed",
+                    "status": "open" if age <= live_for else "closed",
+                    # "backup": the MT5 PC sends no prices, so this one comes from the cloud backup feed (Twelve Data).
+                    # It is not the broker's price, and its ask is estimated from the broker's usual spread.
+                    "source": "backup" if backup else "mt5",
                     "digits": int(digits),
                     "updatedAt": _iso(tick.ts_utc),
                 })
@@ -115,7 +121,8 @@ class MarketQueries:
 
     def latest_tick_time(self) -> datetime | None:
         with session_scope(self.engine) as s:
-            return _utc(s.execute(select(func.max(MarketTick.ts_utc))).scalar())
+            # MT5 ticks only: backup prices keep the site moving but must not hide that the MT5 PC is offline.
+            return _utc(s.execute(select(func.max(MarketTick.ts_utc)).where(MarketTick.source == "mt5")).scalar())
 
     # ------------------------------------------------------------------ candles
     def candles(self, symbol: str, timeframe: str, limit: int = 500) -> list[dict[str, Any]]:

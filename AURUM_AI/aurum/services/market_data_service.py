@@ -109,7 +109,7 @@ class MarketDataService:
         started = _now()
         res = SeriesResult(inst.symbol, tf, "failed")
         try:
-            last = None if full else self.repo.latest_candle_ts(inst_id, tf)
+            last = None if full else self.repo.latest_candle_ts(inst_id, tf, source="mt5")
             count = incremental_count(last, tf, self.settings.historical_candle_count, now_utc)
             batch = collect_candles(self.gateway, inst, tf, count, self.settings.exclude_forming_candle, now_utc)
             res.received, res.excluded_forming = len(batch.raw), batch.excluded_forming

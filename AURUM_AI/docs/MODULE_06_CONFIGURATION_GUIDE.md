@@ -49,6 +49,8 @@ Applying a profile replaces those values. Editing individual values afterwards g
 | `consecutive_loss_cooldown_minutes` | 0 | Optional expiry for streak locks (0 = manual release only) |
 | `assessment_ttl_minutes` | 15 | How long a PASS/REVIEW stays valid and reserves risk |
 | `account_max_age_minutes` / `quote_max_age_minutes` | 10 / 5 | Staleness limits (R001 / R051) |
+| `backup_quotes` | `review` | A price from the cloud backup feed (MT5 offline, see [BACKUP_PRICES.md](BACKUP_PRICES.md)): `review` sizes the trade but R051 sends it to REVIEW with `QUOTE_FROM_BACKUP`; `block` blocks it. `block` → `review` counts as weakening |
+| `backup_quote_max_age_minutes` | 20 | An older backup price while the market is open blocks (R051 `QUOTE_STALE`) |
 | `spec_max_age_hours` / `conversion_max_age_minutes` | 72 / 30 | R002 / R003 |
 | `correlation` | H1, 500 bars, minimum 120, threshold 0.7, maximum age 72 h, `assume_correlated` | R044 / R045 |
 | `news` | block HIGH_EVENT_RISK, RELEASE_WINDOW; warn EVENT_APPROACHING, POST_EVENT_VOLATILITY; unknown → review | R053 (Module 04 states) |

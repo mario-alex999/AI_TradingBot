@@ -203,7 +203,8 @@ class DatabaseRiskData:
             t = s.execute(select(MarketTick).where(and_(MarketTick.instrument_id == iid, MarketTick.ts_utc <= now))
                           .order_by(MarketTick.ts_utc.desc()).limit(1)).scalar_one_or_none()
             if t is not None and t.bid and t.ask:
-                return Quote(D(t.bid), D(t.ask), _utc(t.ts_utc), "module_01.market_ticks")
+                src = "module_01.market_ticks" if (t.source or "mt5") == "mt5" else f"backup.{t.source}"
+                return Quote(D(t.bid), D(t.ask), _utc(t.ts_utc), src)
             c = s.execute(select(MarketCandle).where(and_(MarketCandle.instrument_id == iid, MarketCandle.timeframe == "M5",
                                                            MarketCandle.quality_status == "valid", MarketCandle.ts_utc <= now))
                           .order_by(MarketCandle.ts_utc.desc()).limit(1)).scalar_one_or_none()

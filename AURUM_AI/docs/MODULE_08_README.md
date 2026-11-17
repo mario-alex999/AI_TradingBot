@@ -19,7 +19,7 @@ execution decision, and nothing in Module 08 turns AI output into a trade.
 | Registry, executions, events, operations | `registry.py`, `executions.py`, `events.py`, `operations.py` |
 | Module gateway (health of Modules 01–10) | `aurum/orchestration/gateway.py` |
 | HMAC signing, secret status | `aurum/orchestration/security.py` |
-| Worker loop | `aurum/orchestration/worker.py` — `python -m aurum.cli orchestration worker` |
+| Worker loop | `aurum/orchestration/worker.py` — `python -m aurum.cli orchestration worker`; with `TWELVE_DATA_API_KEY` set it also runs the Module 01 cloud backup price feed ([BACKUP_PRICES.md](BACKUP_PRICES.md)) |
 | REST API | `/api/v1/orchestration` — `aurum/api/routes/orchestration.py` |
 | Dashboard | aurum-frontend → *Others → Workflow Orchestration* (8 tabs) |
 | Harmless test workflow | `n8n/workflows/aurum_core_test_echo.json` |

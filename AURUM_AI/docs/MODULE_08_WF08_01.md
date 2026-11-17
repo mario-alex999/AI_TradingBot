@@ -104,7 +104,8 @@ The deployed demo runs without a resident Module 08 worker:
 
 * **API**: Vercel project `aurum-api` (`AURUM_AI/api/index.py`), database on Supabase.
 * **Worker pass over HTTP**: `POST /api/v1/orchestration/worker/tick` runs one worker pass (bridge, deliver, schedules,
-  dispatch, time-outs, health when due). It accepts only service tokens with the `orchestration:tick` scope.
+  dispatch, time-outs, health when due; with `TWELVE_DATA_API_KEY` set, first the cloud backup price feed, which fetches
+  only while the MT5 PC sends no prices: [BACKUP_PRICES.md](BACKUP_PRICES.md)). It accepts only service tokens with the `orchestration:tick` scope.
 * **Timer**: Supabase `pg_cron` job `aurum-worker-tick` calls that endpoint every minute through `pg_net`. Its token is
   read from the Supabase vault (`aurum_tick_token`) at run time. Overlapping passes are safe (claims, leases and unique
   schedule slots).

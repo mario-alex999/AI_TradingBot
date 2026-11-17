@@ -144,6 +144,15 @@ class Settings(BaseSettings):
     official_data_enabled: bool = True                     # keyless official central-bank / statistics sources
     news_enabled: bool = True                              # official central-bank RSS feeds (+ Finnhub news if keyed)
 
+    # Module 01 - cloud backup price feed (Twelve Data). Used only while the MT5 PC sends no prices; broker prices always
+    # replace backup prices. Without TWELVE_DATA_API_KEY the feed is off. The key is a secret: never logged or returned.
+    backup_prices_enabled: bool = True
+    twelve_data_api_key: SecretStr | None = None
+    twelve_data_base_url: str = "https://api.twelvedata.com"
+    backup_prices_interval_minutes: int = Field(10, ge=1, le=240)    # how often to fetch while MT5 is offline
+    backup_prices_mt5_stale_minutes: int = Field(5, ge=1, le=240)    # MT5 counts as offline after this long without a tick
+    backup_prices_unavailable_hours: int = Field(24, ge=1, le=720)   # pause a symbol the plan does not cover
+
     # Optional AI review: advisory only, off by default. It needs all three of AI_REVIEW_ENABLED=true, ANTHROPIC_API_KEY
     # and AI_REVIEW_MONTHLY_BUDGET_USD. The budget is a hard stop, enforced before each API call.
     ai_review_enabled: bool = False
@@ -179,7 +188,7 @@ class Settings(BaseSettings):
 
     @field_validator("mt5_login", "mt5_terminal_path", "mt5_server", "mt5_password", "database_url",
                      "aurum_admin_api_key", "economic_calendar_provider", "economic_calendar_api_key",
-                     "economic_calendar_base_url", "fred_api_key", "risk_max_per_trade_pct", "risk_max_daily_loss_pct",
+                     "economic_calendar_base_url", "fred_api_key", "twelve_data_api_key", "risk_max_per_trade_pct", "risk_max_daily_loss_pct",
                      "risk_max_open_positions", "risk_max_total_exposure_pct", "risk_max_correlated_exposure_pct", "anthropic_api_key", "openai_api_key", "ai_provider_model", "ai_provider_base_url",
                      "ai_review_monthly_budget_usd", "approvals_events_webhook_url", "smtp_host", "smtp_username",
                      "smtp_password", "smtp_from", "telegram_bot_token", "telegram_chat_id", "orchestration_service_token",
@@ -295,6 +304,7 @@ class InstrumentConfig:
     asset_class: str = "unknown"
     description: str = ""
     trading_hours: TradingHours = field(default_factory=TradingHours)
+    backup_symbol: str | None = None  # the same market at the cloud backup price feed (Twelve Data), e.g. EUR/USD
 
 
 class SymbolMappingError(ValueError):
@@ -316,7 +326,8 @@ def load_instruments(path: Path) -> dict[str, InstrumentConfig]:
         hours = {**default_hours, **(spec.get("trading_hours") or {})}
         out[str(sym).upper()] = InstrumentConfig(
             symbol=str(sym).upper(), broker_symbol=broker, asset_class=str(spec.get("asset_class", "unknown")),
-            description=str(spec.get("description", "")), trading_hours=TradingHours.from_dict(hours))
+            description=str(spec.get("description", "")), trading_hours=TradingHours.from_dict(hours),
+            backup_symbol=str(spec.get("backup_symbol") or "").strip() or None)
     return out
 
 

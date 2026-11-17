@@ -7,7 +7,7 @@ only **reads** the earlier modules and only **publishes decisions**.
 
 | Source | What Module 06 reads | If it is missing |
 |---|---|---|
-| Module 01 market data | `instruments`, `instrument_specs` (contract size, tick size/value, calc mode, stops level, volume min/max/step, raw `symbol_info`), `market_ticks` (falls back to the last M5 candle), M5 spreads for the median, H1 closes for correlation, `data_quality_issues` (last 24 h) | R002 BLOCK (spec missing or stale); R051/R052 per policy; correlation unreliable → assumed correlated |
+| Module 01 market data | `instruments`, `instrument_specs` (contract size, tick size/value, calc mode, stops level, volume min/max/step, raw `symbol_info`), `market_ticks` (falls back to the last M5 candle; a tick with `source` other than `mt5` comes from the cloud backup feed and R051 sends the assessment to REVIEW), M5 spreads for the median, H1 closes for correlation, `data_quality_issues` (last 24 h) | R002 BLOCK (spec missing or stale); R051/R052 per policy; correlation unreliable → assumed correlated |
 | Account mirror (`sync-account`) | `account_snapshots` (DEMO only), `account_deals` (deposits and withdrawals), `trade_records` (open positions, closed trades) | R001 **ERROR**; no assessment can PASS |
 | Module 02 COT | via Module 04's `integrations.module_02` | Informational only (R070) |
 | Module 04 intelligence | `MarketIntelligenceService.analyze()`: `sessions.market_open`, `event_risk.state` and coverage, `volatility.regime` and H1 ATR | R050/R053/R054 follow `unknown_policy` (REVIEW by default) and say "NOT checked" |
