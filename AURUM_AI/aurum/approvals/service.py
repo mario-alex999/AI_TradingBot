@@ -194,8 +194,12 @@ class ApprovalService:
         return {k: v for k, v in known.items() if not enabled or k in enabled}
 
     def ingest(self, raw: dict[str, Any], *, source: str, who: Actor, correlation_id: str | None = None,
-               source_ref: str | None = None, update: bool = False) -> dict[str, Any]:
-        """Validates and stores a trade idea (or a new version of it), then opens its approval request."""
+               source_ref: str | None = None, update: bool = False, supersedes: str | None = None) -> dict[str, Any]:
+        """Validates and stores a trade idea (or a new version of it), then opens its approval request.
+
+        ``supersedes``: a Module 06 assessment of this idea made before it reached Module 07 (WF08-03's screening). It is
+        released just before Module 07 makes the request's own assessment. Module 06 allows one live assessment per
+        trade idea (R047), so while the screening one is live the request's assessment would always be blocked."""
         now = self.now()
         payload = intake.validate(raw, supported_symbols=self._symbols(), now=now, source=source, source_ref=source_ref)
         with self.repo.write() as s:
@@ -229,7 +233,7 @@ class ApprovalService:
                             entity_type="trade_idea", entity_id=idea.idea_id, idea_id=idea.idea_id, at=now,
                             correlation_id=idea.correlation_id, details={"version": version, "source": source,
                                                                          "payload_hash": payload.payload_hash()})
-        approval = self._open_request(idea.idea_id, version, who, parent=None)
+        approval = self._open_request(idea.idea_id, version, who, parent=None, supersedes=supersedes)
         return {"idea_id": idea.idea_id, "version": version, "duplicate": False, "approval_id": approval.get("approval_id"),
                 "status": approval.get("status")}
 
@@ -312,12 +316,16 @@ class ApprovalService:
         market = self.evidence_source.market_context(idea.symbol, now) if self.evidence_source is not None else None
         return evidence_mod.build(self._version_dict(idea, v), risk, candidate, review, gates, market, now)
 
-    def _open_request(self, idea_id: str, version: int, who: Actor, parent: str | None) -> dict[str, Any]:
+    def _open_request(self, idea_id: str, version: int, who: Actor, parent: str | None,
+                      supersedes: str | None = None) -> dict[str, Any]:
         with self.repo.read() as s:
             idea = s.get(TradeIdea, idea_id)
             v = self._version(s, idea_id, version)
             s.expunge_all()
         cid = idea.correlation_id
+        if supersedes:
+            # Free R047 first: the request's assessment replaces the screening one (its risk is reserved once).
+            self._cancel_assessment_later(supersedes, "Superseded by the Module 07 approval request's own assessment.")
         risk = self._assess(idea, v, "intake", cid)
         ev = self._gather(idea, v, risk)
         now = self.now()
@@ -1544,14 +1552,16 @@ class ApprovalService:
                 "reason": r.reason, "position_snapshot": r.position_snapshot}
 
     # ==== Module 05 sync and inbound events ======================================================================================
-    def ingest_candidate(self, c: dict[str, Any], symbols: dict[str, str] | None = None) -> dict[str, Any]:
+    def ingest_candidate(self, c: dict[str, Any], symbols: dict[str, str] | None = None,
+                         supersedes: str | None = None) -> dict[str, Any]:
         """Takes one Module 05 candidate in and opens its approval request (which notifies the reviewers). Used by the
-        worker's sync and by WF08-04. Raises intake.IntakeError or ApprovalError when the candidate cannot be accepted."""
+        worker's sync and by WF08-04 (which passes its screening assessment as ``supersedes``). Raises intake.IntakeError
+        or ApprovalError when the candidate cannot be accepted."""
         symbols = symbols if symbols is not None else self._symbols()
         uid = c["candidate_uid"]
         raw = intake.from_module05(c, self.ideas.evidence(uid), self.ideas.ai_review(uid),
                                    symbols.get(c["symbol"], "unknown"), self.risk.normalised_entry(uid))
-        return self.ingest(raw, source="module05", who=SYSTEM, source_ref=uid)
+        return self.ingest(raw, source="module05", who=SYSTEM, source_ref=uid, supersedes=supersedes)
 
     def sync_module05(self) -> dict[str, int]:
         """Takes new Module 05 candidates in, and closes Module 07 requests whose candidate Module 05 has since rejected or

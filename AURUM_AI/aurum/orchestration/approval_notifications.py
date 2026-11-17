@@ -13,7 +13,9 @@ reviewers, and it reports what was sent.
 
 How the two risk assessments relate: WF08-03's assessment is the gate that decides whether a person is asked at all.
 Module 07 always assesses again when it opens a request, and attaches that assessment (and its risk reservation) to the
-request. ``notify`` therefore cancels WF08-03's assessment once the request exists, so the risk is reserved once.
+request. Module 06 allows only one live assessment per trade idea (R047), so ``notify`` passes WF08-03's assessment to
+Module 07, which releases it just before making its own. The risk is reserved once, and the request's assessment is not
+blocked as a duplicate of the screening one.
 
 Approval controls live only in the signed-in AURUM frontend. A notification is a message with a link to the review page:
 it cannot approve anything, and nothing here approves, places or executes a trade or talks to MT5.
@@ -233,14 +235,16 @@ class ApprovalNotifier:
         approvals = self.approvals
         candidate = self._candidate(idea_id)
         try:
-            result = approvals.ingest_candidate(candidate)
+            # WF08-03's assessment is released inside Module 07, just before the request's own assessment: Module 06
+            # allows one live assessment per idea (R047), so releasing it afterwards left every request BLOCKED.
+            result = approvals.ingest_candidate(candidate, supersedes=st["assessment_id"])
         except Exception as exc:  # noqa: BLE001 - Module 07 refused or failed: nobody was notified
             return {**base, "status": "failed", "reason": f"Module 07 could not open the approval request: "
                                                           f"{getattr(exc, 'message', None) or exc}"[:300]}
         approval_id = result.get("approval_id")
         if not approval_id:
             return {**base, "status": "failed", "reason": f"Module 07 did not open an approval request ({result.get('status')})."}
-        # Module 07 made its own assessment for the request, so WF08-03's reservation is released.
+        # Normally already released by Module 07 (above). Kept for an idea Module 07 already had a request for.
         try:
             self.risk.set_assessment_state(st["assessment_id"], "cancelled", "wf08-04",
                                            "Superseded by the Module 07 approval request's own assessment.", execution_id)

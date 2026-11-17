@@ -42,9 +42,12 @@ risk.assessment.completed / risk.assessment.requires_review (Module 06, for a WF
   request status as they are stored. It never changes either.
 * **Notified once.** An idea that already has a Module 07 request is skipped, so repeated or overlapping runs cannot
   notify twice. Module 07's own intake check also refuses duplicates.
-* **One assessment per request.** Module 07 runs its own Module 06 check when it opens the request, so WF08-04 cancels
-  the WF08-03 assessment it started from. That check emits another risk event, which starts one more WF08-04 run that
-  finds nothing to do.
+* **One assessment per request.** Module 07 runs its own Module 06 check when it opens the request. Module 06 allows
+  only one live assessment per trade idea (R047), so WF08-04 hands the WF08-03 assessment it started from to Module 07
+  (`ingest_candidate(..., supersedes=...)`), which releases it just **before** its own check. Releasing it afterwards,
+  as the first version did, made R047 block every request as a duplicate of its own screening (fixed 17 Nov 2026).
+  The risk is reserved once. Module 07's check emits another risk event, which starts one more WF08-04 run that finds
+  nothing to do.
 * **One run per WF08-03 run.** With `approval_notifications.coalesce` (default on) the risk events of one WF08-03 run
   share one WF08-04 execution.
 * **Off switch.** `approval_notifications.enabled: false` stops the run at step 3 and makes `notify` refuse.
@@ -91,9 +94,11 @@ The Module 08 registration id is `wf08-04-approval-notification`, which this ins
 
 `tests/orchestration/test_wf08_04.py`, against the real Module 07 service: pending lists only ideas Module 06 passed
 that Module 07 has not been given; the still-valid check (expired idea, an assessment Module 06 no longer confirms, a cancelled assessment);
-notify opens exactly one request and returns the complete notification; dry run, the off switch and a Module 07
+notify opens exactly one request, releases WF08-03's assessment before Module 07's own one, and returns the complete
+notification; dry run, the off switch and a Module 07
 refusal; installation with both subscriptions and one execution per WF08-03 run; the HTTP routes and who may notify;
-and the queries on an empty database.
+and the queries on an empty database. `tests/approvals/test_integration_module06.py` checks the release against the
+real Module 06: with it the request is PASS/REVIEW; without it R047 blocks the request.
 
 The workflow file `n8n/workflows/aurum_wf08_04_approval_notification.json` is checked by
 `tests/orchestration/test_workflow_files.py`.
