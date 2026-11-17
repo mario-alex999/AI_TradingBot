@@ -9,6 +9,8 @@ import { useAdminGate, useDossier, useReviewSignal } from '@/hooks/useDecision';
 import { useAuthStore } from '@/stores/authStore';
 import { formatDateTime, formatNumber } from '@/utils/format';
 import { humanize } from '@/utils/labels';
+import { missingInputs } from '@/utils/availability';
+import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import type { GateRow, ReviewAction, SignalDossier } from '@/types/decision';
 import { SignalChart } from './SignalChart';
 
@@ -100,8 +102,8 @@ function ReviewForm({ d, initial, onDone }: { d: SignalDossier; initial: ReviewA
 
 function Dossier({ d, digits, action, onDone }: { d: SignalDossier; digits: number; action: ReviewAction | null; onDone: () => void }) {
   const st = SIGNAL_STATUS[d.status];
-  const ai = d.aiReview;
-  const missing = Object.entries(d.availability ?? {}).filter(([, v]) => v !== 'available');
+  const ai = d.aiReview ?? { status: 'unavailable', reason: 'not_recorded' };
+  const missing = missingInputs(d.availability);
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap gap-1.5">
@@ -112,11 +114,11 @@ function Dossier({ d, digits, action, onDone }: { d: SignalDossier; digits: numb
       <SignalChart signal={d} digits={digits} />
       <Rows
         rows={[
-          ['Entry zone', `${formatNumber(d.entryZone[0], digits)} – ${formatNumber(d.entryZone[1], digits)}`],
+          ['Entry zone', d.entryZone ? `${formatNumber(d.entryZone[0], digits)} – ${formatNumber(d.entryZone[1], digits)}` : 'Unavailable'],
           ['Stop loss', formatNumber(d.stopLoss, digits)],
           ['Take profit', formatNumber(d.takeProfit, digits)],
-          ['Second target', d.takeProfit2 === null ? 'None' : formatNumber(d.takeProfit2, digits)],
-          ['Risk / reward', `1 : ${d.riskReward.toFixed(2)}`],
+          ['Second target', d.takeProfit2 == null ? 'None' : formatNumber(d.takeProfit2, digits)],
+          ['Risk / reward', d.riskReward == null ? 'Unavailable' : `1 : ${d.riskReward.toFixed(2)}`],
           ['Confidence score', `${d.confidence}/100`],
           ['Estimated size', d.suggestedVolume === null ? (d.volumeReason ?? 'Unavailable') : `${d.suggestedVolume} lots (estimate)`],
           ['Expires', `${formatDateTime(d.expiresAt)} UTC`],
@@ -128,7 +130,7 @@ function Dossier({ d, digits, action, onDone }: { d: SignalDossier; digits: numb
       </Section>
       <Section title="Evidence">
         <ul className="flex flex-col gap-1.5 text-xs text-ink-muted">
-          {d.evidenceDetail.map((e) => (
+          {(d.evidenceDetail ?? []).map((e) => (
             <li key={e.component} className="flex justify-between gap-3">
               <span>{e.sentence}</span>
               <span className="num shrink-0 text-ink">
@@ -140,10 +142,10 @@ function Dossier({ d, digits, action, onDone }: { d: SignalDossier; digits: numb
       </Section>
       <Section title="Gates">
         <ul className="flex flex-col gap-1.5 text-xs text-ink-muted">
-          {d.gates.map((g) => (
+          {(d.gates ?? []).map((g) => (
             <li key={g.gate} className="flex items-center justify-between gap-3">
               <span>{humanize(g.gate)}</span>
-              <Badge tone={GATE[g.result].tone}>{GATE[g.result].label}</Badge>
+              <Badge tone={GATE[g.result]?.tone ?? 'neutral'}>{GATE[g.result]?.label ?? humanize(String(g.result))}</Badge>
             </li>
           ))}
         </ul>
@@ -164,9 +166,9 @@ function Dossier({ d, digits, action, onDone }: { d: SignalDossier; digits: numb
               <span className="text-neutral">Bearish case: </span>
               {ai.review.bearishCase}
             </p>
-            {ai.review.risks.length > 0 && (
+            {(ai.review.risks ?? []).length > 0 && (
               <ul className="list-inside list-disc space-y-0.5">
-                {ai.review.risks.map((r) => (
+                {(ai.review.risks ?? []).map((r) => (
                   <li key={r}>{r}</li>
                 ))}
               </ul>
@@ -179,10 +181,10 @@ function Dossier({ d, digits, action, onDone }: { d: SignalDossier; digits: numb
       {missing.length > 0 && (
         <Section title="Missing data">
           <ul className="flex flex-col gap-1 text-xs text-ink-muted">
-            {missing.map(([k, v]) => (
-              <li key={k} className="flex justify-between gap-3">
-                <span>{humanize(k)}</span>
-                <span>{humanize(v)}</span>
+            {missing.map((m) => (
+              <li key={m.key} className="flex justify-between gap-3">
+                <span>{humanize(m.key)}</span>
+                <span className="text-right">{m.reason ?? 'Not available'}</span>
               </li>
             ))}
           </ul>
@@ -190,7 +192,7 @@ function Dossier({ d, digits, action, onDone }: { d: SignalDossier; digits: numb
       )}
       <Section title="Status history">
         <ul className="flex flex-col gap-1.5 text-xs text-ink-muted">
-          {d.statusHistory.map((h) => (
+          {(d.statusHistory ?? []).map((h) => (
             <li key={`${h.at}-${h.to}`}>
               <span className="text-ink">{SIGNAL_STATUS[h.to as keyof typeof SIGNAL_STATUS]?.label ?? h.to}</span> by {humanize(h.actor)}
               <span className="num text-neutral"> · {formatDateTime(h.at)} UTC</span>
@@ -205,7 +207,7 @@ function Dossier({ d, digits, action, onDone }: { d: SignalDossier; digits: numb
             rows={[
               ['Result', humanize(d.outcome.result)],
               ['Entry touched', d.outcome.touched ? 'Yes' : 'No'],
-              ['R multiple', d.outcome.rMultiple === null ? 'Not resolved' : d.outcome.rMultiple.toFixed(2)],
+              ['R multiple', d.outcome.rMultiple == null ? 'Not resolved' : d.outcome.rMultiple.toFixed(2)],
             ]}
           />
         </Section>
@@ -230,7 +232,13 @@ export function SignalDrawer({ id, digits = 5, action = null, onClose }: Props) 
   return (
     <Drawer open={!!id} title={d ? `${d.instrument} ${d.direction}` : 'Signal'} subtitle={d ? `${humanize(d.strategy)} · ${d.timeframe}` : undefined} onClose={onClose} width="w-[min(96vw,960px)]">
       <QueryState query={q} isEmpty={(r) => !r.data}>
-        {(r) => r.data && <Dossier d={r.data} digits={digits} action={action} onDone={onClose} />}
+        {(r) =>
+          r.data && (
+            <ErrorBoundary what="this signal's details" resetKey={id}>
+              <Dossier d={r.data} digits={digits} action={action} onDone={onClose} />
+            </ErrorBoundary>
+          )
+        }
       </QueryState>
     </Drawer>
   );

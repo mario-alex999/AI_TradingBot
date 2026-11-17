@@ -21,6 +21,7 @@ import { useAdminGate, useAiHealth, useEvaluation, useEvaluations, useLatestAnal
 import { demoProfile } from '@/mocks/market';
 import { formatDateTime, formatPercent } from '@/utils/format';
 import { humanize } from '@/utils/labels';
+import { missingInputs } from '@/utils/availability';
 import type { AnalysisDetail, DecisionLabel, EvaluationRun, ProviderRow, SetupRow, StrategyRow, TimeframeBias, TradeIdea } from '@/types/decision';
 
 const TABS = [
@@ -68,7 +69,7 @@ function Bullets({ title, items }: { title: string; items: string[] }) {
 function Dashboard({ a }: { a: AnalysisDetail }) {
   const s = a.summary;
   const best = s?.evidence?.[0];
-  const gaps = Object.values(a.availability ?? {}).filter((v) => v !== 'available').length;
+  const gaps = missingInputs(a.availability).length;
   return (
     <div className="flex flex-col gap-4">
       <section aria-label="Latest analysis" className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">

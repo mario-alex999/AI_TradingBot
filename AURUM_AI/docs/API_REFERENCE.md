@@ -8,7 +8,7 @@ Responses that describe candidates, analysis or evaluation carry a `disclaimer`.
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/analysis/signals` | `TradeSignal[]`; `?status=&instrument=&limit=` |
-| GET | `/analysis/signals/{id}` | Dossier: evidence, gates, AI review, history, outcome |
+| GET | `/analysis/signals/{id}` | Dossier: evidence, gates, AI review, history, outcome, and `availability`: one object per input, `{available, reason, ...}` (the dashboard lists the unavailable ones with their reason) |
 | POST | `/analysis/signals/{id}/approve` | Admin. `{reviewer, note}`. Records a decision only |
 | POST | `/analysis/signals/{id}/reject` | Admin |
 | POST | `/analysis/signals/{id}/reopen` | Admin. Overrides an AI rejection, with a note |
