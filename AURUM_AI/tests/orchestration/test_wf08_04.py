@@ -35,16 +35,18 @@ class RiskGateway:
 
     def __init__(self, clock, decision="PASS"):
         self.clock, self.decision, self.n = clock, decision, 0
+        self.calls: list[tuple] = []          # assess / cancel, in order
 
     def assess(self, proposal, actor, correlation_id, idempotency_key):
         self.n += 1
+        self.calls.append(("assess", proposal["trade_idea_id"]))
         return {"assessment_id": f"m07-{self.n}", "decision": self.decision, "final_volume": "0.10", "risk_pct": "0.50",
                 "monetary_risk": "20.00", "potential_reward": "50.00", "risk_reward": "2.50", "warnings": [],
                 "rule_violations": [], "errors": [], "config_version": 1, "timestamp": self.clock(),
                 "expires_at": self.clock() + timedelta(minutes=5), "market_status": {"volatility_regime": "NORMAL"}}
 
     def validate(self, assessment_id): return {"valid": True, "reasons": []}
-    def cancel(self, *a, **k): return None
+    def cancel(self, assessment_id, *a, **k): self.calls.append(("cancel", assessment_id))
     def normalised_entry(self, uid): return None
     def quote_time(self, symbol, now): return self.clock()
     def symbols(self): return {"EURUSD": "forex", "XAUUSD": "metal", "GBPUSD": "forex", "US30": "index"}
@@ -171,6 +173,8 @@ def test_notify_opens_one_request_and_reports_a_complete_notification(world):
     assert out["deliveries"]["in_app"] and sum(out["deliveries"]["in_app"].values()) >= 2
     # WF08-03's assessment is released: Module 07's own assessment now carries the reservation.
     assert pre.cancelled == [pre.rows[uid]["assessment_id"]]
+    # Module 07 released WF08-03's assessment BEFORE its own one, so R047 does not block the request's assessment
+    assert approvals.risk.calls[:2] == [("cancel", pre.rows[uid]["assessment_id"]), ("assess", uid)]
     # Asked once: a second run does not open another request.
     again = notifier.notify(uid)
     assert again["status"] == "skipped" and again["approval_id"] == out["approval_id"]

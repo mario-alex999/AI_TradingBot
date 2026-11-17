@@ -75,3 +75,36 @@ def test_real_module06_block_on_bad_stop(real):
     aid = h.ingest(4, stop_loss="1.05000")["approval_id"]
     v = h.view(aid)
     assert v["risk_decision"] in ("BLOCK", "ERROR") and v["can_approve"] is False
+
+
+def _screen(risk, n, stop="1.09830"):
+    """WF08-03's screening assessment of the idea, made before Module 07 sees it. Its parameters differ from Module 07's
+    proposal (here: the stop), as they did live, so R047 treats the two as conflicting."""
+    proposal = {"symbol": "EURUSD", "direction": "BUY", "entry": "1.10010", "stop_loss": stop, "take_profit": "1.10510",
+                "strategy": "trend_pullback", "timeframe": "H1", "trade_idea_id": f"idea-{n}", "source": "module_05"}
+    a = risk.assess(proposal, "wf08-03", f"c-{n}", f"wf08-03:idea-{n}:screen")
+    assert a["decision"] in ("PASS", "REVIEW"), (a["decision"], [v["rule_id"] + " " + v["message"] for v in a["rule_violations"] + a.get("errors", [])])
+    return a["assessment_id"]
+
+
+def test_screening_assessment_is_released_before_module07_assesses(real):
+    """Live bug (17 Nov 2026): WF08-04 released WF08-03's assessment only after Module 07 had assessed, so R047 blocked
+    every approval request as a duplicate of its own screening. Passing it as ``supersedes`` releases it first."""
+    h, risk, _ = real
+    from aurum.approvals.service import SYSTEM
+    from m07_harness import idea
+    screening = _screen(risk, 51)
+    out = h.svc.ingest(idea(51, h.clock), source="event", who=SYSTEM, supersedes=screening)
+    v = h.view(out["approval_id"])
+    assert v["risk_decision"] in ("PASS", "REVIEW"), v
+    assert risk.validate_assessment(screening)["valid"] is False           # risk reserved once, by the request
+
+
+def test_without_release_the_request_would_be_blocked_by_r047(real):
+    """The behaviour the fix removes, kept as a guard: a live screening assessment blocks Module 07's own one."""
+    h, risk, _ = real
+    from aurum.approvals.service import SYSTEM
+    from m07_harness import idea
+    _screen(risk, 52)
+    v = h.view(h.svc.ingest(idea(52, h.clock), source="event", who=SYSTEM)["approval_id"])
+    assert v["risk_decision"] == "BLOCK"
