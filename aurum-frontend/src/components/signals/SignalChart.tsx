@@ -115,6 +115,8 @@ export function SignalChart({ signal, digits, className }: Props) {
     { label: 'Reward', color: alpha(p.up, 0.4) },
     { label: 'Risk', color: alpha(p.down, 0.4) },
     ...(structure && overlays.length ? [{ label: 'Market structure (Module 03)', color: alpha(p.grey1, 0.4) }] : []),
+    ...(signal.outcome?.filled ? [{ label: '● Entry reached (triggered)', color: p.accent }] : []),
+    ...(signal.outcome?.filled && signal.outcome.resolvedAt ? [{ label: '■ Exit: TP / SL / time limit', color: p.grey1 }] : []),
   ];
 
   return (

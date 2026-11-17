@@ -134,6 +134,8 @@ class CandidateOutcome(Base):
     mfe_r: Mapped[float | None] = mapped_column(Float)
     mae_r: Mapped[float | None] = mapped_column(Float)
     resolved_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    filled_at: Mapped[datetime | None] = mapped_column(UTCDateTime)      # when the entry was reached (migration 0016)
+    exit_price: Mapped[float | None] = mapped_column(Float)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False, default=utcnow)
 
 

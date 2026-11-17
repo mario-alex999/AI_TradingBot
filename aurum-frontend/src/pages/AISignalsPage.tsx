@@ -11,12 +11,12 @@ import { QueryState } from '@/components/common/QueryState';
 import { Badge } from '@/components/common/Badge';
 import { SignalCard } from '@/components/signals/SignalCard';
 import { SignalDrawer } from '@/components/signals/SignalDrawer';
-import { SIGNAL_STATUS } from '@/config/signals';
+import { OUTCOME, outcomeState, SIGNAL_STATUS } from '@/config/signals';
 import { useSignals } from '@/hooks/queries';
 import { DEFAULT_INSTRUMENTS, TIMEFRAMES } from '@/config/instruments';
 import { demoProfile } from '@/mocks/market';
 import type { ReviewAction } from '@/types/decision';
-import type { SignalStatus, TradeSignal } from '@/types/trading';
+import type { OutcomeState, SignalStatus, TradeSignal } from '@/types/trading';
 
 export default function AISignalsPage() {
   const q = useSignals();
@@ -24,6 +24,7 @@ export default function AISignalsPage() {
   const [direction, setDirection] = useState('');
   const [timeframe, setTimeframe] = useState('');
   const [status, setStatus] = useState('');
+  const [result, setResult] = useState('');
   const [open, setOpen] = useState<{ signal: TradeSignal; action: ReviewAction | null } | null>(null);
   const [analyse, setAnalyse] = useState(DEFAULT_INSTRUMENTS[0]?.symbol ?? 'EURUSD');
   const gate = useAdminGate();
@@ -36,10 +37,18 @@ export default function AISignalsPage() {
           (!instrument || s.instrument === instrument) &&
           (!direction || s.direction === direction) &&
           (!timeframe || s.timeframe === timeframe) &&
-          (!status || s.status === status),
+          (!status || s.status === status) &&
+          (!result || outcomeState(s.outcome) === result),
       ),
-    [q.data, instrument, direction, timeframe, status],
+    [q.data, instrument, direction, timeframe, status, result],
   );
+  const tally = useMemo(() => {
+    const t: Partial<Record<OutcomeState, number>> = {};
+    for (const s of q.data?.data ?? []) t[outcomeState(s.outcome)] = (t[outcomeState(s.outcome)] ?? 0) + 1;
+    const wins = t.take_profit ?? 0;
+    const losses = (t.stop_loss ?? 0) + (t.ambiguous ?? 0);
+    return { t, wins, losses, winRate: wins + losses > 0 ? Math.round((wins / (wins + losses)) * 100) : null };
+  }, [q.data]);
 
   return (
     <div className="flex flex-col gap-5">
@@ -76,7 +85,31 @@ export default function AISignalsPage() {
           Open a candidate to see its chart analysis: entry zone, target and stop boxes, and the market structure behind it.
         </p>
       </Card>
-      <Card className="grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-4">
+      {(q.data?.data.length ?? 0) > 0 && (
+        <Card role="region" className="flex flex-wrap items-center gap-x-5 gap-y-2 p-3 text-xs" aria-label="Signal results">
+          <span className="eyebrow">Results</span>
+          {(['take_profit', 'stop_loss', 'running', 'waiting', 'not_triggered'] as OutcomeState[]).map((k) => (
+            <button
+              key={k}
+              type="button"
+              className="inline-flex items-center gap-1.5 rounded-full hover:underline"
+              aria-pressed={result === k}
+              onClick={() => setResult(result === k ? '' : k)}
+            >
+              <Badge tone={OUTCOME[k].tone}>{OUTCOME[k].label}</Badge>
+              <span className="num text-ink">{tally.t[k] ?? 0}</span>
+            </button>
+          ))}
+          <span className="ml-auto text-ink-muted">
+            Win rate{' '}
+            <span className="num text-ink">{tally.winRate == null ? '—' : `${tally.winRate}%`}</span>{' '}
+            <span className="text-neutral">
+              ({tally.wins} TP / {tally.losses} SL, hypothetical)
+            </span>
+          </span>
+        </Card>
+      )}
+      <Card className="grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-5">
         <Select label="Instrument" value={instrument} onChange={setInstrument} options={[{ value: '', label: 'All' }, ...DEFAULT_INSTRUMENTS.map((i) => ({ value: i.symbol, label: i.symbol }))]} />
         <Select label="Direction" value={direction} onChange={setDirection} options={[{ value: '', label: 'All' }, { value: 'long', label: 'Long' }, { value: 'short', label: 'Short' }]} />
         <Select label="Timeframe" value={timeframe} onChange={setTimeframe} options={[{ value: '', label: 'All' }, ...TIMEFRAMES.map((t) => ({ value: t, label: t }))]} />
@@ -85,6 +118,12 @@ export default function AISignalsPage() {
           value={status}
           onChange={setStatus}
           options={[{ value: '', label: 'All' }, ...(Object.keys(SIGNAL_STATUS) as SignalStatus[]).map((s) => ({ value: s, label: SIGNAL_STATUS[s].label }))]}
+        />
+        <Select
+          label="Result"
+          value={result}
+          onChange={setResult}
+          options={[{ value: '', label: 'All' }, ...(Object.keys(OUTCOME) as OutcomeState[]).map((s) => ({ value: s, label: OUTCOME[s].label }))]}
         />
       </Card>
       <QueryState

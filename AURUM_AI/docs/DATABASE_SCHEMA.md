@@ -11,7 +11,7 @@ SQLite uses the matching models in `aurum/decision/db_models.py`.
 | `candidate_gate_results` | One row per gate |
 | `candidate_ai_reviews` | Audit of every AI attempt, scrubbed of secrets |
 | `candidate_status_history` | Who changed what, when, and why |
-| `candidate_outcomes` | Hypothetical outcome per candidate |
+| `candidate_outcomes` | Hypothetical outcome per candidate: touched, filled, result, R, best/worst move, `filled_at` (entry reached) and `exit_price` (migration `0016_signal_outcome_prices.sql`), `resolved_at` |
 | `backtest_runs`, `backtest_trades` | Evaluation runs and simulated trades |
 
 ## How the twenty suggested tables map

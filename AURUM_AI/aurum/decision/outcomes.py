@@ -24,6 +24,8 @@ class Outcome:
     mfe_r: float | None = None
     mae_r: float | None = None
     resolved_at: datetime | None = None
+    filled_at: datetime | None = None      # open time of the candle in which price reached the entry (the trade triggered)
+    exit_price: float | None = None        # target, stop, or the close at the hold limit; the stop for ambiguous
 
 
 def label(direction: str, entry_low: float, entry_high: float, stop: float, target: float, expires_at: datetime,
@@ -38,8 +40,8 @@ def label(direction: str, entry_low: float, entry_high: float, stop: float, targ
         return out
     best, worst, held = 0.0, 0.0, 0
 
-    def finish(result: str, r: float, at: Any) -> Outcome:
-        out.result, out.r_multiple, out.resolved_at = result, round(r, 3), at
+    def finish(result: str, r: float, at: Any, price: float) -> Outcome:
+        out.result, out.r_multiple, out.resolved_at, out.exit_price = result, round(r, 3), at, price
         out.mfe_r, out.mae_r = round(best, 3), round(worst, 3)
         return out
 
@@ -57,24 +59,24 @@ def label(direction: str, entry_low: float, entry_high: float, stop: float, targ
             out.touched = out.touched or (low <= entry_high and high >= entry_low)
             if not (low <= mid <= high):
                 continue
-            out.filled = True
+            out.filled, out.filled_at = True, at
             best, worst = max(best, _favourable(high, low, mid, risk, long)), min(worst, _adverse(high, low, mid, risk, long))
             if hit_target:     # the target may have traded before the fill, so this candle cannot prove a win
-                return finish("ambiguous", AMBIGUOUS_R, at)
+                return finish("ambiguous", AMBIGUOUS_R, at, stop)
             if hit_stop:
-                return finish("sl", -1.0, at)
+                return finish("sl", -1.0, at, stop)
             continue
         held += 1
         best, worst = max(best, _favourable(high, low, mid, risk, long)), min(worst, _adverse(high, low, mid, risk, long))
         if hit_stop and hit_target:
-            return finish("ambiguous", AMBIGUOUS_R, at)
+            return finish("ambiguous", AMBIGUOUS_R, at, stop)
         if hit_stop:
-            return finish("sl", -1.0, at)
+            return finish("sl", -1.0, at, stop)
         if hit_target:
-            return finish("tp", reward, at)
+            return finish("tp", reward, at, target)
         if held >= max_hold_candles:
             r = (row.close - mid) / risk * (1 if long else -1)
-            return finish("expired", r, at)
+            return finish("expired", r, at, float(row.close))
     return out
 
 

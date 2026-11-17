@@ -67,12 +67,49 @@ describe('signal drawing', () => {
     expect(off.levels.every((l) => !l.id.startsWith('ov-'))).toBe(true);
   });
 
-  it('marks a resolved outcome', () => {
+  it('marks where the signal triggered and where it hit the target, and closes the position there', () => {
     const d = buildSignalDrawing(
-      { ...LONG, outcome: { touched: true, filled: true, result: 'target_hit', rMultiple: 2, mfeR: 2.1, maeR: -0.3, resolvedAt: '2026-03-04T17:30:00+00:00' } },
+      {
+        ...LONG,
+        outcome: { state: 'take_profit', touched: true, filled: true, result: 'tp', rMultiple: 2, mfeR: 2.1, maeR: -0.3,
+          filledAt: '2026-03-04T14:05:00+00:00', resolvedAt: '2026-03-04T17:30:00+00:00', exitPrice: 1.11 },
+      },
       candles, [], chartPalette(), 5,
     );
-    expect(d.markers.at(-1)).toMatchObject({ time: T0 + 7 * 3600, text: 'target hit +2.00R' });
+    expect(d.markers.find((m) => m.text.startsWith('Triggered'))).toMatchObject({ time: T0 + 4 * 3600, text: 'Triggered 1.10050' });
+    expect(d.markers.at(-1)).toMatchObject({ time: T0 + 7 * 3600, text: 'TP hit 1.11000 · +2.00R', position: 'aboveBar' });
+    expect(['reward', 'risk', 'entry'].map((id) => box(d, id).to)).toEqual([T0 + 7 * 3600, T0 + 7 * 3600, T0 + 7 * 3600]);
+    expect(d.levels.find((l) => l.id === 'exit')).toMatchObject({ price: 1.11, title: 'TP hit' });
+  });
+
+  it('marks a stop loss below the bar for a long', () => {
+    const d = buildSignalDrawing(
+      { ...LONG, outcome: { touched: true, filled: true, result: 'sl', rMultiple: -1, mfeR: 0.2, maeR: -1, filledAt: '2026-03-04T14:00:00+00:00',
+        resolvedAt: '2026-03-04T15:10:00+00:00', exitPrice: 1.095 } },
+      candles, [], chartPalette(), 5,
+    );
+    expect(d.markers.at(-1)).toMatchObject({ time: T0 + 5 * 3600, text: 'SL hit 1.09500 · -1.00R', position: 'belowBar' });
+  });
+
+  it('shows an untriggered signal as expired without a trigger marker', () => {
+    const d = buildSignalDrawing(
+      { ...LONG, outcome: { state: 'not_triggered', touched: false, filled: false, result: 'expired', rMultiple: null, mfeR: null, maeR: null,
+        filledAt: null, resolvedAt: '2026-03-04T18:00:00+00:00', exitPrice: null } },
+      candles, [], chartPalette(), 5,
+    );
+    expect(d.markers.some((m) => m.text.startsWith('Triggered'))).toBe(false);
+    expect(d.markers.at(-1)?.text).toBe('Expired · not triggered');
+    expect(box(d, 'reward').to).toBe(T0 + 8 * 3600);
+  });
+
+  it('keeps an open position running to the right edge', () => {
+    const d = buildSignalDrawing(
+      { ...LONG, outcome: { state: 'running', touched: true, filled: true, result: 'open', rMultiple: null, mfeR: 0.4, maeR: -0.2,
+        filledAt: '2026-03-04T14:00:00+00:00', resolvedAt: null, exitPrice: null } },
+      candles, [], chartPalette(), 5,
+    );
+    expect(box(d, 'reward').to).toBeNull();
+    expect(d.markers.some((m) => m.text.startsWith('Triggered'))).toBe(true);
   });
 
   it('links to the same symbol and interval on TradingView', () => {

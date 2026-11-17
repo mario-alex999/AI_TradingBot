@@ -13,6 +13,7 @@ import { missingInputs } from '@/utils/availability';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import type { GateRow, ReviewAction, SignalDossier } from '@/types/decision';
 import { SignalChart } from './SignalChart';
+import { SignalOutcomePanel } from './SignalOutcome';
 
 const GATE: Record<GateRow['result'], { label: string; tone: Tone }> = {
   pass: { label: 'Pass', tone: 'up' },
@@ -111,6 +112,14 @@ function Dossier({ d, digits, action, onDone }: { d: SignalDossier; digits: numb
         <Badge tone="gold">Grade {d.grade}</Badge>
         <Badge tone="info">{humanize(d.reviewStatus)}</Badge>
       </div>
+      <SignalOutcomePanel
+        outcome={d.outcome}
+        entry={d.entryPrice ?? (d.entryZone ? (d.entryZone[0] + d.entryZone[1]) / 2 : d.stopLoss)}
+        stopLoss={d.stopLoss}
+        takeProfit={d.takeProfit}
+        digits={digits}
+        variant="full"
+      />
       <SignalChart signal={d} digits={digits} />
       <Rows
         rows={[
@@ -201,17 +210,7 @@ function Dossier({ d, digits, action, onDone }: { d: SignalDossier; digits: numb
           ))}
         </ul>
       </Section>
-      {d.outcome && (
-        <Section title="Hypothetical outcome">
-          <Rows
-            rows={[
-              ['Result', humanize(d.outcome.result)],
-              ['Entry touched', d.outcome.touched ? 'Yes' : 'No'],
-              ['R multiple', d.outcome.rMultiple == null ? 'Not resolved' : d.outcome.rMultiple.toFixed(2)],
-            ]}
-          />
-        </Section>
-      )}
+
       <ReviewForm d={d} initial={action} onDone={onDone} />
     </div>
   );

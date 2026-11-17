@@ -198,8 +198,19 @@ class DecisionRepository:
     def outcome(self, uid: str) -> dict[str, Any] | None:
         with session_scope(self.engine) as s:
             r = s.get(CandidateOutcome, uid)
-            return None if r is None else {"touched": r.touched, "filled": r.filled, "result": r.result, "r_multiple": r.r_multiple,
-                                           "mfe_r": r.mfe_r, "mae_r": r.mae_r, "resolved_at": r.resolved_at}
+            return None if r is None else _outcome_dict(r)
+
+    def outcomes(self, uids: list[str]) -> dict[str, dict[str, Any]]:
+        """Stored outcomes for several candidates (the signal list)."""
+        if not uids:
+            return {}
+        with session_scope(self.engine) as s:
+            return {r.candidate_uid: _outcome_dict(r)
+                    for r in s.execute(select(CandidateOutcome).where(CandidateOutcome.candidate_uid.in_(uids))).scalars()}
+
+    def outcomes_updated_at(self) -> datetime | None:
+        with session_scope(self.engine) as s:
+            return s.execute(select(func.max(CandidateOutcome.updated_at))).scalar()
 
     def unresolved(self) -> list[dict[str, Any]]:
         q = select(TradeCandidate).outerjoin(CandidateOutcome, CandidateOutcome.candidate_uid == TradeCandidate.candidate_uid).where(
@@ -260,3 +271,8 @@ class DecisionRepository:
             if r is None:
                 return None
             return {**r.metrics, "run": {"id": r.run_uid, "symbols": r.symbols, "from": r.period_start, "to": r.period_end, "created_at": r.created_at}}
+
+
+def _outcome_dict(r: CandidateOutcome) -> dict[str, Any]:
+    return {"touched": r.touched, "filled": r.filled, "result": r.result, "r_multiple": r.r_multiple, "mfe_r": r.mfe_r,
+            "mae_r": r.mae_r, "resolved_at": r.resolved_at, "filled_at": r.filled_at, "exit_price": r.exit_price}

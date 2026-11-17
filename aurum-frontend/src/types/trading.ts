@@ -31,6 +31,40 @@ export interface TradeSignal {
   evidence: string[];
   timestamp: string;
   status: SignalStatus;
+  /** The limit entry the risk-reward and the outcome use: the middle of the entry zone. */
+  entryPrice?: number;
+  /** What the signal did in the market afterwards (hypothetical: AURUM places no trades). */
+  outcome?: SignalOutcome | null;
+}
+
+/**
+ * pending: not checked yet · waiting: entry not reached yet · running: triggered, no exit yet · take_profit / stop_loss:
+ * exit reached · ambiguous: target and stop inside one candle (counted as a loss) · closed_at_limit: triggered and closed
+ * after the holding limit · not_triggered: expired before the entry was reached.
+ */
+export type OutcomeState =
+  | 'pending'
+  | 'waiting'
+  | 'running'
+  | 'take_profit'
+  | 'stop_loss'
+  | 'ambiguous'
+  | 'closed_at_limit'
+  | 'not_triggered';
+
+export interface SignalOutcome {
+  state?: OutcomeState;
+  touched: boolean;
+  filled: boolean;
+  /** Backend label: tp | sl | expired | ambiguous | open (null before the first check). */
+  result: string | null;
+  rMultiple: number | null;
+  mfeR: number | null;
+  maeR: number | null;
+  /** When price reached the entry (open time of that M5 candle). */
+  filledAt?: string | null;
+  resolvedAt: string | null;
+  exitPrice?: number | null;
 }
 
 export interface Position {

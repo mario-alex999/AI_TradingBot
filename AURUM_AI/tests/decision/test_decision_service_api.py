@@ -176,6 +176,9 @@ def test_outcomes_are_labelled_from_stored_candles(tmp_path):
     assert svc.update_outcomes() == {"tp": 2}
     o = svc.dossier(uid)["outcome"]
     assert o["filled"] and o["result"] == "tp" and o["r_multiple"] > 2
+    assert o["state"] == "take_profit" and o["filled_at"] is not None and o["exit_price"] == svc.dossier(uid)["take_profit"]
+    listed = next(x for x in svc.signals() if x["id"] == uid)["outcome"]               # the list carries it too
+    assert listed["state"] == "take_profit" and listed["exit_price"] == o["exit_price"]
     assert svc.update_outcomes() == {}
 
 
@@ -232,8 +235,10 @@ def test_signals_match_the_trade_signal_contract_exactly(api):
     first(svc)
     rows = client.get("/api/v1/analysis/signals").json()
     assert set(rows[0]) == {"id", "instrument", "direction", "entryZone", "stopLoss", "takeProfit", "riskReward", "strategy", "timeframe",
-                            "marketCondition", "confidence", "evidence", "timestamp", "status"}
+                            "marketCondition", "confidence", "evidence", "timestamp", "status", "entryPrice", "outcome"}
     assert len(rows[0]["entryZone"]) == 2 and isinstance(rows[0]["evidence"][0], str)
+    assert rows[0]["entryPrice"] == (rows[0]["entryZone"][0] + rows[0]["entryZone"][1]) / 2
+    assert rows[0]["outcome"]["state"] == "pending" and rows[0]["outcome"]["filledAt"] is None   # not labelled yet
 
 
 def test_signal_filters(api):
