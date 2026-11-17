@@ -1,3 +1,4 @@
+import type { AvailabilityEntry } from '@/utils/availability';
 import type { PerformanceReport, TradeSignal } from './trading';
 
 export type DecisionLabel = 'STRONG_BUY_SETUP' | 'BUY_SETUP' | 'STRONG_SELL_SETUP' | 'SELL_SETUP' | 'WAIT' | 'NO_TRADE' | 'INSUFFICIENT_DATA';
@@ -70,7 +71,7 @@ export interface SignalDossier extends TradeSignal {
   aiReview: AiReview;
   statusHistory: StatusChange[];
   outcome: SignalOutcome | null;
-  availability: Record<string, string>;
+  availability: Record<string, AvailabilityEntry>;
   disclaimer: string;
 }
 
@@ -148,7 +149,7 @@ export interface AnalysisRow {
 }
 
 export interface AnalysisDetail extends AnalysisRow {
-  availability: Record<string, string>;
+  availability: Record<string, AvailabilityEntry>;
   summary: AnalysisSummary | null;
   disclaimer: string;
 }
