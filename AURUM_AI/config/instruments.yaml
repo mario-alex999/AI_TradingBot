@@ -11,6 +11,9 @@
 #   weekly_close / weekly_open : "<DAY> HH:MM"  (DAY = MON..SUN)
 #   daily_breaks               : list of ["HH:MM", "HH:MM"] windows when the market is closed every day
 #   holidays                   : list of YYYY-MM-DD dates treated as closed all day
+#
+# backup_symbol is the same market at the cloud backup price feed (Twelve Data), used only while the MT5 PC sends no
+# prices (see docs/BACKUP_PRICES.md). Leave it out to never use backup prices for an instrument.
 # Hours below match Exness (server clock = UTC -> MT5_SERVER_TIMEZONE=Etc/UTC), verified against
 # Exness candle history in Nov 2026. A per-instrument trading_hours block replaces the defaults key by key
 # (so an instrument that sets "holidays" must list all of its holidays).
@@ -26,16 +29,19 @@ defaults:
 instruments:
   EURUSD:
     broker_symbol: EURUSDm
+    backup_symbol: EUR/USD
     asset_class: forex
     description: Euro vs US Dollar
 
   GBPUSD:
     broker_symbol: GBPUSDm
+    backup_symbol: GBP/USD
     asset_class: forex
     description: British Pound vs US Dollar
 
   XAUUSD:
     broker_symbol: XAUUSDm
+    backup_symbol: XAU/USD
     asset_class: metal
     description: Gold spot vs US Dollar
     trading_hours:
@@ -46,6 +52,7 @@ instruments:
 
   US30:
     broker_symbol: US30m
+    backup_symbol: DJI
     asset_class: index
     description: Dow Jones Industrial Average CFD
     trading_hours:

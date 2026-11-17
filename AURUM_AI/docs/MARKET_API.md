@@ -5,9 +5,10 @@ talks to MT5 or writes to the database.
 
 | Endpoint | Returns |
 | --- | --- |
-| `GET /health` | Database state, `environment: "demo"`, `mt5` (connected when a tick was stored in the last 2 min), `collection` (connected / collecting / warning when runs are late / failed), `capabilities` |
+| `GET /health` | Database state, `environment: "demo"`, `mt5` (connected when an MT5 tick was stored in the last 2 min; backup prices do not count), `collection` (connected / collecting / warning when runs are late / failed), `capabilities` |
 | `GET /market/instruments` | Configured instruments with frontend asset classes (`metal` → commodities, `index` → indices) |
-| `GET /market/quotes?symbols=` | Latest stored tick per instrument; day range from today's M5 candles; change vs the previous completed D1 close; `status: open` while ticks are fresh |
+| `GET /market/quotes?symbols=` | Latest stored tick per instrument; day range from today's M5 candles; change vs the previous completed D1 close; `status: open` while ticks are fresh (2 min for MT5, 20 min for backup prices); `source: mt5 \| backup` |
+| `GET /market/backup-prices` | The cloud backup price feed (Twelve Data): set up or not, and per instrument whether its price comes from MT5 or the backup now, last fetch, outcome and error. Never shows the key. See [BACKUP_PRICES.md](BACKUP_PRICES.md) |
 | `GET /market/candles?symbol=&timeframe=&limit=` | Valid candles, oldest first (invalid-quality rows are excluded) |
 | `GET /market/specifications` | Latest specification snapshot per instrument (missing values stay `null`) |
 | `GET /market/data-quality` | Candle counts, open quality issues by type, last run result and latency, per-timeframe freshness |

@@ -89,6 +89,8 @@ base:
   assessment_ttl_minutes: 15           # a PASS/REVIEW assessment is valid (and reserves its risk) for this long
   account_max_age_minutes: 10          # older account snapshot -> ERROR
   quote_max_age_minutes: 5             # older quote while the market is open -> BLOCK
+  backup_quotes: review                # MT5 offline, price from the cloud backup feed: review (warning) | block
+  backup_quote_max_age_minutes: 20     # older backup price while the market is open -> BLOCK
   spec_max_age_hours: 72               # older instrument specification -> ERROR
   conversion_max_age_minutes: 30       # broker tick value or conversion quote older than this is not used for cross-currency risk
   correlation:

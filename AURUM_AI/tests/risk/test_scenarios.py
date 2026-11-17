@@ -399,3 +399,31 @@ def test_decision_is_deterministic_for_identical_inputs(h):
     b = h.assess(stop_loss="1.10210", key="second")
     strip = lambda r: [(x["rule_id"], x["outcome"], x["reason_code"]) for x in r["account_status"]["checks"] + r["failed_checks"]]  # noqa: E731
     assert a["decision"] == b["decision"] and strip(a) == strip(b)
+
+
+# Cloud backup prices (Twelve Data) while the MT5 PC is offline
+def test_backup_price_sizes_the_trade_but_goes_to_review(h):
+    h.data.quotes["EURUSD"] = Quote(D("1.10000"), D("1.10012"), NOW - timedelta(minutes=8), "backup.twelvedata")
+    r = h.assess()
+    assert r["decision"] == "REVIEW", r["failed_checks"]
+    assert "R051" in ids(r, "warnings") and "R051" not in ids(r, "rule_violations")
+    assert {v["reason_code"] for v in r["warnings"]} >= {"QUOTE_FROM_BACKUP"}
+    assert r["final_volume"] is not None
+
+
+def test_old_backup_price_blocks(h):
+    h.data.quotes["EURUSD"] = Quote(D("1.10000"), D("1.10012"), NOW - timedelta(minutes=45), "backup.twelvedata")
+    r = h.assess()
+    assert r["decision"] == "BLOCK" and "R051" in ids(r, "rule_violations")
+
+
+def test_backup_prices_can_be_set_to_block(h):
+    h.config(backup_quotes="block")
+    h.data.quotes["EURUSD"] = Quote(D("1.10000"), D("1.10012"), NOW, "backup.twelvedata")
+    r = h.assess()
+    assert r["decision"] == "BLOCK" and "R051" in ids(r, "rule_violations")
+
+
+def test_allowing_backup_prices_again_counts_as_weakening():
+    from aurum.risk.config import RiskConfig, weakened_fields
+    assert "backup_quotes: block -> review" in weakened_fields(RiskConfig(backup_quotes="block"), RiskConfig())

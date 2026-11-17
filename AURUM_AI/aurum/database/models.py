@@ -121,8 +121,24 @@ class MarketTick(Base):
     spread_points: Mapped[float | None] = mapped_column(Float)
     broker_symbol: Mapped[str] = mapped_column(String(64), nullable=False)
     mt5_time_msc: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    source: Mapped[str] = mapped_column(String(16), nullable=False, default="mt5")   # mt5 | twelvedata (backup feed)
     collection_run_id: Mapped[str | None] = mapped_column(String(36))
     ingested_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False, default=utcnow)
+
+
+class BackupPriceStatus(Base):
+    """One row per instrument: what the cloud backup price feed last did for it (see aurum/collectors/backup_prices.py)."""
+    __tablename__ = "backup_price_status"
+    instrument_id: Mapped[int] = mapped_column(ForeignKey("instruments.id"), primary_key=True)
+    provider: Mapped[str] = mapped_column(String(16), nullable=False, default="twelvedata")
+    provider_symbol: Mapped[str | None] = mapped_column(String(32))
+    last_attempt_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    last_success_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    last_price_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    last_outcome: Mapped[str | None] = mapped_column(String(24))
+    last_error: Mapped[str | None] = mapped_column(Text)
+    unavailable_until: Mapped[datetime | None] = mapped_column(UTCDateTime)   # the plan does not cover the symbol
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False, default=utcnow)
 
 
 class DataCollectionLog(Base):

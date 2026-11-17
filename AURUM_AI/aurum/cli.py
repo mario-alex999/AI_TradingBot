@@ -30,7 +30,7 @@ log = logging.getLogger("aurum.cli")
 def _settings() -> Settings:
     s = get_settings()
     secrets = [x.get_secret_value() for x in (s.mt5_password, s.db_password, s.database_url, s.aurum_admin_api_key,
-                                              s.economic_calendar_api_key, s.fred_api_key)
+                                              s.economic_calendar_api_key, s.fred_api_key, s.twelve_data_api_key)
                if x is not None]
     setup_logging(s.log_level, s.resolve(s.log_dir), secrets)
     return s
@@ -449,6 +449,33 @@ app.add_typer(orchestration_app, name="orchestration")
 from aurum.mt5link.cli import mt5_slots_app  # noqa: E402 - per-person MT5 links: python -m aurum.cli mt5-slots ...
 
 app.add_typer(mt5_slots_app, name="mt5-slots")
+
+backup_app = typer.Typer(help="Cloud backup price feed (Twelve Data), used while the MT5 PC sends no prices.")
+app.add_typer(backup_app, name="backup-prices")
+
+
+@backup_app.command("status")
+def backup_status() -> None:
+    """Where each instrument's price comes from now, and what the backup feed last did. Never prints the key."""
+    import json as _json
+
+    from aurum.collectors.backup_prices import feed_from_settings
+    from aurum.database.connection import engine_from_settings
+    s = get_settings()
+    typer.echo(_json.dumps(feed_from_settings(engine_from_settings(s), s).status(), indent=2))
+
+
+@backup_app.command("run")
+def backup_run(force: bool = typer.Option(False, help="Fetch now even if not due or paused (MT5 must still be offline "
+                                                       "and the market open).")) -> None:
+    """One pass of the backup feed, the same as the hosted worker runs every minute."""
+    import json as _json
+
+    from aurum.collectors.backup_prices import feed_from_settings
+    from aurum.database.connection import engine_from_settings
+    s = get_settings()
+    typer.echo(_json.dumps(feed_from_settings(engine_from_settings(s), s).run(force=force), indent=2, default=str))
+
 
 if __name__ == "__main__":
     app()

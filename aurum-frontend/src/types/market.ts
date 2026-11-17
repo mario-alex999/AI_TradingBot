@@ -21,7 +21,13 @@ export interface Quote {
   status: MarketStatus;
   digits: number;
   updatedAt: string; // ISO-8601 UTC
+  /** 'backup': the MT5 PC sends no prices, so this one is from the cloud backup feed (Twelve Data), not the broker. */
+  source?: 'mt5' | 'backup';
 }
+
+export const BACKUP_PRICE_HINT =
+  'MT5 is offline. This price comes from the cloud backup feed (Twelve Data), not your broker, and updates every few ' +
+  'minutes. The ask is estimated from the broker’s usual spread.';
 
 export interface Candle {
   time: number; // UNIX seconds, UTC

@@ -6,7 +6,7 @@ import { Card } from '@/components/common/Card';
 import { Badge } from '@/components/common/Badge';
 import { PriceChange } from '@/components/common/PriceChange';
 import { formatInZone, formatPrice } from '@/utils/format';
-import type { Instrument, MarketStatus, Quote } from '@/types/market';
+import { BACKUP_PRICE_HINT, type Instrument, type MarketStatus, type Quote } from '@/types/market';
 import type { DataSource } from '@/types/api';
 import { ASSET_CLASS_LABEL } from '@/config/instruments';
 
@@ -36,6 +36,11 @@ export function QuoteCard({ quote, instrument, source }: { quote: Quote; instrum
         </div>
         <div className="flex flex-col items-end gap-1">
           {source === 'demo' ? <span className="text-xs text-neutral">Demo feed</span> : <Badge tone={st.tone}>{st.label}</Badge>}
+          {quote.source === 'backup' && (
+            <span title={BACKUP_PRICE_HINT}>
+              <Badge tone="warn">Backup price</Badge>
+            </span>
+          )}
           <PriceChange value={quote.dailyChangePct} className="text-xs" />
         </div>
       </div>

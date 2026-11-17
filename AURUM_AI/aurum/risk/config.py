@@ -125,6 +125,10 @@ class RiskConfig(BaseModel):
     assessment_ttl_minutes: int = Field(15, ge=1, le=1440)
     account_max_age_minutes: float = Field(10, gt=0)
     quote_max_age_minutes: float = Field(5, gt=0)
+    # Prices from the cloud backup feed (Twelve Data), used while the MT5 PC is offline. "review": allowed, but the
+    # assessment always goes to REVIEW with a warning; "block": never size a trade on them.
+    backup_quotes: Literal["review", "block"] = "review"
+    backup_quote_max_age_minutes: float = Field(20, gt=0)
     spec_max_age_hours: float = Field(72, gt=0)
     conversion_max_age_minutes: float = Field(30, gt=0)
     correlation: Correlation = Correlation()
@@ -204,7 +208,7 @@ _LOOSER = {
     "max_symbol_risk_pct": 1, "max_asset_class_risk_pct": 1, "max_correlated_risk_pct": 1, "max_consecutive_losses": 1,
     "max_trades_per_day": 1, "min_risk_reward": -1, "max_margin_utilization_pct": 1, "min_free_margin": -1,
     "max_spread_median_multiple": 1, "min_stop_spread_multiple": -1, "breakeven_tolerance_pct": 1,
-    "assessment_ttl_minutes": 1, "account_max_age_minutes": 1, "quote_max_age_minutes": 1, "spec_max_age_hours": 1,
+    "assessment_ttl_minutes": 1, "account_max_age_minutes": 1, "quote_max_age_minutes": 1, "backup_quote_max_age_minutes": 1, "spec_max_age_hours": 1,
     "conversion_max_age_minutes": 1, "consecutive_loss_cooldown_minutes": 0,
 }
 
@@ -228,6 +232,8 @@ def weakened_fields(old: RiskConfig, new: RiskConfig) -> list[str]:
         a, b = old.per_symbol(old.max_slippage_points, sym) or 0, new.per_symbol(new.max_slippage_points, sym) or 0
         if b < a:
             out.append(f"max_slippage_points.{sym}: {a} -> {b}")
+    if old.backup_quotes == "block" and new.backup_quotes == "review":
+        out.append("backup_quotes: block -> review")
     if old.atr_check.enabled and not new.atr_check.enabled:
         out.append("atr_check.enabled: true -> false")
     for name, o, n in (("news.block_states", old.news.block_states, new.news.block_states),

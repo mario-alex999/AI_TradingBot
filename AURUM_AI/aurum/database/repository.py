@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Any, Iterable
 
 import pandas as pd
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import Engine
@@ -98,9 +98,14 @@ class Repository:
                     for sym, ac, sp in s.execute(q)]
 
     # ------------------------------------------------------------- candles
-    def latest_candle_ts(self, instrument_id: int, timeframe: str, complete_only: bool = True) -> datetime | None:
+    def latest_candle_ts(self, instrument_id: int, timeframe: str, complete_only: bool = True,
+                         source: str | None = None) -> datetime | None:
+        """Open time of the newest stored candle. ``source="mt5"`` ignores candles from the backup price feed: the MT5
+        collector resumes from its own last candle, so it backfills the hours the PC was offline with broker prices."""
         q = select(func.max(MarketCandle.ts_utc)).where(MarketCandle.instrument_id == instrument_id,
                                                          MarketCandle.timeframe == timeframe)
+        if source is not None:
+            q = q.where(MarketCandle.source == source)
         if complete_only:
             q = q.where(MarketCandle.is_complete.is_(True))
         with session_scope(self.engine) as s:
@@ -114,7 +119,8 @@ class Repository:
     def upsert_candles(self, instrument_id: int, candles: pd.DataFrame, run_id: str) -> tuple[int, list[dict]]:
         """Insert or update candles. A stored *complete* candle whose prices change is reported as a
         revision (returned, for logging as a quality issue) before being updated to the broker's latest values.
-        Returns (rows_written, revisions)."""
+        Broker candles always replace candles from the backup price feed (``source`` goes back to ``mt5``); replacing
+        a backup candle is not a revision. Returns (rows_written, revisions)."""
         if candles.empty:
             return 0, []
         candles = candles[candles["ts_utc"].notna()]
@@ -141,7 +147,8 @@ class Repository:
                     index_elements=["instrument_id", "timeframe", "ts_utc"],
                     set_={k: getattr(ex, k) for k in ("open", "high", "low", "close", "tick_volume", "real_volume",
                                                       "spread", "is_complete", "quality_status", "quality_flags",
-                                                      "broker_symbol", "mt5_time", "collection_run_id", "updated_at")})
+                                                      "broker_symbol", "mt5_time", "source", "collection_run_id",
+                                                      "updated_at")})
                 s.execute(stmt)
                 written += len(chunk)
         return written, revisions
@@ -150,7 +157,7 @@ class Repository:
         ts = [r["ts_utc"] for r in rows]
         q = select(MarketCandle).where(MarketCandle.instrument_id == instrument_id, MarketCandle.timeframe == timeframe,
                                        MarketCandle.ts_utc >= min(ts), MarketCandle.ts_utc <= max(ts),
-                                       MarketCandle.is_complete.is_(True))
+                                       MarketCandle.is_complete.is_(True), MarketCandle.source == "mt5")
         with session_scope(self.engine) as s:
             existing = {c.ts_utc: c for c in s.execute(q).scalars()}
         revisions = []
@@ -189,14 +196,43 @@ class Repository:
             return [(a, b, int(c)) for a, b, c in s.execute(q)]
 
     # ------------------------------------------------------------- ticks
-    def upsert_tick(self, instrument_id: int, tick: dict[str, Any], run_id: str) -> None:
+    def upsert_tick(self, instrument_id: int, tick: dict[str, Any], run_id: str, source: str = "mt5") -> None:
         row = {"instrument_id": instrument_id, "ts_utc": tick["ts_utc"], "bid": tick.get("bid"), "ask": tick.get("ask"),
                "last": tick.get("last"), "volume": tick.get("volume"), "spread_points": tick.get("spread_points"),
-               "broker_symbol": tick["broker_symbol"], "mt5_time_msc": int(tick["mt5_time_msc"]),
+               "broker_symbol": tick["broker_symbol"], "mt5_time_msc": int(tick["mt5_time_msc"]), "source": source,
                "collection_run_id": run_id, "ingested_at": utcnow()}
         stmt = self._insert(MarketTick).values(**row).on_conflict_do_nothing(index_elements=["instrument_id", "ts_utc"])
         with session_scope(self.engine) as s:
             s.execute(stmt)
+
+    def upsert_backup_candles(self, instrument_id: int, rows: list[dict[str, Any]], source: str) -> int:
+        """Write candles from the backup price feed WITHOUT touching broker data: a slot that holds a complete MT5
+        candle is left alone. A backup candle, or an MT5 candle that was still forming when the PC went offline, is
+        replaced. Each row needs timeframe, ts_utc, open, high, low, close, is_complete and broker_symbol."""
+        if not rows:
+            return 0
+        now = utcnow()
+        full = [{"instrument_id": instrument_id, "timeframe": r["timeframe"], "ts_utc": r["ts_utc"],
+                 **{c: r[c] for c in PRICE_COLS}, "tick_volume": r.get("tick_volume"), "real_volume": None,
+                 "spread": r.get("spread"), "is_complete": bool(r["is_complete"]), "quality_status": "valid",
+                 "quality_flags": None, "broker_symbol": r["broker_symbol"],
+                 "mt5_time": int(r["ts_utc"].timestamp()), "source": source, "collection_run_id": r.get("run_id"),
+                 "ingested_at": now, "updated_at": now} for r in rows]
+        written = 0
+        with session_scope(self.engine) as s:
+            for i in range(0, len(full), self._chunk):
+                chunk = full[i:i + self._chunk]
+                stmt = self._insert(MarketCandle).values(chunk)
+                ex = stmt.excluded
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["instrument_id", "timeframe", "ts_utc"],
+                    set_={k: getattr(ex, k) for k in ("open", "high", "low", "close", "tick_volume", "spread",
+                                                      "is_complete", "broker_symbol", "source", "collection_run_id",
+                                                      "updated_at")},
+                    where=or_(MarketCandle.source != "mt5", MarketCandle.is_complete.is_(False)))
+                s.execute(stmt)
+                written += len(chunk)
+        return written
 
     # ------------------------------------------------------------- logs & issues
     def log_collection(self, **fields: Any) -> None:

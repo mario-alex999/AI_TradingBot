@@ -11,7 +11,8 @@ import { useInstruments, useQuotes, useSpecifications } from '@/hooks/queries';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { ASSET_CLASS_LABEL } from '@/config/instruments';
 import { formatNumber, formatPrice, PLACEHOLDER } from '@/utils/format';
-import type { Timeframe } from '@/types/market';
+import { BACKUP_PRICE_HINT, type Timeframe } from '@/types/market';
+import { Badge } from '@/components/common/Badge';
 
 export default function InstrumentDetailPage() {
   const { symbol = '' } = useParams();
@@ -44,6 +45,11 @@ export default function InstrumentDetailPage() {
             <div className="flex items-end gap-4">
               <span className="num text-2xl text-ink">{formatPrice(q.bid, q.digits)}</span>
               <PriceChange value={q.dailyChangePct} className="pb-1" />
+              {q.source === 'backup' && (
+                <span className="pb-1" title={BACKUP_PRICE_HINT}>
+                  <Badge tone="warn">Backup price · MT5 offline</Badge>
+                </span>
+              )}
             </div>
           )}
           <DataSourceBadge source={quotes.data?.source} fetchedAt={quotes.data?.fetchedAt} />

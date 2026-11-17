@@ -9,6 +9,9 @@ Each tick (default every 10 s):
 6. health   - integration checks and workflow health, every ``health.interval_seconds`` (measured from the last stored
               check, so it holds for a fresh worker per tick too).
 
+Optional step ``backup_prices``: the cloud backup price feed (aurum/collectors/backup_prices.py), only when
+TWELVE_DATA_API_KEY is set. It fetches nothing while the MT5 PC is sending prices.
+
 Optional step 0, ``approval_expiry``: Module 07's own expiry pass, only when ``approval_responses.expire_overdue_requests``
 is on (hosts that run no Module 07 worker).
 
@@ -40,6 +43,9 @@ class Worker:
                  ("timeouts", self.svc.sweep_timeouts)]
         if self.svc.config().approval_responses.expire_overdue_requests:
             steps.insert(0, ("approval_expiry", self._approval_expiry))      # before the bridge, so its events go out now
+        st = self.svc.settings
+        if getattr(st, "backup_prices_enabled", False) and getattr(st, "twelve_data_api_key", None) is not None:
+            steps.insert(0, ("backup_prices", self._backup_prices))         # before schedules, so WF08-01 sees the candles
         if force_health or self._health_due(self.svc.config().health.interval_seconds):
             steps += [("health", self.svc.check_all), ("workflow_health", self.svc.evaluate_workflow_health)]
             self._last_health = time.monotonic()
@@ -50,6 +56,10 @@ class Worker:
                 log.exception("Module 08 worker step failed", extra={"step": name})
                 out[name] = {"error": f"{type(exc).__name__}: {exc}"[:300]}
         return out
+
+    def _backup_prices(self) -> dict[str, Any]:
+        from aurum.collectors.backup_prices import feed_from_settings
+        return feed_from_settings(self.svc.repo.engine, self.svc.settings).run()
 
     def _approval_expiry(self) -> dict[str, Any]:
         from aurum.orchestration.approval_responses import ApprovalResponseHandler

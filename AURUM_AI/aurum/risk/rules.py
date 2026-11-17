@@ -444,6 +444,19 @@ def r_quote(ctx: AssessmentContext) -> Outcome:
     ev = {"age_minutes": mk.quote_age_minutes, "bid": str(mk.quote.bid), "ask": str(mk.quote.ask), "source": mk.quote.source}
     if mk.quote.bid <= 0 or mk.quote.ask < mk.quote.bid:
         return err("QUOTE_INVALID", "Stored quote is invalid (non-positive bid or ask below bid).", **ev)
+    if mk.quote.source.startswith("backup."):
+        # The MT5 PC sends no prices; this one is from the cloud backup feed. It is not the broker's price and its ask is
+        # estimated from the broker's usual spread, so a person must check the levels before approving.
+        limit = ctx.cfg.backup_quote_max_age_minutes
+        if ctx.cfg.backup_quotes == "block":
+            return fail("QUOTE_FROM_BACKUP", "The latest price is from the backup feed (MT5 is offline) and backup prices "
+                                             "are set to block.", **ev)
+        if mk.quote_age_minutes is not None and mk.quote_age_minutes > limit and mk.market_open is not False:
+            return fail("QUOTE_STALE", f"Latest backup price is {mk.quote_age_minutes:.0f} min old (limit {limit:g} min) "
+                                       f"and MT5 is offline.", **ev)
+        return fail("QUOTE_FROM_BACKUP", "MT5 is offline: this price is from the backup feed, not the broker. Its ask is "
+                                         "estimated from the broker's usual spread. Check the prices before approving.",
+                    WARNING, **ev)
     if mk.quote_age_minutes is not None and mk.quote_age_minutes > ctx.cfg.quote_max_age_minutes and mk.market_open is not False:
         return fail("QUOTE_STALE", f"Latest quote is {mk.quote_age_minutes:.0f} min old while the market is not known to be "
                                    f"closed (limit {ctx.cfg.quote_max_age_minutes:g} min).", **ev)
@@ -586,7 +599,7 @@ RULES: tuple[Rule, ...] = (
     Rule("R046", "Same-direction exposure", "portfolio", WARNING, "Already exposed in the same direction on this instrument.", r_duplicate_position),
     Rule("R047", "Duplicate trade idea", "portfolio", HARD, "One live assessment per trade idea.", r_duplicate_idea),
     Rule("R050", "Market open", "market", HARD, "Market must be open (Module 04 sessions).", r_market_open, _t("data_unavailable_policy")),
-    Rule("R051", "Quote freshness", "market", HARD, "Latest quote must be recent while the market is open.", r_quote, _t("quote_max_age_minutes")),
+    Rule("R051", "Quote freshness", "market", HARD, "Latest quote must be recent while the market is open.", r_quote, _t("quote_max_age_minutes", "backup_quotes", "backup_quote_max_age_minutes")),
     Rule("R052", "Spread", "market", HARD, "Spread below its cap and not abnormal versus its median.", r_spread, _t("max_spread_points", "max_spread_median_multiple")),
     Rule("R053", "Economic events", "market", HARD, "No high-impact event window (Module 04 calendar).", r_news, _t("news")),
     Rule("R054", "Volatility regime", "market", HARD, "Volatility regime allowed (Module 04).", r_volatility, _t("volatility")),

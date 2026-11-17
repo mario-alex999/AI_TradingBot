@@ -20,6 +20,10 @@ Connects Python to a MetaTrader 5 terminal and, for each configured instrument a
 Instruments: EURUSD, GBPUSD, XAUUSD, US30 (broker names configurable). If a symbol is missing at your
 broker, it is reported and the rest are still collected.
 
+When the MT5 PC is offline, the hosted API can keep prices updating from a cloud backup feed (Twelve Data). Broker
+prices always replace backup prices, and Module 06 sends any trade sized on a backup price to review. See
+[docs/BACKUP_PRICES.md](docs/BACKUP_PRICES.md).
+
 ### Data quality rules
 | Check | Severity | What happens |
 |---|---|---|
@@ -39,7 +43,7 @@ Nothing is deleted silently. Exports and the `validated_candles` view exclude `i
 
 ### Traceability
 Every candle row keeps `broker_symbol`, the original `mt5_time` (server epoch seconds), `collection_run_id`,
-`source`, `ingested_at` and `updated_at`. Each run's raw MT5 response is kept in
+`source` (`mt5`, or `twelvedata` for the backup feed), `ingested_at` and `updated_at`. Ticks keep `source` too. Each run's raw MT5 response is kept in
 `data/raw/<YYYYMMDD>/<run_id>/<SYMBOL>_<TF>.parquet`.
 
 ## 2. Required software
@@ -326,7 +330,7 @@ aurum/  config.py · logging_config.py · cli.py
         api/                             FastAPI backend (python -m aurum.api) · routes/cot.py ·
                                          routes/technical_analysis.py · jobs
         gateways/mt5_gateway.py          read-only MT5 access, demo enforcement, broker clock
-        collectors/                      candles · ticks · instrument specs
+        collectors/                      candles · ticks · instrument specs · backup_prices (Twelve Data, MT5 offline)
         services/                        market_data_service (orchestration) · validation_service
         database/                        connection · models (SQLAlchemy) · repository (upserts)
         market_intelligence/             Module 04: sessions · levels · liquidity · economic_calendar · macro ·

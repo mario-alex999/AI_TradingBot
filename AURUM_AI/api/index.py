@@ -25,7 +25,7 @@ from aurum.logging_config import setup_logging  # noqa: E402
 settings = get_settings()
 _secrets = [x.get_secret_value() for x in (settings.mt5_password, settings.db_password, settings.database_url,
                                            settings.aurum_admin_api_key, settings.economic_calendar_api_key,
-                                           settings.fred_api_key) if x is not None]
+                                           settings.fred_api_key, settings.twelve_data_api_key) if x is not None]
 setup_logging(settings.log_level, None, _secrets)   # console only: the deployment's disk is read-only
 log = logging.getLogger("aurum.vercel")
 

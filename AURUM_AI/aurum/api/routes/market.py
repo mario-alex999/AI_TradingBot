@@ -54,6 +54,13 @@ def build_router(state: Any) -> APIRouter:
     def quotes(symbols: str | None = Query(None, description="Comma-separated canonical symbols")) -> list[dict[str, Any]]:
         return mq.quotes([s for s in symbols.split(",") if s] if symbols else None)
 
+    @r.get("/backup-prices")
+    def backup_prices() -> dict[str, Any]:
+        """The cloud backup price feed (Twelve Data): whether it is set up, and per instrument whether prices come from
+        MT5 or the backup right now, with its last fetch and error. Never shows the API key."""
+        from aurum.collectors.backup_prices import feed_from_settings
+        return feed_from_settings(state.engine, state.settings).status()
+
     @r.get("/candles")
     def candles(symbol: str, timeframe: str = Query(..., pattern="^(D1|H4|H1|M15|M5)$"),
                 limit: int = Query(500, ge=1, le=5000)) -> list[dict[str, Any]]:
