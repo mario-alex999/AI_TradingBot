@@ -8,6 +8,7 @@ Responses that describe candidates, analysis or evaluation carry a `disclaimer`.
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/analysis/signals` | `TradeSignal[]`; `?status=&instrument=&limit=`. Each has `entryPrice` (middle of the entry zone), `grade` (A–F; A and B are recommended setups), `rejectedBy` (`gate:<name>`, `ai_reviewer`, a person, or null) and `outcome`: `{state, touched, filled, result, rMultiple, mfeR, maeR, filledAt, resolvedAt, exitPrice}` (states in MODULE_05_AI_ENGINE.md, *Signal outcomes*) |
+| GET | `/analysis/performance` | Live hypothetical results, recommended setups (A/B, not rejected by a gate or the AI reviewer) apart from research candidates (C/D or rejected), each by template: signals, triggered, closed, TP, SL, win rate, net R, profit factor |
 | GET | `/analysis/signals/{id}` | Dossier: evidence, gates, AI review, history, outcome, and `availability`: one object per input, `{available, reason, ...}` (the dashboard lists the unavailable ones with their reason) |
 | POST | `/analysis/signals/{id}/approve` | Admin. `{reviewer, note}`. Records a decision only |
 | POST | `/analysis/signals/{id}/reject` | Admin |
