@@ -45,7 +45,8 @@ def test_shipped_yaml_loads():
 
 
 # ------------------------------------------------------------------------------------ templates
-NO_MIN_STOP = build_config({"levels": {"min_stop_atr": 0.0}})       # the structure stop alone, without the 1 ATR floor
+NO_MIN_STOP = build_config({"levels": {"min_stop_atr": 0.0}})       # the structure stop alone (the default)
+MIN_STOP_1 = build_config({"levels": {"min_stop_atr": 1.0}})
 
 
 def test_order_block_continuation_finds_a_long_with_levels_from_the_zone():
@@ -61,7 +62,7 @@ def test_order_block_continuation_finds_a_long_with_levels_from_the_zone():
 # ---- minimum stop distance (17 Nov 2026: 2-pip stops were hit inside normal noise, 0 TP / 12 SL)
 def test_a_stop_closer_than_one_atr_is_widened_to_one_atr():
     ctx = ob_setup()                                                       # ATR 0.0010; structure stop 7.3 pips away
-    c = order_block_continuation(ctx, ctx.analyses["H1"], CFG)
+    c = order_block_continuation(ctx, ctx.analyses["H1"], MIN_STOP_1)
     assert isinstance(c, Candidate)
     assert c.stop_loss == pytest.approx(c.entry_mid - 0.0010)              # 1.0990: exactly 1 ATR below the 1.1000 entry
     assert c.risk_reward == round(lv.risk_reward(c.entry_mid, c.stop_loss, c.take_profit), 2) >= 2
@@ -83,6 +84,12 @@ def test_a_structure_stop_already_wider_than_the_minimum_is_unchanged():
     wide = order_block_continuation(ctx, ctx.analyses["H1"], build_config({"levels": {"min_stop_atr": 0.5}}))
     assert wide.stop_loss == pytest.approx(1.0995 - 0.00015 - 0.00008)    # 7.3 pips > 5 pips: structure wins
     assert "stop widened" not in str(wide.sources)
+
+
+def test_the_minimum_stop_is_off_by_default():
+    assert CFG.levels["min_stop_atr"] == 0.0     # the 10-20 Nov 2026 backtest: +57.9R without it, +20.6R with 1 ATR
+    ctx = ob_setup()
+    assert order_block_continuation(ctx, ctx.analyses["H1"], CFG).stop_loss == pytest.approx(1.0995 - 0.00015 - 0.00008)
 
 
 def test_min_stop_must_be_below_max_stop():

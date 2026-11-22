@@ -32,10 +32,12 @@ gates:
     premium_discount_ote:
       GBPUSD: [asian]
 
-# Stops: never closer than min_stop_atr x ATR of the entry timeframe. A structure stop inside that distance is widened,
-# and the target must still give gates.min_rr from the wider stop. (17 Nov 2026: 2-pip stops gave 0 TP / 12 SL.)
+# Stops: never closer than min_stop_atr x ATR of the entry timeframe (0 = off). A structure stop inside that distance is
+# widened, and the target must still give gates.min_rr from the wider stop. OFF: in the 10-20 Nov 2026 backtest (4 markets,
+# 117 trades) 1.0 ATR cut the result from +57.9R to +20.6R - wider stops shrink each win more than they raise the win rate.
+# Retest on more history before switching it on.
 levels:
-  min_stop_atr: 1.0
+  min_stop_atr: 0.0
 
 # Which candidates become signals (live and backtest alike).
 selection:

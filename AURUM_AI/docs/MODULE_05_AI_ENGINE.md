@@ -14,9 +14,9 @@ reported as missing when they do not.
 
 1. Builds one `DecisionContext` per symbol from Modules 01-04 as of a given time.
 2. Assesses the regime and the weighted bias across D1, H4, H1, M15 and M5.
-3. Runs eight strategy templates. Each gives a candidate or a stated reason it found nothing. Stops are at least 1 ATR
-   from the entry, one candidate is kept per idea, and weak counter-trend reversals are dropped (see
-   [STRATEGIES](STRATEGIES.md)). Stops and targets are
+3. Runs eight strategy templates. Each gives a candidate or a stated reason it found nothing. One candidate is kept per
+   idea, weak counter-trend reversals are dropped, and an optional minimum stop distance is available (off by default,
+   see the backtest in [STRATEGIES](STRATEGIES.md)). Stops and targets are
    placed on the instrument's price grid (multiples of its tick size), because the broker accepts no other price and
    Module 06 blocks any other price (R013). A stop is rounded away from the entry, so it stays beyond the level it
    protects. A target is rounded toward the entry, so the reward is never overstated. Risk-reward is calculated from

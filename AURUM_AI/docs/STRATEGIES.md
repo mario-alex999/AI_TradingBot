@@ -17,11 +17,21 @@ profitable. Each is switched in `config/ai_engine.yaml`, and `ai strategies list
 Each gives direction, entry zone, stop, one or two targets, expiry, an invalidation sentence and its sources. Stops and
 targets come from `candidates/levels.py`, using structure and ATR. They are never model output.
 
-**Minimum stop distance.** The structure stop (beyond the zone, plus `levels.stop_buffer_atr` and the spread) is widened
-to at least `levels.min_stop_atr` × ATR of the entry timeframe (default 1.0), and the candidate's sources say so. The
-target must still give `gates.min_rr` from the wider stop, or the template reports no candidate. Added on 22 Nov 2026:
-stops of 2–2.5 pips (EURUSD, GBPUSD) and $2–3 (XAUUSD) on M15 sat inside normal price noise, and the live outcomes were
-0 take profits against 12 stop losses, 5 of them within 5 minutes of the fill.
+**Minimum stop distance (off by default).** With `levels.min_stop_atr` above 0, the structure stop (beyond the zone,
+plus `levels.stop_buffer_atr` and the spread) is widened to at least that many ATR of the entry timeframe, the
+candidate's sources say so, and the target must still give `gates.min_rr` from the wider stop. It was added on 22 Nov
+2026 after the live outcomes showed 0 take profits against 12 stop losses with 2–2.5-pip stops. The backtest of 10–20 Nov
+2026 (4 markets, the engine's own replay) did not support it, so the default is 0:
+
+| Rules | Trades | Win rate | Net R | Profit factor |
+|---|---|---|---|---|
+| Before 22 Nov | 117 | 34% | +57.9R | 1.67 |
+| Selection rules only (below) | 76 | 37% | +44.6R | 1.84 |
+| 1 ATR minimum stop only | 112 | 34% | +20.6R | 1.25 |
+| Both | 74 | 36% | +19.0R | 1.37 |
+
+Wider stops shrank each win (the targets stay at the same liquidity) more than they raised the win rate. Ten days is a
+small sample; retest on more history before switching the minimum on.
 
 **Which candidates become signals** (`aurum/decision/selection.py`, the same in live runs and the backtest):
 

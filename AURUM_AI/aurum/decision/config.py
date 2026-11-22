@@ -32,7 +32,7 @@ DEFAULTS: dict[str, Any] = {
         "range_edge_rejection": {"enabled": True, "require_alignment": False, "expiry_candles": 12, "min_zone_score": 60.0,
                                  "max_distance_atr": 0.5, "expanding_regimes": ["HIGH", "VERY_HIGH"]},
     },
-    "levels": {"stop_buffer_atr": 0.15, "min_stop_atr": 1.0, "max_stop_atr": 4.0, "target_level_types": ["previous_day_high", "previous_day_low",
+    "levels": {"stop_buffer_atr": 0.15, "min_stop_atr": 0.0, "max_stop_atr": 4.0, "target_level_types": ["previous_day_high", "previous_day_low",
                                                                                     "previous_week_high", "previous_week_low"]},
     "sizing": {"default_risk_pct": 0.5},
     # Which candidates become signals (aurum/decision/selection.py), the same in live runs and the backtest.
