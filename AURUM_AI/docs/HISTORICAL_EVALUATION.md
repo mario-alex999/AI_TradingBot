@@ -28,6 +28,9 @@ replays each named rule set on the same history and compares it with a **frozen 
 | `selection` | Baseline + one signal per idea + counter-trend reversals need A/B |
 | `min_stop_1atr` | Baseline + stops at least 1 ATR from the entry |
 | `no_choch` | Baseline without the `choch_reversal` template |
+| `no_counter_trend` | Baseline, but reversal templates never trade against both D1 and H4, at any grade |
+| `dedupe_only` | Baseline + one signal per idea (after the gates; in the replay this equals the baseline, because the duplication gate already does it) |
+| `no_counter_trend_dedupe` | Both of the above |
 | `choch_only` | Only `choch_reversal`, with the baseline rules (to judge it on its own) |
 
 **Costs.** Each simulated trade keeps its gross result and its spread in R, so one replay is priced four ways:
@@ -42,6 +45,8 @@ replays each named rule set on the same history and compares it with a **frozen 
 **Verdict.** A profile beats the baseline only if, under base **and** high costs, its net R and profit factor are at least
 the baseline's and its worst drawdown (in R) is at most 25% deeper. A higher profit factor with less total profit does
 not pass.
+
+Results of the first run (10–20 Nov 2026) are in [STRATEGIES.md](STRATEGIES.md).
 
 **Splits.** Results are broken down by grade band (A/B recommended vs C/D research), template, symbol, higher-timeframe
 alignment (`with`: D1 and H4 agree with the trade, `against`: both oppose, `mixed`), regime and session, at base costs.
