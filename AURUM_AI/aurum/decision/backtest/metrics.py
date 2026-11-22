@@ -26,6 +26,13 @@ class SimTrade:
     r_multiple: float
     resolved_at: datetime | None
     regime: str | None = None
+    # Research fields (benchmark): what the trade was, so results can be split by kind and costs re-applied.
+    grade: str | None = None                # A-F from the score at the decision
+    gross_r: float | None = None            # result before costs
+    spread_r: float | None = None           # spread at the decision, in R
+    htf: str | None = None                  # "with" (D1 and H4 agree), "against" (both oppose), "mixed"
+    stop_atr: float | None = None           # entry-to-stop distance in ATR of the entry timeframe
+    risk_reward: float | None = None
 
 
 def _stats(trades: list[SimTrade]) -> dict[str, Any]:

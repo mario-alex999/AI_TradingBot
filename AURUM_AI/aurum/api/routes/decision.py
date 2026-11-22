@@ -84,6 +84,11 @@ def build_router(state: AppState, svc: Callable[[], DecisionService]) -> APIRout
             raise HTTPException(422, f"Unknown status. Use one of: {', '.join(STATUSES)}.")
         return camelize(guarded(lambda: svc().signals(status, instrument, limit)))
 
+    @r.get("/analysis/performance")
+    def performance() -> dict[str, Any]:
+        """Live results of recommended setups (A/B) and research candidates (C/D, rejected), kept apart, by template."""
+        return camelize(guarded(lambda: svc().performance()))
+
     @r.get("/analysis/signals/{uid}")
     def dossier(uid: str) -> dict[str, Any]:
         return camelize(guarded(lambda: svc().dossier(uid)))

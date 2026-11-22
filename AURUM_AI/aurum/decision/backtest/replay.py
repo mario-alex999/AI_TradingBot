@@ -21,7 +21,7 @@ from aurum.decision.gates import first_failure, run_gates
 from aurum.decision.outcomes import label
 from aurum.decision.regime import assess_regime
 from aurum.decision.scoring import score
-from aurum.decision.selection import select
+from aurum.decision.selection import opposing_timeframes, select
 from aurum.learning.features import session_of
 
 from .metrics import SimTrade
@@ -106,6 +106,13 @@ def replay_symbol(symbol: str, start: datetime, end: datetime, cfg: DecisionConf
             busy.append({"symbol": c.symbol, "direction": c.direction, "key": c.key, "until": until})
             active = ctx.sessions.get("active_sessions")
             net = o.r_multiple - cost_in_r(c, ctx.spread_price, bt["slippage_r"], bt["commission_r"])
+            risk = abs(c.entry_mid - c.stop_loss)
+            atr = float(getattr(ctx.analyses.get(c.timeframe), "atr", 0.0) or 0.0)
+            opposed, _ = opposing_timeframes(ctx, cfg, c.direction)
+            htf = "against" if len(opposed) == len(cfg.htf_timeframes) else ("mixed" if opposed else "with")
             out.trades.append(SimTrade(c.symbol, c.template, c.timeframe, c.direction, t, active[0] if active else session_of(t),
-                                       s.confidence, o.result, round(net, 3), o.resolved_at, assess_regime(ctx, cfg)["regime"]))
+                                       s.confidence, o.result, round(net, 3), o.resolved_at, assess_regime(ctx, cfg)["regime"],
+                                       grade=s.grade, gross_r=o.r_multiple,
+                                       spread_r=round((ctx.spread_price or 0.0) / risk, 4) if risk > 0 else 0.0, htf=htf,
+                                       stop_atr=round(risk / atr, 3) if atr else None, risk_reward=c.risk_reward))
     return out

@@ -569,3 +569,25 @@ def test_a_later_run_does_not_republish_the_same_idea(tmp_path):
     r = svc.run("EURUSD")
     assert r["signals"] == [] and any("Already covered by live signal " + first_id in s["reason"] for s in r["skipped"])
     assert [s["id"] for s in svc.signals()] == [first_id]
+
+
+def test_performance_keeps_recommended_and_research_results_apart(tmp_path):
+    from aurum.decision.config import build_config
+    svc, _ = service(tmp_path)
+    uid = first(svc)["id"]
+    svc.technical.candles.frames[("EURUSD", "M5")] = frame([(1.1010, 1.0999, 1.1003), (1.1050, 1.1000, 1.1045)])
+    svc.update_outcomes()
+    p = svc.performance()
+    grade = svc.dossier(uid)["grade"]
+    kept = "recommended" if grade in ("A", "B") else "research"
+    other = "research" if kept == "recommended" else "recommended"
+    assert p[kept]["signals"] == 1 and p[kept]["take_profit"] == 1 and p[kept]["win_rate"] == 100.0
+    assert p[other]["signals"] == 0 and p[other]["win_rate"] is None
+    assert list(p[kept]["by_template"]) == [svc.dossier(uid)["strategy"]]
+
+
+def test_performance_api(api):
+    client, svc, _ = api
+    first(svc)
+    body = client.get("/api/v1/analysis/performance").json()
+    assert set(body) >= {"recommended", "research", "definition", "disclaimer"} and "byTemplate" in body["research"]
