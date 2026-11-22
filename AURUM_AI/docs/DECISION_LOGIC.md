@@ -34,6 +34,9 @@ timeframes are usable. Timeframes do not need to be unanimous.
 `data_quality`, `event_risk`, `market_open`, `spread_volatility`, `risk_reward`, `structure_conflict`, `account_risk`,
 `duplication`, `cot`. A failed gate blocks approval. Warnings stay visible on the candidate.
 
+Before the gates, the selection rules in [STRATEGIES.md](STRATEGIES.md) keep one candidate per idea and drop weak
+counter-trend reversals; the `duplication` gate then only meets other ideas in the same direction, and open positions.
+
 ## Human review
 
 Candidates start as GENERATED and need a person. Approval means APPROVED_FOR_FURTHER_PROCESSING and places nothing.

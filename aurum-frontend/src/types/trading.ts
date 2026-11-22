@@ -33,6 +33,10 @@ export interface TradeSignal {
   status: SignalStatus;
   /** The limit entry the risk-reward and the outcome use: the middle of the entry zone. */
   entryPrice?: number;
+  /** Evidence grade A-F. A and B are recommended setups; lower grades are research only. */
+  grade?: string;
+  /** Who rejected it: "gate:<name>", "ai_reviewer", or a person. */
+  rejectedBy?: string | null;
   /** What the signal did in the market afterwards (hypothetical: AURUM places no trades). */
   outcome?: SignalOutcome | null;
 }

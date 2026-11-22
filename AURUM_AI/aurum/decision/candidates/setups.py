@@ -92,6 +92,12 @@ def _build(ctx: DecisionContext, cfg: DecisionConfig, a: Any, template: str, dir
     entry = (low + high) / 2
     if (direction == "long" and stop >= entry) or (direction == "short" and stop <= entry):
         return "Stop is on the wrong side of the entry."
+    # A stop closer than the minimum sits inside normal price noise and is hit before the idea can play out. Widen it;
+    # the target must then still give the minimum risk-reward from the wider stop, or there is no candidate.
+    min_dist = cfg.levels["min_stop_atr"] * a.atr
+    widened = abs(entry - stop) < min_dist
+    if widened:
+        stop = lv.stop_on_tick(entry - min_dist if direction == "long" else entry + min_dist, direction, tick)
     if abs(entry - stop) > cfg.levels["max_stop_atr"] * a.atr:
         return f"Stop is wider than {cfg.levels['max_stop_atr']} ATR."
     found = targets if targets is not None else lv.target_candidates(ctx, a, direction, entry, cfg)
@@ -105,7 +111,9 @@ def _build(ctx: DecisionContext, cfg: DecisionConfig, a: Any, template: str, dir
     return Candidate(ctx.symbol, template, a.timeframe, direction, zone_id, ctx.as_of, low, high, stop, tp.price,
                      tp2.price if tp2 else None, round(lv.risk_reward(entry, stop, tp.price), 2), expires,
                      f"A {a.timeframe} close {word} {stop:.5f}, or no fill by {expires:%Y-%m-%d %H:%M} UTC.",
-                     _market_condition(ctx), [*sources, _source("module_05", tp.finding_id, f"target: {tp.source}")])
+                     _market_condition(ctx), [*sources, _source("module_05", tp.finding_id, f"target: {tp.source}"),
+                                              *([_source("module_05", None, f"stop widened to the {cfg.levels['min_stop_atr']:g} ATR minimum")]
+                                                if widened else [])])
 
 
 def order_block_continuation(ctx: DecisionContext, a: Any, cfg: DecisionConfig) -> Candidate | str:

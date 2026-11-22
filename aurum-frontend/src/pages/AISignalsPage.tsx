@@ -17,6 +17,7 @@ import { DEFAULT_INSTRUMENTS, TIMEFRAMES } from '@/config/instruments';
 import { demoProfile } from '@/mocks/market';
 import type { ReviewAction } from '@/types/decision';
 import type { OutcomeState, SignalStatus, TradeSignal } from '@/types/trading';
+import { scoreboard, type ScoreScope } from '@/utils/signalScore';
 
 export default function AISignalsPage() {
   const q = useSignals();
@@ -42,13 +43,8 @@ export default function AISignalsPage() {
       ),
     [q.data, instrument, direction, timeframe, status, result],
   );
-  const tally = useMemo(() => {
-    const t: Partial<Record<OutcomeState, number>> = {};
-    for (const s of q.data?.data ?? []) t[outcomeState(s.outcome)] = (t[outcomeState(s.outcome)] ?? 0) + 1;
-    const wins = t.take_profit ?? 0;
-    const losses = (t.stop_loss ?? 0) + (t.ambiguous ?? 0);
-    return { t, wins, losses, winRate: wins + losses > 0 ? Math.round((wins / (wins + losses)) * 100) : null };
-  }, [q.data]);
+  const [scope, setScope] = useState<ScoreScope>('recommended');
+  const tally = useMemo(() => scoreboard(q.data?.data ?? [], scope), [q.data, scope]);
 
   return (
     <div className="flex flex-col gap-5">
@@ -87,7 +83,27 @@ export default function AISignalsPage() {
       </Card>
       {(q.data?.data.length ?? 0) > 0 && (
         <Card role="region" className="flex flex-wrap items-center gap-x-5 gap-y-2 p-3 text-xs" aria-label="Signal results">
-          <span className="eyebrow">Results</span>
+          <div className="flex items-center gap-2">
+            <span className="eyebrow">Results</span>
+            <div className="inline-flex rounded-full border border-line-control p-0.5" role="group" aria-label="Which signals to count">
+              {(
+                [
+                  ['recommended', 'Recommended setups'],
+                  ['all', 'All candidates'],
+                ] as [ScoreScope, string][]
+              ).map(([k, label]) => (
+                <button
+                  key={k}
+                  type="button"
+                  aria-pressed={scope === k}
+                  className={scope === k ? 'rounded-full bg-gold-faint px-2.5 py-0.5 text-ink' : 'rounded-full px-2.5 py-0.5 text-ink-muted hover:text-ink'}
+                  onClick={() => setScope(k)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
           {(['take_profit', 'stop_loss', 'running', 'waiting', 'not_triggered'] as OutcomeState[]).map((k) => (
             <button
               key={k}
@@ -97,14 +113,18 @@ export default function AISignalsPage() {
               onClick={() => setResult(result === k ? '' : k)}
             >
               <Badge tone={OUTCOME[k].tone}>{OUTCOME[k].label}</Badge>
-              <span className="num text-ink">{tally.t[k] ?? 0}</span>
+              <span className="num text-ink">{tally.counts[k] ?? 0}</span>
             </button>
           ))}
           <span className="ml-auto text-ink-muted">
             Win rate{' '}
             <span className="num text-ink">{tally.winRate == null ? '—' : `${tally.winRate}%`}</span>{' '}
             <span className="text-neutral">
-              ({tally.wins} TP / {tally.losses} SL, hypothetical)
+              ({tally.wins} TP / {tally.losses} SL, <span className="num">{tally.totalR > 0 ? '+' : ''}{tally.totalR}R</span>, hypothetical)
+            </span>
+            <span className="block text-2xs text-neutral" data-testid="score-basis">
+              {tally.ideas} {tally.ideas === 1 ? 'idea' : 'ideas'} from {tally.signals} {tally.signals === 1 ? 'signal' : 'signals'}
+              {scope === 'recommended' ? ' · grade A/B, not rejected by a safety check or the AI reviewer' : ' · every candidate, research included'} · each idea counted once
             </span>
           </span>
         </Card>

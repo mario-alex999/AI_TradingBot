@@ -12,7 +12,8 @@ def signal(row: dict[str, Any], evidence: list[str], outcome: dict[str, Any] | N
             "stop_loss": row["stop_loss"], "take_profit": row["take_profit"],
             "risk_reward": row["risk_reward"], "strategy": row["template"], "timeframe": row["timeframe"],
             "market_condition": row["market_condition"], "confidence": round(row["confidence"]), "evidence": evidence,
-            "timestamp": row["as_of"], "status": row["status"], "outcome": outcome_view(outcome)}
+            "timestamp": row["as_of"], "status": row["status"], "grade": row["grade"], "rejected_by": row["rejected_by"],
+            "outcome": outcome_view(outcome)}
 
 
 # What happened to the signal in the market (hypothetical: AURUM places no trades), from Module 01 M5 candles.
