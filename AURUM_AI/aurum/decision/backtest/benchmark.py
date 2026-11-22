@@ -32,6 +32,9 @@ PROFILES: dict[str, dict[str, Any]] = {
                       "selection": {"dedupe": False, "counter_trend_min_grades": ALL_GRADES}},
     "no_choch": {"levels": {"min_stop_atr": 0.0}, "selection": {"dedupe": False, "counter_trend_min_grades": ALL_GRADES},
                  "templates": {"choch_reversal": {"enabled": False}}},
+    # Reversal templates (CHoCH, sweep, range edge) never trade against both D1 and H4, at any grade; with the trend
+    # they still trade. Isolates "counter-trend" from "CHoCH as such".
+    "no_counter_trend": {"levels": {"min_stop_atr": 0.0}, "selection": {"dedupe": False, "counter_trend_min_grades": []}},
 }
 # Profiles that replay only some templates (the rules are the baseline's).
 TEMPLATE_ONLY: dict[str, tuple[str, list[str]]] = {"choch_only": ("baseline", ["choch_reversal"])}
