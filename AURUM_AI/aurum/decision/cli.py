@@ -262,6 +262,42 @@ def backtest(from_: datetime = typer.Option(..., "--from"), to: datetime = typer
     console.print(f"[muted]{d['disclaimer']}[/]")
 
 
+@decide_app.command("benchmark")
+def benchmark(from_: datetime = typer.Option(..., "--from"), to: datetime = typer.Option(..., "--to"),
+              profiles: str = typer.Option("current", "--profiles",
+                                           help="Comma-separated: current, selection, min_stop_1atr, no_choch, choch_only. "
+                                                "The frozen baseline always runs too."),
+              symbol: Optional[str] = typer.Option(None, "--symbol"),
+              out: Optional[str] = typer.Option(None, "--out", help="Write the full report (with every trade) as JSON.")) -> None:
+    """Compare rule sets with the frozen baseline on the same history, under low/base/high/stress costs, split by grade
+    band, template, higher-timeframe alignment and more. Nothing is stored."""
+    import json
+
+    wanted = [p.strip() for p in profiles.split(",") if p.strip()]
+    rep = _guarded(lambda: _service().benchmark(from_, to, wanted, [symbol] if symbol else None,
+                                                lambda m: console.print(f"[muted]{m}[/]")))
+    if out:
+        with open(out, "w", encoding="utf-8") as f:
+            json.dump(rep, f, indent=1, default=str)
+    t = Table(title=f"Benchmark {rep['run']['from']:%Y-%m-%d} to {rep['run']['to']:%Y-%m-%d} ({', '.join(rep['run']['symbols'])})")
+    for col in ("Profile", "Costs", "Trades", "Win %", "Net R", "PF", "Max DD R", "Beats baseline"):
+        t.add_column(col)
+    for name, p in rep["profiles"].items():
+        v = p.get("verdict")
+        for scen in ("base", "high", "stress"):
+            m = p["scenarios"][scen]
+            t.add_row(name if scen == "base" else "", scen, str(m["trades"]), str(m["win_rate"]), f"{m['net_r']:+.2f}",
+                      str(m["profit_factor"]), str(m["max_drawdown_r"]),
+                      ("yes" if v["beats_baseline"] else "no") if v and scen == "base" else "")
+    console.print(t)
+    for name, p in rep["profiles"].items():
+        bands = p["breakdown"]["grade_band"]
+        console.print(f"{name}: " + " · ".join(f"{k} {b['trades']} trades, {b['win_rate']}% win, {b['net_r']:+.2f}R" for k, b in bands.items()))
+        if p.get("verdict") and not p["verdict"]["beats_baseline"]:
+            console.print("  [muted]" + "; ".join(p["verdict"]["reasons"]) + "[/]")
+    console.print(f"[muted]{rep['disclaimer']}[/]")
+
+
 @decide_app.command("status")
 def status() -> None:
     """Show counts, recent runs and the AI reviewer's state."""

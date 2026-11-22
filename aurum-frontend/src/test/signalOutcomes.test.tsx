@@ -82,6 +82,7 @@ describe('honest scoreboard', () => {
     renderWithProviders(<AISignalsPage />, { mock: false });
     const results = await screen.findByRole('region', { name: 'Signal results' });
     expect(within(results).getByTestId('score-basis')).toHaveTextContent('2 ideas from 3 signals');
+    expect(within(results).getByTestId('band-split')).toHaveTextContent(/Recommended A\/B: 2 ideas, 50% win.*Research C\/D and rejected: 2 ideas, 0% win, -2R/);
     expect(within(results).getByText('50%')).toBeInTheDocument();                         // 1 TP vs 1 SL (not 3)
     fireEvent.click(within(results).getByRole('button', { name: 'All candidates' }));
     expect(within(results).getByTestId('score-basis')).toHaveTextContent('4 ideas from 5 signals');

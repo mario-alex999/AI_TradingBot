@@ -17,7 +17,7 @@ import { DEFAULT_INSTRUMENTS, TIMEFRAMES } from '@/config/instruments';
 import { demoProfile } from '@/mocks/market';
 import type { ReviewAction } from '@/types/decision';
 import type { OutcomeState, SignalStatus, TradeSignal } from '@/types/trading';
-import { scoreboard, type ScoreScope } from '@/utils/signalScore';
+import { isRecommended, scoreboard, type ScoreScope } from '@/utils/signalScore';
 
 export default function AISignalsPage() {
   const q = useSignals();
@@ -45,6 +45,11 @@ export default function AISignalsPage() {
   );
   const [scope, setScope] = useState<ScoreScope>('recommended');
   const tally = useMemo(() => scoreboard(q.data?.data ?? [], scope), [q.data, scope]);
+  // Recorded separately, so a losing grade band is visible on its own instead of hiding in one total.
+  const bands = useMemo(() => {
+    const all = q.data?.data ?? [];
+    return { rec: scoreboard(all, 'recommended'), research: scoreboard(all.filter((s) => !isRecommended(s)), 'all') };
+  }, [q.data]);
 
   return (
     <div className="flex flex-col gap-5">
@@ -121,6 +126,12 @@ export default function AISignalsPage() {
             <span className="num text-ink">{tally.winRate == null ? '—' : `${tally.winRate}%`}</span>{' '}
             <span className="text-neutral">
               ({tally.wins} TP / {tally.losses} SL, <span className="num">{tally.totalR > 0 ? '+' : ''}{tally.totalR}R</span>, hypothetical)
+            </span>
+            <span className="block text-2xs text-neutral" data-testid="band-split">
+              Recommended A/B: {bands.rec.ideas} ideas, {bands.rec.winRate == null ? '—' : `${bands.rec.winRate}%`} win,{' '}
+              <span className="num">{bands.rec.totalR > 0 ? '+' : ''}{bands.rec.totalR}R</span> · Research C/D and rejected:{' '}
+              {bands.research.ideas} ideas, {bands.research.winRate == null ? '—' : `${bands.research.winRate}%`} win,{' '}
+              <span className="num">{bands.research.totalR > 0 ? '+' : ''}{bands.research.totalR}R</span>
             </span>
             <span className="block text-2xs text-neutral" data-testid="score-basis">
               {tally.ideas} {tally.ideas === 1 ? 'idea' : 'ideas'} from {tally.signals} {tally.signals === 1 ? 'signal' : 'signals'}

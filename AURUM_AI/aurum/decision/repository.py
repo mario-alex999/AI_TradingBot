@@ -241,6 +241,15 @@ class DecisionRepository:
         with session_scope(self.engine) as s:
             return [{"template": t, "symbol": sym, "confidence": conf, "r_multiple": r, "result": res} for t, sym, conf, r, res in s.execute(q)]
 
+    def outcome_rows(self) -> list[dict[str, Any]]:
+        """Every candidate with its outcome (if labelled): the live performance records, by grade and template."""
+        q = select(TradeCandidate.candidate_uid, TradeCandidate.symbol, TradeCandidate.template, TradeCandidate.direction,
+                   TradeCandidate.grade, TradeCandidate.status, TradeCandidate.rejected_by, TradeCandidate.as_of,
+                   CandidateOutcome.result, CandidateOutcome.filled, CandidateOutcome.r_multiple).outerjoin(
+            CandidateOutcome, CandidateOutcome.candidate_uid == TradeCandidate.candidate_uid)
+        with session_scope(self.engine) as s:
+            return [dict(r._mapping) for r in s.execute(q)]
+
     # --------------------------------------------------------------------------------------- backtests
     def save_backtest(self, config_fingerprint: str, symbols: list[str], start: datetime, end: datetime, split: datetime | None,
                       report: dict[str, Any], trades: list[Any]) -> str:

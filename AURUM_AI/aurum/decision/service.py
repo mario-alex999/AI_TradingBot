@@ -306,26 +306,97 @@ class DecisionService:
         bt = self.cfg.backtest
         split = _day(bt["split_date"]) if bt["split_date"] else None
         chosen = [s.upper() for s in symbols] if symbols else self.symbols()
-        fast = ReplayTechnical(self.technical)
-        builder = ContextBuilder(self.cfg, fast, IntelligenceAdapter(self.intelligence, include_module03=False), NullAccount(),
-                                 NullLearning(), SpreadSource(fast.candles, cache=True), self._specs())
-        trades: list[SimTrade] = []
-        result = ReplayResult()
-        for symbol in chosen:
-            frame = fast.candles.load_candles(symbol, self.cfg.outcomes["candle_timeframe"])
-            r = replay_symbol(symbol, begin, finish, self.cfg, builder, frame, [template] if template else None, progress)
-            trades += r.trades
-            result.steps += r.steps
-            result.candidates += r.candidates
-            result.open_at_end += r.open_at_end
-            for k, v in r.blocked.items():
-                result.blocked[k] = result.blocked.get(k, 0) + v
+        trades, result = self.replay_trades(begin, finish, chosen, [template] if template else None, progress)
         rep = report(trades, self.cfg.sizing["default_risk_pct"], bt["account_start"], split, bt["small_sample"])
         rep["details"].update(steps=result.steps, candidates_seen=result.candidates, blocked_by_gate=result.blocked,
                               still_open_at_end=result.open_at_end, slippage_r=bt["slippage_r"], ai_reviewer="not used in backtests",
                               disclaimer="Simulated on stored history with stated assumptions. Past results do not predict future results.")
         uid = self.repo.save_backtest(self.cfg.fingerprint, chosen, begin, finish, split, rep, trades)
         return {**rep, "run": {"id": uid, "symbols": chosen, "from": begin, "to": finish}}
+
+    def replay_trades(self, begin: datetime, finish: datetime, symbols: list[str], templates: list[str] | None = None,
+                      progress: Callable[[str], None] | None = None, cfg: Any = None) -> tuple[list[SimTrade], ReplayResult]:
+        """Replay the engine (``cfg``, default this service's) over stored history; the simulated trades and the counts."""
+        cfg = cfg or self.cfg
+        fast = ReplayTechnical(self.technical)
+        builder = ContextBuilder(cfg, fast, IntelligenceAdapter(self.intelligence, include_module03=False), NullAccount(),
+                                 NullLearning(), SpreadSource(fast.candles, cache=True), self._specs())
+        trades: list[SimTrade] = []
+        result = ReplayResult()
+        for symbol in symbols:
+            frame = fast.candles.load_candles(symbol, cfg.outcomes["candle_timeframe"])
+            r = replay_symbol(symbol, begin, finish, cfg, builder, frame, templates, progress)
+            trades += r.trades
+            result.steps += r.steps
+            result.candidates += r.candidates
+            result.open_at_end += r.open_at_end
+            for k, v in r.blocked.items():
+                result.blocked[k] = result.blocked.get(k, 0) + v
+        return trades, result
+
+    def benchmark(self, start: date | datetime, end: date | datetime, profiles: list[str], symbols: list[str] | None = None,
+                  progress: Callable[[str], None] | None = None) -> dict[str, Any]:
+        """Replay each named profile (aurum/decision/backtest/benchmark.py) on the same history and compare it with the
+        frozen baseline under several cost scenarios. Nothing is stored; the report is returned."""
+        from .backtest import benchmark as bm
+        self._require_schema()
+        begin, finish = _day(start), _day(end)
+        chosen = [s.upper() for s in symbols] if symbols else self.symbols()
+        wanted = list(dict.fromkeys(["baseline", *profiles]))
+        results: dict[str, list[SimTrade]] = {}
+        stats: dict[str, dict[str, Any]] = {}
+        for name in wanted:
+            if name in bm.TEMPLATE_ONLY:
+                rules, templates = bm.TEMPLATE_ONLY[name]
+                cfg = with_overrides(self.cfg, bm.PROFILES[rules])
+            elif name in bm.PROFILES:
+                cfg, templates = with_overrides(self.cfg, bm.PROFILES[name]), None
+            else:
+                raise ValueError(f"Unknown profile {name!r}. Use: {', '.join([*bm.PROFILES, *bm.TEMPLATE_ONLY])}.")
+            say = (lambda m, n=name: progress(f"[{n}] {m}")) if progress else None
+            trades, r = self.replay_trades(begin, finish, chosen, templates, say, cfg)
+            results[name] = trades
+            stats[name] = {"steps": r.steps, "candidates_seen": r.candidates, "blocked_by_gate": r.blocked,
+                           "still_open_at_end": r.open_at_end}
+        out = bm.report(results, stats)
+        out["run"] = {"symbols": chosen, "from": begin, "to": finish, "profiles": wanted}
+        out["trades"] = {n: [t.__dict__ for t in ts] for n, ts in results.items()}
+        return out
+
+    def performance(self) -> dict[str, Any]:
+        """Live (hypothetical) results kept separately for recommended setups (grade A/B, not rejected by a gate or the AI
+        reviewer) and research candidates (grade C/D and everything a gate or the AI reviewer rejected), each split by
+        template. A grade band that loses is visible on its own instead of hiding inside one total."""
+        self._require_schema()
+
+        def kind(r: dict[str, Any]) -> str:
+            by = r["rejected_by"] or ""
+            if r["grade"] in ("A", "B") and not (by.startswith("gate:") or by == "ai_reviewer"):
+                return "recommended"
+            return "research"
+
+        def stats(rows: list[dict[str, Any]]) -> dict[str, Any]:
+            done = [r for r in rows if r["filled"] and r["result"] not in (None, "open") and r["r_multiple"] is not None]
+            wins = [r["r_multiple"] for r in done if r["r_multiple"] > 0]
+            losses = [r["r_multiple"] for r in done if r["r_multiple"] <= 0]
+            gl = -sum(losses)
+            return {"signals": len(rows), "triggered": sum(1 for r in rows if r["filled"]), "closed": len(done),
+                    "take_profit": sum(1 for r in done if r["result"] == "tp"), "stop_loss": sum(1 for r in done if r["result"] in ("sl", "ambiguous")),
+                    "win_rate": round(len(wins) / len(done) * 100, 1) if done else None, "net_r": round(sum(wins) + sum(losses), 2),
+                    "profit_factor": round(sum(wins) / gl, 2) if gl > 0 else None}
+
+        rows = self.repo.outcome_rows()
+        out: dict[str, Any] = {}
+        for name in ("recommended", "research"):
+            group = [r for r in rows if kind(r) == name]
+            by_template: dict[str, list[dict[str, Any]]] = {}
+            for r in group:
+                by_template.setdefault(r["template"], []).append(r)
+            out[name] = {**stats(group), "by_template": {t: stats(v) for t, v in sorted(by_template.items())}}
+        out["definition"] = {"recommended": "grade A or B, not rejected by a gate or the AI reviewer",
+                             "research": "grade C or lower, or rejected by a gate or the AI reviewer"}
+        out["disclaimer"] = "Hypothetical outcomes from stored candles; AURUM AI places no trades. Small samples mean little."
+        return out
 
     def latest_backtest(self) -> dict[str, Any] | None:
         self._require_schema()
