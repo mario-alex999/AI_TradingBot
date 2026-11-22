@@ -14,7 +14,9 @@ reported as missing when they do not.
 
 1. Builds one `DecisionContext` per symbol from Modules 01-04 as of a given time.
 2. Assesses the regime and the weighted bias across D1, H4, H1, M15 and M5.
-3. Runs eight strategy templates. Each gives a candidate or a stated reason it found nothing. Stops and targets are
+3. Runs eight strategy templates. Each gives a candidate or a stated reason it found nothing. Stops are at least 1 ATR
+   from the entry, one candidate is kept per idea, and weak counter-trend reversals are dropped (see
+   [STRATEGIES](STRATEGIES.md)). Stops and targets are
    placed on the instrument's price grid (multiples of its tick size), because the broker accepts no other price and
    Module 06 blocks any other price (R013). A stop is rounded away from the entry, so it stays beyond the level it
    protects. A target is rounded toward the entry, so the reward is never overstated. Risk-reward is calculated from
@@ -48,7 +50,8 @@ labelling every 5 minutes (step `signal_outcomes`); elsewhere run `python -m aur
 
 Each outcome stores when the entry was reached (`filled_at`), the exit price and time, the result in R, and the best and
 worst move against the entry (in R). `GET /analysis/signals` and the dossier return it as `outcome`, with `entryPrice`.
-The AI Signals page shows it on every card, sums up the results with a win rate, filters by result, and draws the trigger
+The AI Signals page shows it on every card, sums up the results with a win rate (by default only recommended setups:
+grade A or B, not rejected by a gate or the AI reviewer; each idea counted once; a switch shows all candidates), filters by result, and draws the trigger
 and the exit on the chart, where the position boxes end at the exit. Every outcome is **hypothetical**: AURUM places no
 trades, and labels are labels, not fills.
 
