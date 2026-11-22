@@ -26,8 +26,9 @@ from .ai_reviewer.providers import providers as provider_list
 from .ai_reviewer.schema import final_confidence
 from .backtest.cache import ReplayTechnical
 from .backtest.metrics import SimTrade, report
-from .backtest.replay import ReplayResult, candidates_at, replay_symbol
-from .candidates.setups import Candidate, generate
+from .backtest.replay import ReplayResult, candidates_at, replay_symbol, select_candidates
+from .selection import covered_by
+from .candidates.setups import Candidate, Skip, generate
 from .candidates.sizing import suggest_volume
 from .config import DecisionConfig, load_decision_config, with_overrides
 from .context import ContextBuilder, DecisionContext
@@ -125,12 +126,24 @@ class DecisionService:
         self.expire_stale(now)
         ctx = self.builder.build(symbol, t)
         found, skipped = generate(ctx, self.cfg, None, timeframes)
-        scored = candidates_at(ctx, self.cfg, None, timeframes) if found else []
+        scored, dropped = select_candidates(ctx, self.cfg, None, timeframes) if found else ([], [])
+        skipped = [*skipped, *dropped]
+        live = self.repo.active(ctx.symbol)
+        fresh = []
+        for c, s in scored:     # one signal per idea across runs too: an earlier live signal already covers this zone
+            a = ctx.analyses.get(c.timeframe)
+            other = covered_by(c, live, self.cfg.selection["overlap_atr"] * float(getattr(a, "atr", 0.0) or 0.0))
+            if other is not None and self.cfg.selection["dedupe"]:
+                skipped.append(Skip(c.template, c.timeframe, f"Already covered by live signal {other['candidate_uid']} "
+                                                             f"({other['template']} {other['timeframe']})."))
+            else:
+                fresh.append((c, s))
+        scored = fresh
         run_uid = self.repo.save_run(symbol=ctx.symbol, as_of=t, mode="live", engine_version=ENGINE_VERSION,
                                      config_fingerprint=self.cfg.fingerprint, input_hash=ctx.input_hash, availability=ctx.availability,
                                      status="ok" if scored else "no_setup",
                                      summary={"candidates": len(scored), "skipped": [s.__dict__ for s in skipped]})
-        pending = [{"symbol": a["symbol"], "direction": a["direction"], "key": a["idempotent_key"]} for a in self.repo.active(ctx.symbol)]
+        pending = [{"symbol": a["symbol"], "direction": a["direction"], "key": a["idempotent_key"]} for a in live]
         published: list[dict[str, Any]] = []
         assessed: list[Assessed] = []
         for c, s in scored:

@@ -32,6 +32,19 @@ gates:
     premium_discount_ote:
       GBPUSD: [asian]
 
+# Stops: never closer than min_stop_atr x ATR of the entry timeframe. A structure stop inside that distance is widened,
+# and the target must still give gates.min_rr from the wider stop. (17 Nov 2026: 2-pip stops gave 0 TP / 12 SL.)
+levels:
+  min_stop_atr: 1.0
+
+# Which candidates become signals (live and backtest alike).
+selection:
+  dedupe: true            # one signal per idea: same direction, entry zones overlapping (within overlap_atr x ATR)
+  overlap_atr: 0.5
+  # A reversal against every higher timeframe (D1 and H4) needs one of these grades.
+  counter_trend_templates: [choch_reversal, liquidity_sweep_reversal, range_edge_rejection]
+  counter_trend_min_grades: [A, B]
+
 sizing:
   default_risk_pct: 0.5
 

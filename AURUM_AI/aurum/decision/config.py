@@ -32,9 +32,16 @@ DEFAULTS: dict[str, Any] = {
         "range_edge_rejection": {"enabled": True, "require_alignment": False, "expiry_candles": 12, "min_zone_score": 60.0,
                                  "max_distance_atr": 0.5, "expanding_regimes": ["HIGH", "VERY_HIGH"]},
     },
-    "levels": {"stop_buffer_atr": 0.15, "max_stop_atr": 4.0, "target_level_types": ["previous_day_high", "previous_day_low",
+    "levels": {"stop_buffer_atr": 0.15, "min_stop_atr": 1.0, "max_stop_atr": 4.0, "target_level_types": ["previous_day_high", "previous_day_low",
                                                                                     "previous_week_high", "previous_week_low"]},
     "sizing": {"default_risk_pct": 0.5},
+    # Which candidates become signals (aurum/decision/selection.py), the same in live runs and the backtest.
+    "selection": {
+        "dedupe": True,                  # one signal per idea: same direction and overlapping entry zones
+        "overlap_atr": 0.5,              # zones closer than this many ATR count as overlapping
+        "counter_trend_templates": ["choch_reversal", "liquidity_sweep_reversal", "range_edge_rejection"],
+        "counter_trend_min_grades": ["A", "B"],   # a reversal against every higher timeframe needs one of these
+    },
     "regime": {"timeframe": "H1", "confirm_timeframe": "H4", "breakout_max_age_candles": 5, "reversal_max_age_candles": 8, "expansion_regimes": ["HIGH", "VERY_HIGH"],
                "contraction_regimes": ["LOW", "VERY_LOW"]},
     "bias": {"timeframes": ["D1", "H4", "H1", "M15", "M5"], "weights": {"D1": 5.0, "H4": 4.0, "H1": 3.0, "M15": 2.0, "M5": 1.0},
@@ -108,6 +115,8 @@ class DecisionConfig:
 
 def build_config(overrides: dict[str, Any] | None = None) -> DecisionConfig:
     data = _merge(DEFAULTS, overrides or {})
+    if not 0 <= data["levels"]["min_stop_atr"] < data["levels"]["max_stop_atr"]:
+        raise DecisionConfigError("levels.min_stop_atr must be at least 0 and below levels.max_stop_atr")
     if data["gates"]["min_rr"] <= 0:
         raise DecisionConfigError("gates.min_rr must be positive")
     if sum(data["score"]["weights"].values()) != 100.0:

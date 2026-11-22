@@ -21,6 +21,7 @@ from aurum.decision.gates import first_failure, run_gates
 from aurum.decision.outcomes import label
 from aurum.decision.regime import assess_regime
 from aurum.decision.scoring import score
+from aurum.decision.selection import select
 from aurum.learning.features import session_of
 
 from .metrics import SimTrade
@@ -46,11 +47,19 @@ def time_steps(start: datetime, end: datetime, timeframe: str) -> list[datetime]
     return out
 
 
+def select_candidates(ctx: DecisionContext, cfg: DecisionConfig, templates: Iterable[str] | None = None,
+                      timeframes: Iterable[str] | None = None) -> tuple[list[tuple[Candidate, Any]], list[Any]]:
+    """Scored candidates, strongest first, after the selection rules (aurum/decision/selection.py), and the ones those
+    rules dropped. Shared by replay and live runs."""
+    found, _ = generate(ctx, cfg, templates, timeframes)
+    ranked = sorted(((c, score(ctx, c, cfg)) for c in found), key=lambda x: (-x[1].confidence, x[0].key))
+    return select(ctx, cfg, ranked)
+
+
 def candidates_at(ctx: DecisionContext, cfg: DecisionConfig, templates: Iterable[str] | None = None,
                   timeframes: Iterable[str] | None = None) -> list[tuple[Candidate, Any]]:
-    """Candidates with their scores, strongest first. Shared by replay and live runs."""
-    found, _ = generate(ctx, cfg, templates, timeframes)
-    return sorted(((c, score(ctx, c, cfg)) for c in found), key=lambda x: (-x[1].confidence, x[0].key))
+    """Candidates with their scores, strongest first, after the selection rules."""
+    return select_candidates(ctx, cfg, templates, timeframes)[0]
 
 
 def cost_in_r(c: Candidate, spread_price: float | None, slippage_r: float, commission_r: float = 0.0) -> float:

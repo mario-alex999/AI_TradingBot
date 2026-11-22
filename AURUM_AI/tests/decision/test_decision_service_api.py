@@ -52,7 +52,7 @@ def test_no_setup_is_reported_with_reasons(tmp_path):
 def test_repeated_runs_update_the_same_candidate(tmp_path):
     svc, _ = service(tmp_path)
     ids = {first(svc)["id"] for _ in range(3)}
-    assert len(ids) == 1 and len(svc.signals()) == 2      # the fixture also matches bos_continuation
+    assert len(ids) == 1 and len(svc.signals()) == 1      # bos_continuation finds the same zone: one idea, one signal
     assert len(svc.dossier(ids.pop())["gates"]) == 9
 
 
@@ -92,8 +92,11 @@ def test_the_stronger_candidate_wins_the_duplication_gate(tmp_path):
     a.order_blocks[1].state = "partially_mitigated"
     svc, _ = service(tmp_path, context(a))
     r = svc.run("EURUSD")
-    assert len([s for s in r["signals"] if s["strategy"] == "order_block_continuation"]) == 1   # one zone per timeframe
-    assert sorted(s["status"] for s in r["signals"]) == ["new", "rejected"]                     # the weaker long is the duplicate
+    # The order block and the BOS retest are the same long idea (overlapping zones): only the stronger is published, and
+    # the other is not stored as a rejected signal that would count as an extra trade.
+    assert [s["status"] for s in r["signals"]] == ["new"]
+    assert [sk["template"] for sk in r["skipped"] if "Same idea as" in sk["reason"]] == ["order_block_continuation"]
+    assert len(svc.signals()) == 1
 
 
 # ---- human decisions
@@ -173,7 +176,7 @@ def test_outcomes_are_labelled_from_stored_candles(tmp_path):
     svc, _ = service(tmp_path)
     uid = first(svc)["id"]
     svc.technical.candles.frames[("EURUSD", "M5")] = frame([(1.1010, 1.0999, 1.1003), (1.1050, 1.1000, 1.1045)])
-    assert svc.update_outcomes() == {"tp": 2}
+    assert svc.update_outcomes() == {"tp": 1}                                       # one idea, labelled once
     o = svc.dossier(uid)["outcome"]
     assert o["filled"] and o["result"] == "tp" and o["r_multiple"] > 2
     assert o["state"] == "take_profit" and o["filled_at"] is not None and o["exit_price"] == svc.dossier(uid)["take_profit"]
@@ -235,7 +238,8 @@ def test_signals_match_the_trade_signal_contract_exactly(api):
     first(svc)
     rows = client.get("/api/v1/analysis/signals").json()
     assert set(rows[0]) == {"id", "instrument", "direction", "entryZone", "stopLoss", "takeProfit", "riskReward", "strategy", "timeframe",
-                            "marketCondition", "confidence", "evidence", "timestamp", "status", "entryPrice", "outcome"}
+                            "marketCondition", "confidence", "evidence", "timestamp", "status", "entryPrice", "outcome", "grade",
+                            "rejectedBy"}
     assert len(rows[0]["entryZone"]) == 2 and isinstance(rows[0]["evidence"][0], str)
     assert rows[0]["entryPrice"] == (rows[0]["entryZone"][0] + rows[0]["entryZone"][1]) / 2
     assert rows[0]["outcome"]["state"] == "pending" and rows[0]["outcome"]["filledAt"] is None   # not labelled yet
@@ -551,3 +555,17 @@ def test_live_review_returns_a_valid_answer(tmp_path):
     svc.ai._client = None
     d = svc.dossier(first(svc)["id"])
     assert d["ai_review"]["status"] == "reviewed", d["ai_review"]
+
+
+def test_a_later_run_does_not_republish_the_same_idea(tmp_path):
+    """17 Nov 2026: the same XAUUSD and GBPUSD longs were published again 15 minutes later with slightly moved levels."""
+    from aurum.decision.config import build_config
+    ctx = ob_setup()
+    svc, _ = service(tmp_path, ctx, cfg=build_config({"templates": {"bos_continuation": {"enabled": False}}}))
+    first_id = first(svc)["id"]
+    zone = ctx.analyses["H1"].order_blocks[0]
+    zone.id = "ob-redrawn"                                             # a new zone id (a new key), about the same place
+    zone.current_top, zone.current_bottom = zone.current_top + 0.0002, zone.current_bottom + 0.0002
+    r = svc.run("EURUSD")
+    assert r["signals"] == [] and any("Already covered by live signal " + first_id in s["reason"] for s in r["skipped"])
+    assert [s["id"] for s in svc.signals()] == [first_id]

@@ -45,14 +45,49 @@ def test_shipped_yaml_loads():
 
 
 # ------------------------------------------------------------------------------------ templates
+NO_MIN_STOP = build_config({"levels": {"min_stop_atr": 0.0}})       # the structure stop alone, without the 1 ATR floor
+
+
 def test_order_block_continuation_finds_a_long_with_levels_from_the_zone():
     ctx = ob_setup()
-    c = order_block_continuation(ctx, ctx.analyses["H1"], CFG)
+    c = order_block_continuation(ctx, ctx.analyses["H1"], NO_MIN_STOP)
     assert isinstance(c, Candidate) and c.direction == "long"
     assert (c.entry_low, c.entry_high) == (1.0995, 1.1005)
     assert c.stop_loss == pytest.approx(1.0995 - 0.00015 - 0.00008)       # distal edge, ATR buffer, spread
     assert c.take_profit == 1.1040 and c.risk_reward >= 2
     assert {s["kind"] for s in c.sources} >= {"order_block", "BOS with displacement"}
+
+
+# ---- minimum stop distance (17 Nov 2026: 2-pip stops were hit inside normal noise, 0 TP / 12 SL)
+def test_a_stop_closer_than_one_atr_is_widened_to_one_atr():
+    ctx = ob_setup()                                                       # ATR 0.0010; structure stop 7.3 pips away
+    c = order_block_continuation(ctx, ctx.analyses["H1"], CFG)
+    assert isinstance(c, Candidate)
+    assert c.stop_loss == pytest.approx(c.entry_mid - 0.0010)              # 1.0990: exactly 1 ATR below the 1.1000 entry
+    assert c.risk_reward == round(lv.risk_reward(c.entry_mid, c.stop_loss, c.take_profit), 2) >= 2
+    assert "stop widened to the 1 ATR minimum" in {s["kind"] for s in c.sources}
+
+
+def test_a_widened_stop_still_needs_the_minimum_reward():
+    ctx = ob_setup()
+    c = order_block_continuation(ctx, ctx.analyses["H1"], build_config({"levels": {"min_stop_atr": 3.0}}))
+    assert isinstance(c, Candidate) and c.stop_loss == pytest.approx(c.entry_mid - 0.0030)
+    assert c.take_profit != 1.1040 and c.risk_reward >= 2               # the 40-pip target no longer pays 2R: a farther one
+    nowhere = replace(ctx, intelligence=None)
+    only_near = order_block_continuation(nowhere, nowhere.analyses["H1"], build_config({"levels": {"min_stop_atr": 3.9}}))
+    assert isinstance(only_near, str) or only_near.risk_reward >= 2
+
+
+def test_a_structure_stop_already_wider_than_the_minimum_is_unchanged():
+    ctx = ob_setup()
+    wide = order_block_continuation(ctx, ctx.analyses["H1"], build_config({"levels": {"min_stop_atr": 0.5}}))
+    assert wide.stop_loss == pytest.approx(1.0995 - 0.00015 - 0.00008)    # 7.3 pips > 5 pips: structure wins
+    assert "stop widened" not in str(wide.sources)
+
+
+def test_min_stop_must_be_below_max_stop():
+    with pytest.raises(DecisionConfigError):
+        build_config({"levels": {"min_stop_atr": 5.0}})
 
 
 @pytest.mark.parametrize("change,needle", [
@@ -738,7 +773,7 @@ def test_stops_and_targets_are_on_the_tick_grid_and_never_tighter_or_richer():
 def test_every_candidate_leaves_module_05_on_the_tick_grid():
     from decimal import Decimal
     ctx = replace(ob_setup(), spec={**SPEC, "tick_size": 0.0001})                # a coarser grid than the computed stop
-    c = order_block_continuation(ctx, ctx.analyses["H1"], CFG)
+    c = order_block_continuation(ctx, ctx.analyses["H1"], NO_MIN_STOP)
     assert isinstance(c, Candidate), c
     assert c.stop_loss == 1.0992                                                  # 1.09927 moved away from the entry
     for price in (c.stop_loss, c.take_profit, *([c.take_profit2] if c.take_profit2 else [])):

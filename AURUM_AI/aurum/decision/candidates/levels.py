@@ -31,7 +31,7 @@ def to_tick(price: float, tick: float | None, toward: str) -> float:
     size the price is returned unchanged (Module 06 then reports the missing specification)."""
     if not tick or tick <= 0:
         return price
-    p, t = Decimal(repr(price)), Decimal(repr(tick))
+    p, t = Decimal(repr(float(price))), Decimal(repr(float(tick)))     # float(): numpy values repr as "np.float64(...)"
     steps = (p / t).to_integral_value(rounding=ROUND_CEILING if toward == "up" else ROUND_FLOOR)
     return float(steps * t)
 
