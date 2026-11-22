@@ -10,7 +10,7 @@ from decision_helpers import T
 
 from aurum.decision.candidates.setups import Candidate
 from aurum.decision.config import build_config
-from aurum.decision.selection import covered_by, select
+from aurum.decision.selection import covered_by, one_per_idea, select
 
 CFG = build_config()
 
@@ -31,31 +31,55 @@ def sc(grade, conf=50.0):
     return NS(grade=grade, confidence=conf)
 
 
-# ---- one signal per idea
+# ---- one signal per idea (after the gates)
+def passing(*pairs):
+    return [(c, sc_, True) for c, sc_ in pairs]
+
+
 def test_same_zone_from_several_templates_is_one_signal():
     a, b, c = cand(), cand("fair_value_gap_retracement", low=1.0997, high=1.1003), cand("premium_discount_ote", tf="M15")
-    kept, dropped = select(ctx("bullish", "bullish"), CFG, [(a, sc("B", 70)), (b, sc("C", 55)), (c, sc("C", 50))])
-    assert [k.template for k, _ in kept] == ["order_block_continuation"]              # the strongest (first) stays
+    kept, dropped = one_per_idea(ctx("bullish", "bullish"), CFG, passing((a, sc("B", 70)), (b, sc("C", 55)), (c, sc("C", 50))))
+    assert [k.template for k, _, _ in kept] == ["order_block_continuation"]           # the strongest (first) stays
     assert [d.template for d in dropped] == ["fair_value_gap_retracement", "premium_discount_ote"]
     assert all("Same idea as order_block_continuation H1" in d.reason for d in dropped)
+
+
+def test_a_copy_that_passes_the_gates_beats_a_stronger_one_that_fails():
+    """The 22 Nov version chose before the gates: when the chosen copy failed a gate, the whole idea was lost
+    (benchmark 10-20 Nov: +57.9R baseline, +20.0R with that rule)."""
+    strong_but_blocked, weaker_ok = cand(), cand("fair_value_gap_retracement", low=1.0997, high=1.1003)
+    kept, dropped = one_per_idea(ctx("bullish", "bullish"), CFG,
+                                 [(strong_but_blocked, sc("B", 70), False), (weaker_ok, sc("C", 55), True)])
+    assert [k.template for k, _, _ in kept] == ["fair_value_gap_retracement"]
+    assert dropped[0].template == "order_block_continuation"
+
+
+def test_an_idea_that_fails_every_gate_keeps_one_record():
+    kept, dropped = one_per_idea(ctx(), CFG, [(cand(), sc("B", 70), False), (cand("fair_value_gap_retracement"), sc("C"), False)])
+    assert len(kept) == 1 and len(dropped) == 1
 
 
 def test_zones_closer_than_half_an_atr_count_as_the_same_idea():
     near = cand(low=1.1009, high=1.1015)                       # 4 pips above, ATR 10 pips: within 0.5 ATR
     far = cand(low=1.1030, high=1.1040, zone="z2")             # 25 pips above: a different idea
-    kept, _ = select(ctx("bullish", "bullish"), CFG, [(cand(), sc("B")), (near, sc("C")), (far, sc("C"))])
-    assert [(k.entry_low, k.zone_id) for k, _ in kept] == [(1.0995, "z1"), (1.1030, "z2")]
+    kept, _ = one_per_idea(ctx("bullish", "bullish"), CFG, passing((cand(), sc("B")), (near, sc("C")), (far, sc("C"))))
+    assert [(k.entry_low, k.zone_id) for k, _, _ in kept] == [(1.0995, "z1"), (1.1030, "z2")]
 
 
 def test_opposite_directions_are_different_ideas():
-    kept, dropped = select(ctx(None, None), CFG, [(cand(), sc("B")), (cand(direction="short"), sc("B"))])
+    kept, dropped = one_per_idea(ctx(None, None), CFG, passing((cand(), sc("B")), (cand(direction="short"), sc("B"))))
     assert len(kept) == 2 and dropped == []
 
 
 def test_dedupe_can_be_switched_off():
     off = build_config({"selection": {"dedupe": False}})
-    kept, _ = select(ctx("bullish", "bullish"), off, [(cand(), sc("B")), (cand("fair_value_gap_retracement"), sc("B"))])
+    kept, _ = one_per_idea(ctx("bullish", "bullish"), off, passing((cand(), sc("B")), (cand("fair_value_gap_retracement"), sc("B"))))
     assert len(kept) == 2
+
+
+def test_selection_before_the_gates_no_longer_drops_copies():
+    kept, dropped = select(ctx("bullish", "bullish"), CFG, [(cand(), sc("B")), (cand("fair_value_gap_retracement"), sc("C"))])
+    assert len(kept) == 2 and dropped == []
 
 
 # ---- counter-trend reversals

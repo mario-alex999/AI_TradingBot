@@ -27,7 +27,7 @@ from .ai_reviewer.schema import final_confidence
 from .backtest.cache import ReplayTechnical
 from .backtest.metrics import SimTrade, report
 from .backtest.replay import ReplayResult, candidates_at, replay_symbol, select_candidates
-from .selection import covered_by
+from .selection import covered_by, one_per_idea
 from .candidates.setups import Candidate, Skip, generate
 from .candidates.sizing import suggest_volume
 from .config import DecisionConfig, load_decision_config, with_overrides
@@ -138,7 +138,12 @@ class DecisionService:
                                                              f"({other['template']} {other['timeframe']})."))
             else:
                 fresh.append((c, s))
-        scored = fresh
+        # One signal per idea, chosen after the gates: prefer a copy that passes them (see selection.one_per_idea).
+        start = [{"symbol": a["symbol"], "direction": a["direction"], "key": a["idempotent_key"]} for a in live]
+        flagged = [(c, s, first_failure(run_gates(ctx, c, self.cfg, start)) is None) for c, s in fresh]
+        picked, copies = one_per_idea(ctx, self.cfg, flagged)
+        skipped = [*skipped, *copies]
+        scored = [(c, s) for c, s, _ in picked]
         run_uid = self.repo.save_run(symbol=ctx.symbol, as_of=t, mode="live", engine_version=ENGINE_VERSION,
                                      config_fingerprint=self.cfg.fingerprint, input_hash=ctx.input_hash, availability=ctx.availability,
                                      status="ok" if scored else "no_setup",
